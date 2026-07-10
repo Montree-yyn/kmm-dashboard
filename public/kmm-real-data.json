@@ -1,0 +1,902 @@
+{
+  "meta": {
+    "company": "KUBOTA MAESOD MYANMAR",
+    "shortName": "KMM",
+    "title": "Half-Year Executive Review 2026",
+    "period": "H1 2026 | Jan-Jun",
+    "dataStatus": "Real Excel data generated 2026-07-07 22:30",
+    "sources": [
+      "01_Data/Sales/Sales KPI.xlsx",
+      "01_Data/Sales/2026_KMM_CPI copy.xlsx",
+      "01_Data/Booking/KMMF3002 KMM Booking Data.2.xlsx",
+      "01_Data/Stock/2026_KMM_R2_STOCK.xlsx",
+      "01_Data/Marketing/2026_HY1_KMM MARKETING.pptx"
+    ]
+  },
+  "nav": [
+    [
+      "summary",
+      "Summary"
+    ],
+    [
+      "kpi",
+      "KPI"
+    ],
+    [
+      "sales",
+      "Sales"
+    ],
+    [
+      "booking",
+      "Booking"
+    ],
+    [
+      "finance",
+      "Revenue & GP"
+    ],
+    [
+      "inventory",
+      "Inventory"
+    ],
+    [
+      "strategy",
+      "H2 Strategy"
+    ]
+  ],
+  "executiveSummary": [
+    {
+      "title": "H1 result",
+      "metric": "309",
+      "unit": "sales rows",
+      "message": "Volume is trackable against a 335-unit H1 plan.",
+      "decision": "Confirm product scope for target achievement."
+    },
+    {
+      "title": "Revenue actual",
+      "metric": "23.16B",
+      "unit": "MMK final received",
+      "message": "GP1 is 2.05B before finance sign-off.",
+      "decision": "Confirm official revenue and GP definitions."
+    },
+    {
+      "title": "Biggest risk",
+      "metric": "506",
+      "unit": "91+ stock rows",
+      "message": "Aged inventory is the clearest H2 operating pressure.",
+      "decision": "Approve model-level clearance plan."
+    },
+    {
+      "title": "Booking backlog",
+      "metric": "59",
+      "unit": "H1 rows without Month Out",
+      "message": "74 H1 bookings are marked cancelled.",
+      "decision": "Clean booking status weekly."
+    }
+  ],
+  "kpis": [
+    {
+      "label": "Sales Units",
+      "value": "309",
+      "unit": "units / rows",
+      "comparison": "-26 vs H1 plan",
+      "status": "Actual",
+      "sparkline": [
+        106,
+        69,
+        54,
+        19,
+        34,
+        27
+      ],
+      "progress": 92,
+      "target": 100
+    },
+    {
+      "label": "Booking",
+      "value": "266",
+      "unit": "H1 booking rows",
+      "comparison": "59 open / 74 cancelled",
+      "status": "Actual",
+      "sparkline": [
+        66,
+        63,
+        28,
+        10,
+        44,
+        55
+      ],
+      "progress": 50,
+      "target": 100
+    },
+    {
+      "label": "Final Received",
+      "value": "23.16B",
+      "unit": "MMK",
+      "comparison": "47% of H1 revenue plan",
+      "status": "Actual field",
+      "sparkline": [
+        7.9,
+        4.83,
+        4.11,
+        0.95,
+        2.31,
+        3.06
+      ],
+      "progress": 47,
+      "target": 100
+    },
+    {
+      "label": "GP1",
+      "value": "2.05B",
+      "unit": "MMK",
+      "comparison": "8.9% GP1 / Final Received",
+      "status": "Actual field",
+      "sparkline": [
+        0.77,
+        0.38,
+        0.34,
+        0.1,
+        0.18,
+        0.28
+      ],
+      "progress": 89,
+      "target": 100
+    },
+    {
+      "label": "Aged Stock",
+      "value": "506",
+      "unit": "rows marked 91+",
+      "comparison": "83% of stock rows",
+      "status": "High risk",
+      "sparkline": [
+        53,
+        85,
+        99,
+        286,
+        351,
+        605
+      ],
+      "progress": 83,
+      "target": 45
+    }
+  ],
+  "sales": {
+    "months": [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun"
+    ],
+    "actual": [
+      106,
+      69,
+      54,
+      19,
+      34,
+      27
+    ],
+    "plan": [
+      55,
+      55,
+      60,
+      50,
+      60,
+      55
+    ],
+    "revenue": [
+      7.9,
+      4.83,
+      4.11,
+      0.95,
+      2.31,
+      3.06
+    ],
+    "gp": [
+      0.77,
+      0.38,
+      0.34,
+      0.1,
+      0.18,
+      0.28
+    ],
+    "insight": "H1 sales closed at 309 units, -26 versus plan; January was the strongest month.",
+    "decision": "Set H2 run-rate by branch and product, using actual delivered rows as the control metric."
+  },
+  "booking": {
+    "summary": [
+      {
+        "label": "Total H1 Booking",
+        "value": "266",
+        "unit": "rows"
+      },
+      {
+        "label": "Converted Marker",
+        "value": "133",
+        "unit": "rows with Month Out"
+      },
+      {
+        "label": "Cancellation Marker",
+        "value": "74",
+        "unit": "CANCLE rows",
+        "risk": true
+      },
+      {
+        "label": "Open Backlog",
+        "value": "59",
+        "unit": "blank Month Out"
+      }
+    ],
+    "trend": [
+      66,
+      63,
+      28,
+      10,
+      44,
+      55
+    ],
+    "statuses": [
+      {
+        "status": "Converted / out",
+        "count": 133,
+        "use": "Delivery and sales follow-up"
+      },
+      {
+        "status": "Open",
+        "count": 59,
+        "use": "H2 opportunity"
+      },
+      {
+        "status": "Cancelled",
+        "count": 74,
+        "use": "Root-cause action"
+      }
+    ],
+    "aging": [
+      {
+        "name": "Converted",
+        "value": 133
+      },
+      {
+        "name": "Open",
+        "value": 59
+      },
+      {
+        "name": "Cancelled",
+        "value": 74
+      },
+      {
+        "name": "Other coded",
+        "value": 0
+      }
+    ]
+  },
+  "finance": {
+    "waterfall": [
+      {
+        "label": "Plan Rev",
+        "value": "49.45B",
+        "height": 100,
+        "type": "positive"
+      },
+      {
+        "label": "Net Rev",
+        "value": "22.07B",
+        "height": 45,
+        "type": "neutral"
+      },
+      {
+        "label": "Final Rec",
+        "value": "23.16B",
+        "height": 47,
+        "type": "neutral"
+      },
+      {
+        "label": "GP1",
+        "value": "2.05B",
+        "height": 9,
+        "type": "positive"
+      },
+      {
+        "label": "Expense",
+        "value": "1.68B",
+        "height": 7,
+        "type": "missing"
+      }
+    ],
+    "decisions": [
+      "Confirm whether Final Received or Net Received is official revenue.",
+      "Use GP1 from CPI for branch/product accountability after finance sign-off.",
+      "Confirm expense treatment before margin decisions."
+    ]
+  },
+  "branches": [
+    {
+      "name": "KMM03",
+      "sales": 189,
+      "booking": 169,
+      "stockRows": 154,
+      "msrp": "15.40B",
+      "action": "Protect momentum",
+      "heat": [
+        "High",
+        "High",
+        "Med"
+      ]
+    },
+    {
+      "name": "KMM02",
+      "sales": 102,
+      "booking": 83,
+      "stockRows": 282,
+      "msrp": "6.58B",
+      "action": "Diagnose gap",
+      "heat": [
+        "Med",
+        "Med",
+        "High"
+      ]
+    },
+    {
+      "name": "KMM01",
+      "sales": 18,
+      "booking": 14,
+      "stockRows": 169,
+      "msrp": "1.18B",
+      "action": "Diagnose gap",
+      "heat": [
+        "Low",
+        "Low",
+        "Med"
+      ]
+    }
+  ],
+  "salesmen": [
+    {
+      "name": "KMM",
+      "value": 45
+    },
+    {
+      "name": "02-Htun Aung",
+      "value": 39
+    },
+    {
+      "name": "03-Hla Myo",
+      "value": 38
+    },
+    {
+      "name": "02-Bo Bo",
+      "value": 35
+    },
+    {
+      "name": "03-Nandar",
+      "value": 30
+    },
+    {
+      "name": "03-Lin Aung",
+      "value": 18
+    }
+  ],
+  "products": {
+    "summary": [
+      {
+        "label": "06-IM",
+        "value": 125
+      },
+      {
+        "label": "01-TT",
+        "value": 110
+      },
+      {
+        "label": "02-CH",
+        "value": 34
+      },
+      {
+        "label": "Missing",
+        "value": 22
+      }
+    ],
+    "ranking": [
+      {
+        "name": "DC70G PRO",
+        "value": 34
+      },
+      {
+        "name": "M6040HI+FD",
+        "value": 32
+      },
+      {
+        "name": "RX220H",
+        "value": 28
+      },
+      {
+        "name": "Missing",
+        "value": 22
+      },
+      {
+        "name": "RX220G",
+        "value": 21
+      },
+      {
+        "name": "DH247H",
+        "value": 18
+      },
+      {
+        "name": "DH267L",
+        "value": 17
+      },
+      {
+        "name": "M6240HI+FD",
+        "value": 17
+      }
+    ],
+    "mix": [
+      {
+        "name": "06-IM",
+        "value": 125
+      },
+      {
+        "name": "01-TT",
+        "value": 110
+      },
+      {
+        "name": "02-CH",
+        "value": 34
+      },
+      {
+        "name": "Missing",
+        "value": 22
+      },
+      {
+        "name": "07-IMO",
+        "value": 9
+      },
+      {
+        "name": "04-EX",
+        "value": 8
+      }
+    ]
+  },
+  "inventory": {
+    "cards": [
+      {
+        "label": "Total Stock",
+        "value": "606",
+        "unit": "rows"
+      },
+      {
+        "label": "91+ Stock",
+        "value": "506",
+        "unit": "rows",
+        "risk": true
+      },
+      {
+        "label": "Stock MSRP",
+        "value": "0.79B",
+        "unit": "MMK field sum"
+      },
+      {
+        "label": "Top Stock Model",
+        "value": "DC70G PRO",
+        "unit": "highest row count"
+      }
+    ],
+    "donutPercent": 83,
+    "branchStock": [
+      {
+        "branch": "KMM2",
+        "rows": 282,
+        "action": "Validate aged mix"
+      },
+      {
+        "branch": "KMM1",
+        "rows": 169,
+        "action": "Validate aged mix"
+      },
+      {
+        "branch": "KMM3",
+        "rows": 154,
+        "action": "Validate aged mix"
+      },
+      {
+        "branch": "Missing",
+        "rows": 1,
+        "action": "Validate aged mix"
+      }
+    ],
+    "aging": [
+      {
+        "name": "0-30",
+        "value": 53
+      },
+      {
+        "name": "31-60",
+        "value": 32
+      },
+      {
+        "name": "61-90",
+        "value": 14
+      },
+      {
+        "name": "91+",
+        "value": 506
+      },
+      {
+        "name": "Missing",
+        "value": 1
+      }
+    ]
+  },
+  "stockBooking": [
+    {
+      "name": "DC70G PRO",
+      "stock": 95,
+      "booking": 0
+    },
+    {
+      "name": "CONCAVE For BK70",
+      "stock": 76,
+      "booking": 0
+    },
+    {
+      "name": "DC-70G PRO",
+      "stock": 0,
+      "booking": 59
+    },
+    {
+      "name": "M6040HI+FD",
+      "stock": 0,
+      "booking": 55
+    },
+    {
+      "name": "M9540+FD",
+      "stock": 15,
+      "booking": 34
+    },
+    {
+      "name": "M7040+FD",
+      "stock": 14,
+      "booking": 24
+    }
+  ],
+  "market": {
+    "cards": [
+      {
+        "label": "Top Booking Source",
+        "value": "05-Broker",
+        "unit": "221 booking rows"
+      },
+      {
+        "label": "Broker Bookings",
+        "value": "221",
+        "unit": "H1 rows"
+      },
+      {
+        "label": "Top Sales Region",
+        "value": "BAGO WEST",
+        "unit": "130 sales rows"
+      }
+    ],
+    "insights": [
+      "Broker-led sourcing dominates demand creation.",
+      "Bago West and Mon should anchor H2 territory focus.",
+      "Direct/showroom targets are not explicit in the source workbooks."
+    ]
+  },
+  "risks": [
+    {
+      "id": 1,
+      "risk": "Aged stock",
+      "decision": "Clearance plan",
+      "impact": "High",
+      "likelihood": "High"
+    },
+    {
+      "id": 2,
+      "risk": "Booking conversion",
+      "decision": "Status definition",
+      "impact": "High",
+      "likelihood": "High"
+    },
+    {
+      "id": 3,
+      "risk": "Finance definition",
+      "decision": "Owner + deadline",
+      "impact": "High",
+      "likelihood": "Medium"
+    },
+    {
+      "id": 4,
+      "risk": "Broker dependency",
+      "decision": "ROI guardrail",
+      "impact": "Medium",
+      "likelihood": "Medium"
+    },
+    {
+      "id": 5,
+      "risk": "H2 targets missing",
+      "decision": "Branch/product targets",
+      "impact": "Medium",
+      "likelihood": "Medium"
+    }
+  ],
+  "digitalJourney": [
+    {
+      "title": "Raw data",
+      "text": "Sales, booking, stock and marketing files."
+    },
+    {
+      "title": "Validate",
+      "text": "KPI dictionary and owners."
+    },
+    {
+      "title": "Dashboard",
+      "text": "One monthly review pack."
+    },
+    {
+      "title": "Action",
+      "text": "Owners, targets, deadlines."
+    },
+    {
+      "title": "Review",
+      "text": "Management cadence."
+    }
+  ],
+  "strategy": [
+    {
+      "title": "Convert demand",
+      "text": "Clean booking status and focus weekly follow-up.",
+      "target": "59 open bookings"
+    },
+    {
+      "title": "Clear aged stock",
+      "text": "Match stock to bookings before discounting.",
+      "target": "506 91+ rows"
+    },
+    {
+      "title": "Protect margin",
+      "text": "Use GP1 and discount guardrails in every clearance decision.",
+      "target": "8.9% GP1 baseline"
+    }
+  ],
+  "timeline": [
+    {
+      "label": "Booking cleanup",
+      "start": 0,
+      "width": 30
+    },
+    {
+      "label": "Aged stock plan",
+      "start": 8,
+      "width": 44
+    },
+    {
+      "label": "Finance validation",
+      "start": 0,
+      "width": 18
+    },
+    {
+      "label": "Branch recovery",
+      "start": 26,
+      "width": 56
+    },
+    {
+      "label": "Monthly dashboard",
+      "start": 10,
+      "width": 88
+    }
+  ],
+  "support": [
+    {
+      "title": "Finance",
+      "text": "Confirm official net sales, final received, GP1 and expense definitions."
+    },
+    {
+      "title": "Inventory",
+      "text": "Approve aged-stock clearance and transfer authority."
+    },
+    {
+      "title": "Sales",
+      "text": "Assign H2 targets by branch and product scope."
+    },
+    {
+      "title": "Governance",
+      "text": "Assign data owners and monthly review cadence."
+    }
+  ],
+  "audit": {
+    "workbookInventory": [
+      {
+        "file": "01_Data/Booking/KMMF3002 KMM Booking Data.2.xlsx",
+        "kind": "xlsx",
+        "size_bytes": 78443,
+        "sheets": [
+          {
+            "name": "Data",
+            "rows": 317,
+            "columns": 33
+          }
+        ]
+      },
+      {
+        "file": "01_Data/Marketing/2026_HY1_KMM MARKETING.pptx",
+        "kind": "pptx",
+        "size_bytes": 9394011
+      },
+      {
+        "file": "01_Data/Sales/2026_KMM_CPI copy.xlsx",
+        "kind": "xlsx",
+        "size_bytes": 6203753,
+        "sheets": [
+          {
+            "name": "2022_Performance",
+            "rows": 53,
+            "columns": 20
+          },
+          {
+            "name": "Sheet1",
+            "rows": 59,
+            "columns": 16
+          },
+          {
+            "name": "Sheet3",
+            "rows": 29,
+            "columns": 14
+          },
+          {
+            "name": "Sheet4",
+            "rows": 43,
+            "columns": 16
+          },
+          {
+            "name": "Sheet11",
+            "rows": 11,
+            "columns": 63
+          },
+          {
+            "name": "23_Sales Performance",
+            "rows": 97,
+            "columns": 36
+          },
+          {
+            "name": "Sales Performance",
+            "rows": 41,
+            "columns": 44
+          },
+          {
+            "name": "Sheet8",
+            "rows": 27,
+            "columns": 8
+          },
+          {
+            "name": "2024_DATA",
+            "rows": 1092,
+            "columns": 16384
+          },
+          {
+            "name": "Sheet10",
+            "rows": 19,
+            "columns": 35
+          },
+          {
+            "name": "Sheet17",
+            "rows": 66,
+            "columns": 6
+          },
+          {
+            "name": "2023",
+            "rows": 86,
+            "columns": 18
+          },
+          {
+            "name": "2024",
+            "rows": 79,
+            "columns": 78
+          },
+          {
+            "name": "2025",
+            "rows": 54,
+            "columns": 67
+          },
+          {
+            "name": "2026",
+            "rows": 48,
+            "columns": 7
+          },
+          {
+            "name": "2025_Com",
+            "rows": 41,
+            "columns": 6
+          },
+          {
+            "name": "Sheet5",
+            "rows": 25,
+            "columns": 14
+          },
+          {
+            "name": "Sheet6",
+            "rows": 39,
+            "columns": 47
+          },
+          {
+            "name": "2026_KMM_DATA",
+            "rows": 3480,
+            "columns": 64
+          },
+          {
+            "name": "1)Performance",
+            "rows": 23,
+            "columns": 5
+          },
+          {
+            "name": "Commission",
+            "rows": 38,
+            "columns": 10
+          },
+          {
+            "name": "Sheet2",
+            "rows": 24,
+            "columns": 60
+          }
+        ]
+      },
+      {
+        "file": "01_Data/Sales/Sales KPI.xlsx",
+        "kind": "xlsx",
+        "size_bytes": 18817,
+        "sheets": [
+          {
+            "name": "SL 2026",
+            "rows": 49,
+            "columns": 17
+          },
+          {
+            "name": "SL Ex_Code",
+            "rows": 75,
+            "columns": 4
+          }
+        ]
+      },
+      {
+        "file": "01_Data/Stock/2026_KMM_R2_STOCK.xlsx",
+        "kind": "xlsx",
+        "size_bytes": 457549,
+        "sheets": [
+          {
+            "name": "02) STOCK",
+            "rows": 610,
+            "columns": 50
+          }
+        ]
+      }
+    ],
+    "sourceRowCounts": {
+      "cpi_h1_2026_rows": 309,
+      "booking_h1_rows": 266,
+      "stock_rows": 606
+    },
+    "missingOrNeedsConfirmation": [
+      {
+        "field": "Management notes",
+        "note": "No dedicated management notes workbook found in 01_Data; marketing PPTX exists but is not structured notes data."
+      },
+      {
+        "field": "Official finance definition",
+        "note": "CPI provides MSRP, Net Received, Final Received, GP1 and expense fields. Confirm which is official revenue."
+      },
+      {
+        "field": "Booking status dictionary",
+        "note": "Month Out and Purchase Status contain operational codes; open/converted/cancelled rules need owner confirmation."
+      },
+      {
+        "field": "Stock value basis",
+        "note": "Stock file contains MSRP and USD fields; official inventory value basis needs confirmation."
+      },
+      {
+        "field": "H2 targets",
+        "note": "Targets by branch/product are not present as explicit H2 action targets."
+      }
+    ]
+  }
+}

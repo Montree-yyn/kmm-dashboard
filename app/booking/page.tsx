@@ -1,10 +1,5 @@
-import { AuthGate } from "../../components/auth/auth-gate";
-import { PlaceholderPage } from "../../components/navigation/placeholder-page";
+import { BookingIntelligencePage } from "@/components/booking/booking-intelligence-page";
 
 export default function BookingPage() {
-  return (
-    <AuthGate>
-      <PlaceholderPage title="Booking" />
-    </AuthGate>
-  );
+  return <BookingIntelligencePage />;
 }

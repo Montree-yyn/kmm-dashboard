@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 :root {
   --background: #f8fafc;
@@ -54,6 +55,136 @@ select:focus-visible {
   background-image: repeating-linear-gradient(to top, transparent 0, transparent 54px, #eceef1 55px);
 }
 
+.kmm-showroom-marker {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff3e8;
+  border-radius: 999px;
+  background: #ff7a00;
+  box-shadow: 0 0 0 7px rgb(255 122 0 / 16%), 0 0 26px rgb(255 122 0 / 72%);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.kmm-marketing-map .maplibregl-map,
+.kmm-marketing-map .maplibregl-canvas-container,
+.kmm-marketing-map .maplibregl-canvas {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.kmm-showroom-marker::after {
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgb(255 122 0 / 34%);
+  border-radius: inherit;
+  content: "";
+  animation: kmm-marker-pulse 2.4s ease-out infinite;
+}
+
+.kmm-showroom-marker:hover,
+.kmm-showroom-marker.is-selected {
+  transform: scale(1.14);
+  box-shadow: 0 0 0 9px rgb(255 122 0 / 18%), 0 0 34px rgb(255 122 0 / 86%);
+}
+
+.kmm-map-label {
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  color: #4b5563;
+  text-shadow: 0 1px 0 #ffffff, 0 -1px 0 #ffffff, 1px 0 0 #ffffff, -1px 0 0 #ffffff, 0 2px 8px rgb(255 255 255 / 90%);
+}
+
+.kmm-map-label-region {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.kmm-map-label-township {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.kmm-map-popup .maplibregl-popup-content {
+  width: min(320px, calc(100vw - 40px));
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgb(31 41 55 / 16%);
+  color: #1f2937;
+  padding: 0;
+  overflow: hidden;
+}
+
+.kmm-map-popup .maplibregl-popup-tip {
+  border-top-color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.kmm-map-popup-card {
+  padding: 16px;
+}
+
+.kmm-map-popup-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.kmm-map-popup-meta {
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.kmm-map-popup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.kmm-map-popup-kpi {
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 9px 10px;
+}
+
+.kmm-map-popup-kpi span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.kmm-map-popup-kpi strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+@keyframes kmm-marker-pulse {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.7);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -62,5 +193,9 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .kmm-showroom-marker::after {
+    animation: none;
   }
 }

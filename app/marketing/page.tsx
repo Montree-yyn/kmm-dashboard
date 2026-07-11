@@ -1,10 +1,10 @@
-import { AuthGate } from "../../components/auth/auth-gate";
-import { PlaceholderPage } from "../../components/navigation/placeholder-page";
+import { AuthGate } from "@/components/auth/auth-gate";
+import { MarketingIntelligencePage } from "@/components/marketing/marketing-intelligence-page";
 
 export default function MarketingPage() {
   return (
     <AuthGate>
-      <PlaceholderPage title="Marketing" />
+      <MarketingIntelligencePage />
     </AuthGate>
   );
 }

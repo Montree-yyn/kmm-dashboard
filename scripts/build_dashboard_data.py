@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,15 @@ def as_number(value: Any) -> float:
         return float(str(value).replace(",", ""))
     except ValueError:
         return 0
+
+
+def optional_number(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(str(value).replace(",", ""))
+    except ValueError:
+        return None
 
 
 def as_int(value: Any) -> int:
@@ -77,6 +87,26 @@ def normalize_branch(value: Any) -> str:
     if text in {"KMM3", "KMM03"}:
         return "KMM03"
     return text
+
+
+def normalize_product_type(value: Any) -> str:
+    """Return the approved product group represented by a booking source value."""
+    raw = as_text(value).upper()
+    key = re.sub(r"[^A-Z0-9]", "", raw)
+    aliases = {
+        "TT": {"TT", "01TT", "TRACTOR", "01TRACTOR"},
+        "CH": {"CH", "02CH", "COMBINE", "COMBINEHARVESTER", "02COMBINE", "02COMBINEHARVESTER"},
+        "EX": {"EX", "04EX", "EXCAVATOR", "04EXCAVATOR"},
+        "TP": {"TP", "03TP", "TRANSPLANTER", "03TRANSPLANTER"},
+        "MAX": {"MAX", "05MAX", "MAXOTHER", "05MAXOTHER"},
+        "IM": {"IM", "IMPLEMENT", "IMPLEMENTS"},
+        "IMO": {"IMO", "IMPLEMENTOPTION", "IMPLEMENTOPTIONS"},
+        "OT": {"OT", "OTHER", "OTHERS"},
+    }
+    for product, values in aliases.items():
+        if key in values:
+            return product
+    return raw
 
 
 def header_map(ws: Any, row: int) -> dict[str, int]:
@@ -131,6 +161,10 @@ def load_sales() -> list[dict[str, Any]]:
                 "month": month,
                 "branch": normalize_branch(cell(row, headers, "Dealer")),
                 "salesperson": as_text(cell(row, headers, "Sales Man")),
+                "stateRegion": as_text(cell(row, headers, "States / Division / Region")),
+                "township": as_text(cell(row, headers, "Township")),
+                "village": as_text(cell(row, headers, "Village")),
+                "area": as_text(cell(row, headers, "Area")),
                 "productType": as_text(cell(row, headers, "TYPE")),
                 "model": as_text(cell(row, headers, "MODEL")),
                 "finalReceived": as_number(cell(row, headers, "Final Received")),
@@ -149,10 +183,27 @@ def load_booking() -> list[dict[str, Any]]:
     headers = header_map(ws, 3)
     rows: list[dict[str, Any]] = []
     for row in ws.iter_rows(min_row=4, values_only=True):
+        booking_no = as_text(cell(row, headers, "No.BK"))
+        date = iso_date(cell(row, headers, "Date"))
+        branch = normalize_branch(cell(row, headers, "Dealer"))
+        salesperson = as_text(cell(row, headers, "SL Name"))
+        product_type = normalize_product_type(cell(row, headers, "Product Type"))
+
+        # A valid booking needs an identifier, date, dealer, salesperson and an
+        # approved product group. Price is deliberately not a validity rule:
+        # source rows with a missing price still represent a booked unit, but do
+        # not contribute a monetary amount.
+        if not all([booking_no, date, branch, salesperson]) or product_type not in {
+            "TT", "CH", "EX", "TP", "MAX", "IM", "IMO", "OT"
+        }:
+            continue
+
         year, month = year_month_from_code(cell(row, headers, "Month"))
-        purchase_status = as_text(cell(row, headers, "Purchase Status")).upper()
-        month_out = as_text(cell(row, headers, "Month Out"))
-        if "CANC" in purchase_status:
+        month_out = as_text(cell(row, headers, "Month Out")).upper()
+        # In this workbook Month Out carries the outcome: CANCLE is cancelled,
+        # a numeric month means delivered, and blank remains open. Purchase
+        # Status mirrors this (Fail/Sell/Hot) but is not the status field.
+        if "CANC" in month_out:
             status = "Cancelled"
         elif month_out:
             status = "Delivered"
@@ -160,14 +211,20 @@ def load_booking() -> list[dict[str, Any]]:
             status = "Open"
         rows.append(
             {
-                "date": iso_date(cell(row, headers, "Date")),
+                "date": date,
                 "year": year,
                 "month": month,
-                "branch": normalize_branch(cell(row, headers, "Dealer")),
-                "salesperson": as_text(cell(row, headers, "SL Name")),
-                "productType": as_text(cell(row, headers, "Product Type")),
+                "branch": branch,
+                "salesperson": salesperson,
+                "productType": product_type,
                 "model": as_text(cell(row, headers, "Model")),
-                "price": as_number(cell(row, headers, "Price")),
+                "price": optional_number(cell(row, headers, "Price")),
+                "bookingNo": booking_no,
+                "customer": as_text(cell(row, headers, "CS NAME")),
+                "deposit": optional_number(cell(row, headers, "Deposit")),
+                "paymentType": as_text(cell(row, headers, "Purchase Type")),
+                "financeType": as_text(cell(row, headers, "Leasing")),
+                "statusDate": iso_date(cell(row, headers, "Delivery Dete/Cancer Date")),
                 "status": status,
             }
         )
@@ -215,6 +272,9 @@ def load_marketing() -> list[dict[str, Any]]:
                 "month": month,
                 "branch": normalize_branch(cell(row, headers, "Dealer")),
                 "salesperson": "",
+                "stateRegion": as_text(cell(row, headers, "Division")),
+                "township": as_text(cell(row, headers, "Township")),
+                "village": as_text(cell(row, headers, "Village")),
                 "activity": as_text(cell(row, headers, "Type of Activities")),
                 "participants": as_int(cell(row, headers, "Participants")),
                 "bookingCount": as_int(cell(row, headers, "BK")),

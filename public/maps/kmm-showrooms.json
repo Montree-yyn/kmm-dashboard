@@ -1,0 +1,62 @@
+[
+  {
+    "id": "KMM-MAWLAMYINE",
+    "name": "Mawlamyine (Moke Ta Ma)",
+    "stateRegion": "Mon",
+    "township": "Mawlamyine",
+    "latitude": 16.551014829832265,
+    "longitude": 97.58796586144803,
+    "coordinates": [97.58796586144803, 16.551014829832265],
+    "status": "active"
+  },
+  {
+    "id": "KMM-MYAWADDY",
+    "name": "Myawaddy",
+    "stateRegion": "Kayin",
+    "township": "Myawaddy",
+    "latitude": 16.697570801389162,
+    "longitude": 98.40899139590378,
+    "coordinates": [98.40899139590378, 16.697570801389162],
+    "status": "active"
+  },
+  {
+    "id": "KMM-HPAAN",
+    "name": "Hpa-an",
+    "stateRegion": "Kayin",
+    "township": "Hpa-an",
+    "latitude": 16.850519686471458,
+    "longitude": 97.67833921863583,
+    "coordinates": [97.67833921863583, 16.850519686471458],
+    "status": "active"
+  },
+  {
+    "id": "KMM-THARYARWADDY",
+    "name": "Tharyarwaddy",
+    "stateRegion": "Bago West",
+    "township": "Tharyarwaddy",
+    "latitude": 17.637161998340396,
+    "longitude": 95.7850121824317,
+    "coordinates": [95.7850121824317, 17.637161998340396],
+    "status": "active"
+  },
+  {
+    "id": "KMM-NATTALIN",
+    "name": "Nattalin",
+    "stateRegion": "Bago West",
+    "township": "Nattalin",
+    "latitude": 18.4418173872767,
+    "longitude": 95.54490214925025,
+    "coordinates": [95.54490214925025, 18.4418173872767],
+    "status": "active"
+  },
+  {
+    "id": "KMM-NAWNGHKIO",
+    "name": "Naung Cho",
+    "stateRegion": "Shan State",
+    "township": "Nawnghkio",
+    "latitude": 22.331490123697,
+    "longitude": 96.80052978171858,
+    "coordinates": [96.80052978171858, 22.331490123697],
+    "status": "active"
+  }
+]

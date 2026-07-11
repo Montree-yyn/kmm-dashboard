@@ -27,7 +27,7 @@ const navItems: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Stock", href: "/stock", icon: Tractor },
   { label: "Marketing", href: "/marketing", icon: Megaphone },
   { label: "Expense", href: "/expense", icon: Gauge },
-  { label: "Team", href: "/team", icon: Users },
+  { label: "Sales Organization", href: "/team", icon: Users },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

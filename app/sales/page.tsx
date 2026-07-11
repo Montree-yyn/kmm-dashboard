@@ -1,10 +1,10 @@
 import { AuthGate } from "../../components/auth/auth-gate";
-import { PlaceholderPage } from "../../components/navigation/placeholder-page";
+import { SalesPage as SalesPerformancePage } from "../../components/sales/sales-page";
 
-export default function SalesPage() {
+export default function SalesRoutePage() {
   return (
     <AuthGate>
-      <PlaceholderPage title="Sales" />
+      <SalesPerformancePage />
     </AuthGate>
   );
 }

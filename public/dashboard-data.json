@@ -2,8 +2,8 @@
   "meta": {
     "company": "KUBOTA MAESOD MYANMAR",
     "shortName": "KMM",
-    "generatedAt": "2026-07-10T15:47:45",
-    "sourceUpdatedAt": "2026-07-08T08:59:23",
+    "generatedAt": "2026-07-11T09:36:46",
+    "sourceUpdatedAt": "2026-07-11T09:23:37",
     "sources": [
       "01_Data/Sales/Sales KPI.xlsx",
       "01_Data/Sales/2026_KMM_CPI copy.xlsx",
@@ -45142,19 +45142,6 @@
       "netReceived": 0.0,
       "gp1": -6541980.0,
       "expense": 15356400.0
-    },
-    {
-      "date": "2026-06-25",
-      "year": 2026,
-      "month": 6,
-      "branch": "KMM01",
-      "salesperson": "01-Ye Htet",
-      "productType": "01-TT",
-      "model": "M7040+FD",
-      "finalReceived": 141826300.0,
-      "netReceived": 142000000.0,
-      "gp1": 11043700.0,
-      "expense": 1858500.0
     },
     {
       "date": "2026-06-29",

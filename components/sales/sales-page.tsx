@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, ChevronDown, ChevronLeft, ChevronRight, Menu, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { AppSidebar } from "../navigation/app-sidebar";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
@@ -15,8 +14,8 @@ import { ExportButton } from "../design-system/export-button";
 import { FilterBar } from "../design-system/filter-bar";
 import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
-import { PageHeader } from "../design-system/page-header";
 import { ProductBadge } from "../design-system/product-badge";
+import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 import { TableCard } from "../design-system/table-card";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -45,7 +44,9 @@ type SalesData = {
   sales: SalesRow[];
 };
 
-type TrendDatum = { label: string; unit: number | null; value: number | null; target: number | null };
+type TrendMetric = "unit" | "value";
+type MonthRange = "full" | "q1" | "q2" | "q3" | "q4" | "custom";
+type TrendPoint = { month: number; label: string; values: Record<number, number | null>; target: number | null };
 
 const defaultFilters: FilterState = {
   year: ["2026"],
@@ -120,15 +121,6 @@ function targetValue(data: SalesData, filters: FilterState) {
   const months = selectedMonths(filters);
   const indexes = months.length ? months.map((month) => month - 1) : data.plan.months.map((_, index) => index);
   const target = indexes.reduce((total, index) => total + (data.plan.units[index] ?? 0), 0);
-  return target > 0 ? target : null;
-}
-
-function monthTargetValue(data: SalesData | null, filters: FilterState, monthIndex: number) {
-  if (!data) return null;
-  const years = selectedYears(filters);
-  const hasDimensionTargetGap = filters.branch.length > 0 || filters.salesperson.length > 0 || selectedProductGroups(filters).length > 0;
-  if (years.length !== 1 || years[0] !== data.plan.year || hasDimensionTargetGap) return null;
-  const target = data.plan.units[monthIndex] ?? 0;
   return target > 0 ? target : null;
 }
 
@@ -211,66 +203,45 @@ function BarChart({ data, limit, onViewAll }: { data: { label: string; value: nu
   );
 }
 
-function SalesTrendChart({ data }: { data: TrendDatum[] }) {
-  const [tooltip, setTooltip] = useState<TrendDatum & { x: number } | null>(null);
-  const width = 920;
-  const height = 340;
-  const padX = 72;
-  const padY = 42;
-  const unitMax = Math.max(...data.map((item) => Math.max(item.unit ?? 0, item.target ?? 0)), 1);
-  const valueMax = Math.max(...data.map((item) => item.value ?? 0), 1);
-  const xFor = (index: number) => padX + (index * (width - padX * 2)) / 11;
-  const yFor = (value: number, max: number) => height - padY - (value / max) * (height - padY * 2);
-  const makePoints = (selector: (item: TrendDatum) => number | null, max: number) => data.map((item, index) => ({ ...item, x: xFor(index), y: selector(item) === null ? null : yFor(selector(item) ?? 0, max) }));
-  const unitPoints = makePoints((item) => item.unit, unitMax);
-  const valuePoints = makePoints((item) => item.value, valueMax);
-  const targetPoints = makePoints((item) => item.target, unitMax);
-  const path = (points: { x: number; y: number | null }[]) => points.reduce((result, current, index) => {
-    if (current.y === null) return result;
-    const previous = points[index - 1];
-    if (!previous || previous.y === null) return `${result} M ${current.x} ${current.y}`;
-    const midX = (previous.x + current.x) / 2;
-    return `${result} C ${midX} ${previous.y}, ${midX} ${current.y}, ${current.x} ${current.y}`;
-  }, "");
-  const yTicks = [0, 0.5, 1].map((ratio) => ({ ratio, y: height - padY - ratio * (height - padY * 2) }));
-  const hasTarget = data.some((item) => item.target !== null);
+function cleanTicks(maxValue: number) {
+  const rawStep = Math.max(maxValue, 1) / 3;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+  const step = nice * magnitude;
+  return [0, step, step * 2, step * 3];
+}
 
-  return (
-    <div>
-      <div className="mb-7 flex flex-wrap gap-x-7 gap-y-3 text-[13px] font-semibold text-[#4B5563]">
-        <span className="flex items-center gap-2"><i className="h-[3px] w-7 rounded-full bg-[#FF7A00]" />Sales Unit</span>
-        <span className="flex items-center gap-2"><i className="h-0 w-7 border-t-[3px] border-dashed border-[#4B5563]" />Sales Value</span>
-        {hasTarget && <span className="flex items-center gap-2"><i className="h-0 w-7 border-t-[3px] border-dotted border-[#9CA3AF]" />Target</span>}
-      </div>
-      <div className="relative">
-        <svg className="w-full" style={{ minHeight: "340px" }} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" onMouseLeave={() => setTooltip(null)}>
-          <title>Monthly sales trend</title>
-          {yTicks.map((tick) => <line key={tick.ratio} x1={padX} x2={width - padX} y1={tick.y} y2={tick.y} stroke="#F3F4F6" />)}
-          {yTicks.map((tick) => (
-            <g key={`tick-${tick.ratio}`}>
-              <text x={padX - 12} y={tick.y + 4} textAnchor="end" fill="#4B5563" fontSize="12" fontWeight="600">{formatCompact(unitMax * tick.ratio)}</text>
-              <text x={width - padX + 12} y={tick.y + 4} fill="#4B5563" fontSize="12" fontWeight="600">{formatCompact(valueMax * tick.ratio)}</text>
-            </g>
-          ))}
-          <text x={padX - 28} y={padY - 16} fill="#4B5563" fontSize="12" fontWeight="700">Unit</text>
-          <text x={width - padX + 8} y={padY - 16} fill="#4B5563" fontSize="12" fontWeight="700">MMK</text>
-          <path d={path(unitPoints)} fill="none" stroke="#FF7A00" strokeWidth="3" strokeLinecap="round" />
-          <path d={path(valuePoints)} fill="none" stroke="#4B5563" strokeWidth="2.75" strokeDasharray="8 8" strokeLinecap="round" />
-          {hasTarget && <path d={path(targetPoints)} fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeDasharray="2 7" strokeLinecap="round" />}
-          {unitPoints.map((point, index) => point.y === null ? null : <circle key={`unit-${point.label}`} cx={point.x} cy={point.y} r={tooltip?.label === point.label ? 6 : 4.5} fill="white" stroke="#FF7A00" strokeWidth="2.75" onMouseEnter={() => setTooltip({ ...data[index], x: (point.x / width) * 100 })} />)}
-          {valuePoints.map((point, index) => point.y === null ? null : <circle key={`value-${point.label}`} cx={point.x} cy={point.y} r={tooltip?.label === point.label ? 6 : 4.25} fill="white" stroke="#4B5563" strokeWidth="2.5" onMouseEnter={() => setTooltip({ ...data[index], x: (point.x / width) * 100 })} />)}
-          {hasTarget && targetPoints.map((point, index) => point.y === null ? null : <circle key={`target-${point.label}`} cx={point.x} cy={point.y} r={tooltip?.label === point.label ? 5.5 : 4} fill="white" stroke="#9CA3AF" strokeWidth="2.4" onMouseEnter={() => setTooltip({ ...data[index], x: (point.x / width) * 100 })} />)}
-          {data.map((item, index) => <text key={`month-${item.label}`} x={xFor(index)} y={height - 10} textAnchor="middle" fill="#4B5563" fontSize="12" fontWeight="600">{item.label}</text>)}
-        </svg>
-        {tooltip && <div className="pointer-events-none absolute top-2 z-10 min-w-44 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] shadow-[0_10px_28px_rgba(31,41,55,0.10)]" style={{ left: `${Math.min(Math.max(tooltip.x, 12), 76)}%` }}>
-          <p className="font-bold text-[#1F2937]">{tooltip.label}</p>
-          <p className="mt-1">Sales Unit: <strong>{tooltip.unit === null ? "No data" : formatCompact(tooltip.unit)}</strong></p>
-          <p>Sales Value: <strong>{tooltip.value === null ? "No data" : formatCompact(tooltip.value)}</strong></p>
-          <p>Target: <strong>{tooltip.target === null ? "N/A" : formatCompact(tooltip.target)}</strong></p>
-        </div>}
-      </div>
-    </div>
-  );
+function SalesTrendChart({ sales, filters, plan }: { sales: SalesRow[]; filters: FilterState; plan: SalesData["plan"] }) {
+  const availableYears = useMemo(() => [...new Set(sales.map((row) => row.year))].sort((a, b) => b - a), [sales]);
+  const currentYear = selectedYears(filters)[0] ?? availableYears[0];
+  const [metric, setMetric] = useState<TrendMetric>("unit");
+  const [years, setYears] = useState<number[]>(() => [currentYear, ...availableYears.filter((year) => year < currentYear).slice(0, 1)].filter((year, index, list) => list.indexOf(year) === index));
+  const [range, setRange] = useState<MonthRange>("full");
+  const [startMonth, setStartMonth] = useState(1);
+  const [endMonth, setEndMonth] = useState(12);
+  const [yearsOpen, setYearsOpen] = useState(false);
+  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
+  const rangeMonths = range === "full" ? MONTHS.map((_, index) => index + 1) : range === "custom" ? MONTHS.map((_, index) => index + 1).filter((month) => month >= Math.min(startMonth, endMonth) && month <= Math.max(startMonth, endMonth)) : { q1: [1, 2, 3], q2: [4, 5, 6], q3: [7, 8, 9], q4: [10, 11, 12] }[range];
+  const scopedRows = sales.filter((row) => rowMatches(row, { ...filters, year: [], month: [] }));
+  const visibleYears = years.filter((year) => availableYears.includes(year));
+  const targetYear = visibleYears.includes(currentYear) ? currentYear : visibleYears[0];
+  const targetAllowed = metric === "unit" && targetYear === plan.year && filters.branch.length === 0 && filters.salesperson.length === 0 && selectedProductGroups(filters).length === 0;
+  const points: TrendPoint[] = rangeMonths.map((month) => ({ month, label: MONTHS[month - 1], values: Object.fromEntries(visibleYears.map((year) => { const monthRows = scopedRows.filter((row) => row.year === year && row.month === month); const measureRows = metric === "unit" ? filterByProductGroups(monthRows, PRODUCT_GROUPS.UNIT_PRODUCTS) : filterByProductGroups(monthRows, PRODUCT_GROUPS.VALUE_PRODUCTS); return [year, measureRows.length ? metric === "unit" ? measureRows.length : sum(measureRows, (row) => row.finalReceived) : null]; })), target: targetAllowed && (plan.units[month - 1] ?? 0) > 0 ? plan.units[month - 1] : null }));
+  const maxValue = Math.max(...points.flatMap((point) => [...Object.values(point.values).map((value) => value ?? 0), point.target ?? 0]), 1);
+  const ticks = cleanTicks(maxValue);
+  const maxTick = ticks.at(-1) ?? 1;
+  const width = 920; const height = 365; const padX = 74; const padY = 42;
+  const xFor = (index: number) => padX + (index * (width - padX * 2)) / Math.max(points.length - 1, 1);
+  const yFor = (value: number) => height - padY - (value / maxTick) * (height - padY * 2);
+  const path = (values: (number | null)[]) => values.reduce((result, value, index) => { if (value === null) return result; const previous = values[index - 1]; if (previous === null || previous === undefined) return `${result} M ${xFor(index)} ${yFor(value)}`; const middle = (xFor(index - 1) + xFor(index)) / 2; return `${result} C ${middle} ${yFor(previous)}, ${middle} ${yFor(value)}, ${xFor(index)} ${yFor(value)}`; }, "");
+  const styles = [{ color: "#F57C00", dash: undefined, label: "Current" }, { color: "#FBC02D", dash: undefined, label: "Previous" }, { color: "#FFD54F", dash: undefined, label: "Comparison" }];
+  const valueLabel = metric === "unit" ? "Sales Unit" : "Sales Value";
+  const formatMetric = (value: number | null) => value === null ? "No data" : metric === "unit" ? value.toLocaleString() : `${formatCompact(value)} MMK`;
+  const hovered = hoveredMonth === null ? null : points[hoveredMonth];
+  const baseYear = visibleYears[0]; const comparisonYear = visibleYears[1];
+
+  return <div><div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between"><div className="flex flex-wrap gap-4 text-xs font-semibold text-[#4B5563]">{visibleYears.map((year, index) => <span key={year} className="flex items-center gap-2"><i className="h-0 w-7 border-t-[3px]" style={{ borderColor: styles[index]?.color ?? "#9CA3AF", borderStyle: styles[index]?.dash ? "dashed" : "solid" }} />{year} Actual</span>)}{points.some((point) => point.target !== null) && <span className="flex items-center gap-2"><i className="h-0 w-7 border-t-[3px] border-dotted border-[#9CA3AF]" />{targetYear} Target</span>}</div><div className="flex flex-wrap gap-2"><label className="sr-only" htmlFor="sales-trend-metric">Metric</label><select id="sales-trend-metric" value={metric} onChange={(event) => setMetric(event.target.value as TrendMetric)} className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold outline-none focus:border-[#FFB46E]"><option value="unit">Sales Unit</option><option value="value">Sales Value</option></select><div className="relative"><button type="button" onClick={() => setYearsOpen((open) => !open)} className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold" aria-expanded={yearsOpen}>{visibleYears.length ? `${visibleYears.length} year${visibleYears.length === 1 ? "" : "s"}` : "Compare year"}</button>{yearsOpen && <Card className="absolute right-0 top-10 z-30 w-40 p-2 shadow-xl">{availableYears.map((year) => <label key={year} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-[#FFF7EF]"><input type="checkbox" checked={visibleYears.includes(year)} onChange={() => setYears((current) => current.includes(year) ? current.filter((item) => item !== year) : [...current, year].sort((a, b) => b - a))} className="accent-[#FF8615]" />{year}</label>)}</Card>}</div><label className="sr-only" htmlFor="sales-trend-range">Month range</label><select id="sales-trend-range" value={range} onChange={(event) => setRange(event.target.value as MonthRange)} className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold outline-none focus:border-[#FFB46E]"><option value="full">Full Year</option><option value="q1">Q1 · Jan–Mar</option><option value="q2">Q2 · Apr–Jun</option><option value="q3">Q3 · Jul–Sep</option><option value="q4">Q4 · Oct–Dec</option><option value="custom">Custom Range</option></select>{range === "custom" && <><select value={startMonth} onChange={(event) => setStartMonth(Number(event.target.value))} aria-label="Start month" className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs">{MONTHS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select><select value={endMonth} onChange={(event) => setEndMonth(Number(event.target.value))} aria-label="End month" className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs">{MONTHS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></>}</div></div><div className="relative"><svg className="h-[400px] w-full sm:h-[440px]" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Sales comparison trend by year" onMouseLeave={() => setHoveredMonth(null)}><title>Sales comparison trend</title>{ticks.map((tick) => { const y = yFor(tick); return <g key={tick}><line x1={padX} x2={width - padX} y1={y} y2={y} stroke="#E5E7EB" /><text x={padX - 12} y={y + 4} textAnchor="end" fill="#4B5563" fontSize="12" fontWeight="600">{metric === "unit" ? tick.toLocaleString() : formatCompact(tick)}</text></g>; })}<text x={padX} y={18} fill="#4B5563" fontSize="12" fontWeight="700">{metric === "unit" ? "Unit" : "MMK"}</text>{visibleYears.map((year, index) => <g key={year}><path d={path(points.map((point) => point.values[year]))} fill="none" stroke={styles[index]?.color ?? "#9CA3AF"} strokeWidth={index === 0 ? 4 : 3} strokeDasharray={styles[index]?.dash} strokeLinecap="round" strokeLinejoin="round" />{points.map((point, pointIndex) => point.values[year] === null ? null : <circle key={`${year}-${point.month}`} cx={xFor(pointIndex)} cy={yFor(point.values[year] ?? 0)} r={hoveredMonth === pointIndex ? 5.5 : 3.5} fill="white" stroke={styles[index]?.color ?? "#9CA3AF"} strokeWidth={2.5} onMouseEnter={() => setHoveredMonth(pointIndex)} />)}</g>)}{points.some((point) => point.target !== null) && <path d={path(points.map((point) => point.target))} fill="none" stroke="#9CA3AF" strokeWidth={2.25} strokeDasharray="2 7" strokeLinecap="round" />}{points.map((point, index) => <text key={point.month} x={xFor(index)} y={height - 10} textAnchor="middle" fill="#4B5563" fontSize="12" fontWeight="600">{point.label}</text>)}</svg>{hovered && <div className="pointer-events-none absolute top-2 z-10 min-w-52 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] shadow-[0_10px_28px_rgba(31,41,55,0.10)]" style={{ left: `${Math.min(Math.max((xFor(hoveredMonth ?? 0) / width) * 100, 8), 72)}%` }}><p className="font-bold text-[#1F2937]">{hovered.label}</p>{visibleYears.map((year) => <p key={year} className="mt-1">{year} {valueLabel}: <strong>{formatMetric(hovered.values[year])}</strong></p>)}{hovered.target !== null && <><p>{targetYear} Target: <strong>{formatMetric(hovered.target)}</strong></p><p>Variance: <strong>{formatMetric((hovered.values[targetYear] ?? 0) - hovered.target)}</strong></p></>}{baseYear && comparisonYear && hovered.values[baseYear] !== null && hovered.values[comparisonYear] !== null && hovered.values[comparisonYear] !== 0 && <p>vs {comparisonYear}: <strong>{percentChange(hovered.values[baseYear] ?? 0, hovered.values[comparisonYear] ?? 0)?.toFixed(1)}%</strong></p>}</div>}</div></div>;
 }
 
 function TargetProgressCard({ target, actual }: { target: number | null; actual: number }) {
@@ -430,19 +401,6 @@ export function SalesPage() {
   const asp = unitRows.length ? salesValue / unitRows.length : null;
   const selectedMonthNumbers = selectedMonths(filters);
   const comparisonLabel = selectedYears(filters).length === 1 && selectedMonthNumbers.length === 1 ? `vs ${MONTHS[selectedMonthNumbers[0] - 1]} ${selectedYears(filters)[0] - 1}` : "vs same period last year";
-  const trendData: TrendDatum[] = MONTHS.map((label, index) => {
-    const month = index + 1;
-    const monthUnitRows = unitRows.filter((row) => row.month === month);
-    const monthValueRows = valueRows.filter((row) => row.month === month);
-    const hasUnitData = monthUnitRows.length > 0;
-    const hasValueData = monthValueRows.length > 0;
-    return {
-      label,
-      unit: hasUnitData ? monthUnitRows.length : null,
-      value: hasValueData ? sum(monthValueRows, (row) => row.finalReceived) : null,
-      target: monthTargetValue(data, filters, index),
-    };
-  });
   const byBranch = Array.from(new Set(unitRows.map((row) => row.branch))).map((label) => ({ label, value: unitRows.filter((row) => row.branch === label).length })).sort((a, b) => b.value - a.value);
   const byProduct = PRODUCT_GROUPS.UNIT_PRODUCTS.map((label) => ({ label, value: unitRows.filter((row) => productCategory(row) === label).length })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
   const modelGroups = Array.from(new Set(unitRows.map((row) => row.model || "N/A"))).map((label) => ({ label, value: unitRows.filter((row) => (row.model || "N/A") === label).length })).sort((a, b) => b.value - a.value);
@@ -456,11 +414,11 @@ export function SalesPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-[#1F2937]">
       <AppSidebar collapsed={collapsed} mobileOpen={mobileOpen} onCollapsedChange={setCollapsed} onMobileOpenChange={setMobileOpen} />
       <div className={cn("transition-[padding] duration-300", collapsed ? "lg:pl-[76px]" : "lg:pl-[240px]")}>
-        <header className="sticky top-0 z-30 flex h-[82px] items-center gap-3 border-b border-[#E5E7EB] bg-white/95 px-4 backdrop-blur-md sm:px-6 xl:px-8"><button className="rounded-xl border border-[#E5E7EB] p-2.5 text-[#55565A] hover:bg-[#F8FAFC] lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={19} /></button><div className="hidden max-w-md flex-1 md:block"><p className="text-lg font-bold tracking-[-0.02em] text-[#1F2937]">Sales Performance</p><p className="text-xs text-[#9CA3AF]">KMM Sales Intelligence</p></div><div className="ml-auto flex items-center gap-2 sm:gap-3"><Badge variant="outline" className="hidden gap-2 py-2 sm:inline-flex"><span className="size-2 rounded-full bg-[#22C55E]" />Live data</Badge><div className="relative"><button className="relative grid size-10 place-items-center rounded-xl border border-[#E5E7EB] text-[#55565A] transition hover:border-[#D1D5DB] hover:bg-[#F8FAFC]" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Open notifications" aria-expanded={notificationsOpen}><Bell size={18} /><span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#EF4444]" /></button>{notificationsOpen && <Card className="absolute right-0 top-12 z-50 w-[310px] p-2 shadow-xl"><p className="px-3 py-2 text-sm font-semibold">Sales data is source-backed</p><p className="px-3 pb-2 text-xs text-[#6B7280]">Loaded from the current dashboard data extract.</p></Card>}</div><button className="flex items-center gap-2 rounded-xl p-1.5 pr-2 transition hover:bg-[#F8FAFC]" aria-label="Open profile menu"><span className="grid size-9 place-items-center rounded-xl bg-[#55565A] text-xs font-bold text-white">KM</span><span className="hidden text-left xl:block"><span className="block text-xs font-semibold">KMM Admin</span><span className="block text-[10px] text-[#9CA3AF]">Executive view</span></span><ChevronDown className="hidden text-[#9CA3AF] xl:block" size={15} /></button></div></header>
-        <main className="mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-7 2xl:p-8">
+        <header className="sticky top-0 z-30 flex h-[82px] items-center gap-3 border-b border-[#E5E7EB] bg-white/95 px-4 backdrop-blur-md sm:px-6 xl:px-8"><button className="rounded-xl border border-[#E5E7EB] p-2.5 text-[#55565A] hover:bg-[#F8FAFC] lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={19} /></button><div className="hidden max-w-md flex-1 md:block"><p className="text-lg font-bold tracking-[-0.02em] text-[#1F2937]">Sales Performance</p><p className="text-xs text-[#9CA3AF]">KMM Sales Intelligence</p></div><div className="ml-auto flex items-center gap-2 sm:gap-3"><HeaderPresentationTrigger /><div className="relative"><button className="relative grid size-10 place-items-center rounded-xl border border-[#E5E7EB] text-[#55565A] transition hover:border-[#D1D5DB] hover:bg-[#F8FAFC]" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Open notifications" aria-expanded={notificationsOpen}><Bell size={18} /><span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#EF4444]" /></button>{notificationsOpen && <Card className="absolute right-0 top-12 z-50 w-[310px] p-2 shadow-xl"><p className="px-3 py-2 text-sm font-semibold">Sales data is source-backed</p><p className="px-3 pb-2 text-xs text-[#6B7280]">Loaded from the current dashboard data extract.</p></Card>}</div><button className="flex items-center gap-2 rounded-xl p-1.5 pr-2 transition hover:bg-[#F8FAFC]" aria-label="Open profile menu"><span className="grid size-9 place-items-center rounded-xl bg-[#55565A] text-xs font-bold text-white">KM</span><span className="hidden text-left xl:block"><span className="block text-xs font-semibold">KMM Admin</span><span className="block text-[10px] text-[#9CA3AF]">Executive view</span></span><ChevronDown className="hidden text-[#9CA3AF] xl:block" size={15} /></button></div></header>
+        <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6 2xl:p-6">
           <div className="space-y-6">
             <section className="space-y-5">
-              <PageHeader eyebrow="KUBOTA MAESOD MYANMAR (KMM)" title="Sales Performance" description={data ? `Sales units, sales value, profitability and achievement. Refreshed ${data.meta.sourceUpdatedAt}` : "Sales units, sales value, profitability and achievement."} />
+              
               <SalesFilters filters={filters} options={options} onChange={updateFilter} onRefresh={loadData} onReset={() => setFilters(defaultFilters)} onExport={() => exportRows(rows)} />
             </section>
             {loading && <Card className="grid min-h-[320px] place-items-center p-8"><div className="w-full max-w-xl space-y-4"><LoadingSkeleton variant="chart" /><p className="text-center text-sm font-semibold text-[#6B7280]">Loading real sales data...</p></div></Card>}
@@ -475,7 +433,7 @@ export function SalesPage() {
                   <KpiCard title="Average Selling Price (ASP)" value={asp === null ? "N/A" : formatCompact(asp)} unit="MMK" />
                 </section>
                 <section aria-label="Sales trend and target" className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
-                  <ChartCard title="Sales Trend" className="min-h-[420px]"><SalesTrendChart data={trendData} /></ChartCard>
+                  <ChartCard title="Sales Comparison Trend" subtitle="Compare sales performance by year, month range and metric." className="min-h-[500px]"><SalesTrendChart sales={data.sales} filters={filters} plan={data.plan} /></ChartCard>
                   <TargetProgressCard target={salesTarget} actual={unitRows.length} />
                 </section>
                 <section aria-label="Sales analysis" className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">

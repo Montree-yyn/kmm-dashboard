@@ -14,8 +14,8 @@ import { ExportButton } from "../design-system/export-button";
 import { FilterBar } from "../design-system/filter-bar";
 import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
-import { PageHeader } from "../design-system/page-header";
-import { ProductBadge, type ProductBadgeLabel } from "../design-system/product-badge";
+import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -242,20 +242,6 @@ function GlobalFilter({ filters, options, onChange, onRefresh, onReset, onExport
   );
 }
 
-function productCount(rows: { productType: string; model?: string }[], label: string) {
-  return rows.filter((row) => productCategory(row) === label).length;
-}
-
-function ProductBadges({ rows, labels }: { rows: { productType: string; model?: string }[]; labels: readonly string[] }) {
-  return (
-    <div className="mt-4 flex flex-wrap gap-1.5">
-      {labels.map((label) => (
-        <ProductBadge key={label} label={label as ProductBadgeLabel} value={productCount(rows, label)} />
-      ))}
-    </div>
-  );
-}
-
 function KpiSection({ data, filters }: { data: DashboardData; filters: FilterState }) {
   const filteredSales = data.sales.filter((row) => rowMatches(row, filters));
   const filteredBooking = data.booking.filter((row) => rowMatches(row, filters));
@@ -285,8 +271,8 @@ function KpiSection({ data, filters }: { data: DashboardData; filters: FilterSta
       <KpiCard title="Sales Unit" value={currentSales.length} unit="Unit" comparison={{ value: `${getTrendArrow(salesComparison)} ${trendText(salesComparison)}`, direction: trendDirection(salesComparison), label: comparisonLabel }} />
       <KpiCard title="Sales Value" value={formatCompact(salesValue)} unit="MMK" comparison={{ value: `${getTrendArrow(salesValueComparison)} ${trendText(salesValueComparison)}`, direction: trendDirection(salesValueComparison), label: comparisonLabel }} />
       <KpiCard title="Gross Profit" value={formatCompact(grossProfit)} unit="MMK" comparison={{ value: `${getTrendArrow(grossProfitComparison)} ${trendText(grossProfitComparison)}`, direction: trendDirection(grossProfitComparison), label: comparisonLabel }} />
-      <KpiCard title="Booking Unit" value={currentBooking.length} unit="Total Unit" productBreakdown={<ProductBadges rows={currentBooking} labels={PRODUCT_GROUPS.UNIT_PRODUCTS} />} />
-      <KpiCard title="Stock Unit" value={currentStock.length} unit="Total Unit" productBreakdown={<ProductBadges rows={currentStock} labels={PRODUCT_GROUPS.UNIT_PRODUCTS} />} />
+      <KpiCard title="Booking Unit" value={currentBooking.length} unit="Total Unit" />
+      <KpiCard title="Stock Unit" value={currentStock.length} unit="Total Unit" />
     </section>
   );
 }
@@ -351,7 +337,7 @@ function linePath(points: ChartPoint[]) {
   });
 }
 
-function LineChart({
+function LegacyLineChart({
   unitData,
   valueData,
   selectedMonths,
@@ -442,6 +428,12 @@ function LineChart({
       </div>
     </div>
   );
+}
+
+void LegacyLineChart;
+
+function LineChart({ unitData, valueData, unitLabel = "Unit", valueLabel = "Sales Value", minPlotHeight = 240 }: { unitData: TrendDatum[]; valueData?: TrendDatum[]; selectedMonths: number[]; variant?: "orange" | "gray"; unitLabel?: string; valueLabel?: string; minPlotHeight?: number }) {
+  return <PremiumTrendChart labels={unitData.map((item) => item.label)} unit={valueData ? "MMK" : unitLabel} height={minPlotHeight} formatValue={formatCompact} series={[{ id: "current", label: unitLabel, values: unitData.map((item) => item.value), kind: "current" }, ...(valueData ? [{ id: "previous", label: valueLabel, values: valueData.map((item) => item.value), kind: "previous" as const }] : [])]} />;
 }
 
 function HorizontalBarChart({ data, color = "#FF7A00" }: { data: { label: string; value: number }[]; color?: string }) {
@@ -729,7 +721,6 @@ export function DashboardPage() {
   }
 
   const filterOptions = dashboardData ? buildFilterOptions(dashboardData) : defaultFilters;
-  const refreshed = dashboardData?.meta.sourceUpdatedAt ?? "-";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#1F2937]">
@@ -743,7 +734,7 @@ export function DashboardPage() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 w-full rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] pl-10 pr-4 text-sm text-[#1F2937] outline-none transition focus:border-[#FFB46E] focus:bg-white focus:ring-4 focus:ring-[#FF8615]/10" placeholder="Search branch or action..." aria-label="Search dashboard" />
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <Badge variant="outline" className="hidden gap-2 py-2 sm:inline-flex"><span className="size-2 rounded-full bg-[#22C55E]" />Live data</Badge>
+            <HeaderPresentationTrigger />
             <div className="relative">
               <button className="relative grid size-10 place-items-center rounded-xl border border-[#E5E7EB] text-[#55565A] transition hover:border-[#D1D5DB] hover:bg-[#F8FAFC]" onClick={() => setNotificationsOpen((v) => !v)} aria-label="Open notifications" aria-expanded={notificationsOpen}>
                 <Bell size={18} /><span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#EF4444]" />
@@ -764,10 +755,10 @@ export function DashboardPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-7 2xl:p-8">
+        <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6 2xl:p-6">
           <div className="space-y-6">
             <section className="space-y-5">
-              <PageHeader eyebrow="KUBOTA MAESOD MYANMAR (KMM)" title="Executive Dashboard" description={`KMM Sales Intelligence overview refreshed ${refreshed}`} />
+              
               <GlobalFilter filters={filters} options={filterOptions} onChange={updateFilter} onRefresh={loadDashboardData} onReset={() => setFilters(defaultFilters)} onExport={exportDashboard} />
             </section>
 

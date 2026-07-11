@@ -14,7 +14,6 @@ type KpiCardProps = {
     label: string;
   };
   supportingText?: ReactNode;
-  productBreakdown?: ReactNode;
   loading?: boolean;
   empty?: boolean;
   className?: string;
@@ -26,31 +25,37 @@ const comparisonTone: Record<ComparisonDirection, string> = {
   neutral: "text-[#6B7280]",
 };
 
-export function KpiCard({ title, value, unit, comparison, supportingText, productBreakdown, loading = false, empty = false, className }: KpiCardProps) {
+export function KpiCard({ title, value, unit, comparison, supportingText, loading = false, empty = false, className }: KpiCardProps) {
   return (
-    <Card className={cn("flex h-full min-h-[168px] flex-col justify-between rounded-2xl border-[#E8EAED] bg-white p-4 shadow-[0_8px_24px_rgba(31,41,55,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(31,41,55,0.07)] 2xl:p-5", className)}>
-      <p className="text-[15px] font-semibold text-[#4B5563]">{title}</p>
-      <div className="pt-6">
-        {loading ? (
-          <div className="h-10 w-28 animate-pulse rounded-lg bg-[#E9EBEE]" aria-label={`Loading ${title}`} />
-        ) : empty ? (
-          <p className="text-sm font-medium text-[#9CA3AF]">No data available</p>
-        ) : (
-          <>
-            <div className="flex items-end gap-2">
-              <strong className="text-[38px] font-semibold leading-none tracking-[-0.035em] text-[#1F2937]">{value}</strong>
-              <span className="pb-1 text-sm font-semibold text-[#6B7280]">{unit}</span>
+    <Card className={cn("h-full min-h-[168px] rounded-2xl border-[#E8EAED] bg-white p-4 shadow-[0_8px_24px_rgba(31,41,55,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(31,41,55,0.07)] 2xl:p-5", className)}>
+      <div className="flex h-full min-h-[136px] flex-col">
+        <div className="min-h-10">
+          <p className="max-h-10 overflow-hidden text-[15px] font-semibold leading-5 text-[#4B5563]">{title}</p>
+        </div>
+
+        <div className="flex min-h-12 flex-1 items-center">
+          {loading ? (
+            <div className="h-10 w-28 animate-pulse rounded-lg bg-[#E9EBEE]" aria-label={`Loading ${title}`} />
+          ) : empty ? (
+            <strong className="text-[20px] font-semibold leading-none text-[#9CA3AF]">No data available</strong>
+          ) : (
+            <div className="flex min-w-0 items-baseline gap-2">
+              <strong className="shrink-0 text-[38px] font-semibold leading-none tracking-[-0.035em] text-[#1F2937]">{value}</strong>
+              {unit && <span className="whitespace-nowrap text-sm font-semibold leading-none text-[#6B7280]">{unit}</span>}
             </div>
-            {comparison && (
-              <>
-                <p className={cn("mt-4 text-sm font-bold", comparisonTone[comparison.direction])}>{comparison.value}</p>
-                <p className="mt-1 text-xs font-medium text-[#9CA3AF]">{comparison.label}</p>
-              </>
-            )}
-            {supportingText && <p className="mt-4 text-xs font-medium text-[#9CA3AF]">{supportingText}</p>}
-            {productBreakdown}
-          </>
-        )}
+          )}
+        </div>
+
+        <div className="min-h-11 text-xs font-medium leading-4 text-[#9CA3AF]">
+          {comparison ? (
+            <>
+              <p className={cn("text-sm font-bold leading-4", comparisonTone[comparison.direction])}>{comparison.value}</p>
+              <p className="mt-1 line-clamp-2">{comparison.label}</p>
+            </>
+          ) : supportingText ? (
+            <div className="line-clamp-2 pt-0.5">{supportingText}</div>
+          ) : null}
+        </div>
       </div>
     </Card>
   );

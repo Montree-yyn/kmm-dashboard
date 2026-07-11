@@ -1,10 +1,10 @@
 import { AuthGate } from "../../components/auth/auth-gate";
-import { PlaceholderPage } from "../../components/navigation/placeholder-page";
+import { StockIntelligencePage } from "../../components/stock/stock-intelligence-page";
 
 export default function StockPage() {
   return (
     <AuthGate>
-      <PlaceholderPage title="Stock" />
+      <StockIntelligencePage />
     </AuthGate>
   );
 }

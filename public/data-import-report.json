@@ -1,0 +1,432 @@
+{
+  "generatedAt": "2026-07-11T22:07:19",
+  "stock": {
+    "source": "01_Data/Stock/2026_KMM_R2_STOCK.xlsx",
+    "sheet": "02) STOCK",
+    "headerRow": 4,
+    "headers": [
+      "STOCK CODE",
+      "BRANCH",
+      "KMCL DATE OUT",
+      "DAY IN",
+      "Today",
+      "Age Stock",
+      "Car Flow",
+      "เดือนสั่งซื้อ",
+      "เดือนที่รับจริง",
+      "Years",
+      "สั่งซื้อ",
+      "SUPPLIER",
+      "Status",
+      "PRODUCT CODE",
+      "TYPE",
+      "SUB_TYPE",
+      "Delivery Fee",
+      "MODEL",
+      "Front Dozer",
+      "CHASSIS NUMBER",
+      "ENGINE NUMBER",
+      "PRICE(USD)",
+      "Exchange Rate",
+      "MSRP",
+      "KMM",
+      "KMM ตัดขาย",
+      "SKC/KMCL",
+      "SKC/KMCL ตัดขาย",
+      "Location",
+      "Status PD",
+      "DAY OUT",
+      "Stock DL",
+      "Sale Branch",
+      "CUSTOMER NAME",
+      "Customer ID",
+      "Address",
+      "Village",
+      "Twonship",
+      "Division",
+      "PHONE",
+      "Sale Price",
+      "Sale Memo No.",
+      "Delivery Order",
+      "Purchase Type",
+      "Sales Staff",
+      "WS Incentive",
+      "WS Incentive Q.",
+      "Total"
+    ],
+    "currentStockRule": "Status PD is Free Stock or Adjust; Status PD = S and blank status rows are excluded.",
+    "quantityRule": "No Quantity column exists; one valid current-stock row equals one unit.",
+    "snapshotDate": "2026-07-11",
+    "excelTotalRows": 606,
+    "currentStockRows": 282,
+    "excludedRows": 324,
+    "excludedByStatusPD": {
+      "<blank>": 1,
+      "S": 323
+    },
+    "missingProductType": 0,
+    "unknownProductTypes": [
+      "08-TX"
+    ],
+    "unknownProductRows": 3,
+    "missingBranch": 0,
+    "missingModel": 0,
+    "missingValue": 174,
+    "invalidValue": 0,
+    "invalidDateIn": 0,
+    "negativeAge": 0,
+    "inconsistentAge": 0,
+    "rowsWithoutSerialNumber": 60,
+    "exactDuplicateRows": 0,
+    "exactDuplicateKeys": {},
+    "possibleDuplicateRows": 162,
+    "possibleDuplicateKeys": {
+      "KMM01 | 07-IMO | Fertilizer Ripper + Disc Harrow 2 rows | 2017-05-05 | 3100000.0": [
+        11,
+        12
+      ],
+      "KMM01 | 07-IMO | คราด Spring Tine Cultivator 4 legs | 2017-03-31 | 900000.0": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "KMM01 | 07-IMO | Scarifier หนวดกุ้ง | 2017-03-31 | 700000.0": [
+        20,
+        21,
+        23,
+        24
+      ],
+      "KMM01 | 06-IM | Sub Soiler SS3 3 Legs - M8540/M9540 | 2018-07-20 | 8265000.0": [
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "KMM01 | 06-IM | Sub Soiler SS3 3 Legs - M8540/M9540 | 2018-07-26 | 8265000.0": [
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "KMM01 | 07-IMO | Farme for DH246 | 2018-08-04 | 700000.0": [
+        42,
+        43,
+        44
+      ],
+      "KMM01 | 07-IMO | Special Dozer SD131 | 2018-08-04 | 2100000.0": [
+        50,
+        51
+      ],
+      "KMM03 | 06-IM | BALANCER(Front Weight for L-Series) | 2020-03-13 | 116000.0": [
+        58,
+        59
+      ],
+      "KMM02 | 07-IMO | CONCAVE For BK70 | 2020-12-25 | 75000.0": [
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136
+      ],
+      "KMM01 | 01-TT | B2440S | 2022-06-04 | 29638000.0": [
+        138,
+        139
+      ],
+      "KMM01 | 06-IM | RX85B2 | 2022-09-27 | 3596000.0": [
+        140,
+        141,
+        142,
+        143
+      ],
+      "KMM02 | 06-IM | Front Weight for B2420 | 2022-10-27 | 116000.0": [
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152
+      ],
+      "KMM02 | 07-IMO | Fertilizer Sprayer | 2023-06-22 | None": [
+        153,
+        154,
+        155,
+        156,
+        157
+      ],
+      "KMM03 | 06-IM | BALANCER(Front Weight for L-Series) | 2024-03-04 | None": [
+        164,
+        165,
+        166,
+        167,
+        168
+      ],
+      "KMM01 | 07-IMO | Corn Seeder 4 Rows M | 2024-03-06 | None": [
+        170,
+        171,
+        172,
+        173
+      ],
+      "KMM02 | 06-IM | DH247H | 2024-05-15 | None": [
+        180,
+        181
+      ],
+      "KMM02 | 06-IM | DH246F | 2024-05-18 | None": [
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192
+      ],
+      "KMM02 | 07-IMO | CS22S-OS16D24 | 2024-05-18 | None": [
+        193,
+        194,
+        195,
+        196
+      ],
+      "KMM02 | 07-IMO | CS22S-OS16D24 | 2024-05-20 | None": [
+        197,
+        198,
+        199,
+        200
+      ],
+      "KMM02 | 06-IM | DH246F | 2024-05-29 | None": [
+        201,
+        202
+      ],
+      "KMM02 | 07-IMO | CS22S-OS18D24 | 2024-06-04 | None": [
+        204,
+        205,
+        213,
+        214,
+        215,
+        216
+      ],
+      "KMM02 | 07-IMO | CS22S-OS16D24 | 2024-06-04 | None": [
+        207,
+        208,
+        209
+      ],
+      "KMM02 | 06-IM | DH246F | 2024-06-04 | None": [
+        211,
+        212
+      ],
+      "KMM02 | 06-IM | DH246F | 2024-06-05 | None": [
+        217,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223
+      ],
+      "KMM02 | 06-IM | DH266JW | 2024-10-15 | None": [
+        232,
+        233
+      ],
+      "KMM03 | 07-IMO | DH247 | 2025-06-28 | None": [
+        256,
+        258
+      ],
+      "KMM03 | 07-IMO | DH267 | 2025-08-05 | None": [
+        265,
+        266,
+        267
+      ],
+      "KMM01 | 04-TP | SPV-6CMD | 2025-11-08 | None": [
+        285,
+        286,
+        287
+      ],
+      "KMM03 | 06-IM | Bridgestone Hi-Lug Rear Tire assy (12.4-32) | 2025-11-27 | None": [
+        302,
+        303,
+        304,
+        305
+      ],
+      "KMM02 | 06-IM | RX220H | 2026-02-10 | None": [
+        441,
+        442,
+        443
+      ],
+      "KMM03 | 02-CH | DC70G PRO | 2026-03-11 | None": [
+        479,
+        481,
+        482
+      ],
+      "KMM02 | 02-CH | DC70G PRO | 2026-03-12 | None": [
+        483,
+        485
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-03-20 | None": [
+        493,
+        494
+      ],
+      "KMM02 | 01-TT | L3228 | 2026-03-26 | None": [
+        504,
+        505
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-04-01 | None": [
+        508,
+        509
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-04-25 | None": [
+        516,
+        517,
+        518,
+        519
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-05-02 | None": [
+        520,
+        521
+      ],
+      "KMM01 | 06-IM | DH266JW | 2026-05-25 | None": [
+        541,
+        542
+      ],
+      "KMM01 | 06-IM | RM220 | 2026-05-25 | None": [
+        543,
+        544
+      ],
+      "KMM01 | 01-TT | L5228+FD+FG | 2026-05-27 | None": [
+        548,
+        549
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-05 | None": [
+        553,
+        554,
+        555,
+        556
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-06 | None": [
+        557,
+        558
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-12 | None": [
+        563,
+        564,
+        566,
+        567,
+        568,
+        569,
+        570
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-13 | None": [
+        571,
+        572
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-17 | None": [
+        573,
+        574,
+        575,
+        576
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-18 | None": [
+        577,
+        578,
+        579,
+        580
+      ],
+      "KMM02 | 06-IM | DH247H | 2026-06-19 | None": [
+        585,
+        586
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-25 | None": [
+        595,
+        596
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-26 | None": [
+        597,
+        598
+      ],
+      "KMM01 | 02-CH | DC70G PRO | 2026-06-27 | None": [
+        599,
+        600,
+        601,
+        602,
+        603,
+        604
+      ],
+      "KMM02 | 06-IM | DH247H | 2026-07-03 | None": [
+        606,
+        607,
+        608,
+        609
+      ]
+    },
+    "unitTotalByProductType": {
+      "TT": 8,
+      "CH": 60,
+      "EX": 1,
+      "TP": 5,
+      "MAX": 0,
+      "IM": 107,
+      "IMO": 98,
+      "OT": 0,
+      "Unknown": 3
+    },
+    "valueTotalByProductType": {
+      "TT": 59276000.0,
+      "CH": 0,
+      "EX": 0,
+      "TP": 42746000.0,
+      "MAX": 0,
+      "IM": 189555000.0,
+      "IMO": 51156000.0,
+      "OT": 0,
+      "Unknown": 51412000.0
+    },
+    "unitTotalByBranch": {
+      "KMM01": 56,
+      "KMM02": 11,
+      "KMM03": 7
+    },
+    "otherOrUnknownBranchUnit": 0,
+    "stockUnit": 74,
+    "stockValue": 342733000.0,
+    "agedStockUnit": 27
+  }
+}

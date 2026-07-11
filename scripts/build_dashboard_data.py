@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,17 @@ import openpyxl
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = ROOT.parent / "01_Data"
 OUT = ROOT / "public" / "dashboard-data.json"
+IMPORT_REPORT = ROOT / "public" / "data-import-report.json"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+# Stock product groups are defined here once and emitted with every stock row.
+# Client calculations consume productGroup instead of reclassifying source labels.
+STOCK_PRODUCT_CONFIG = {
+    "UNIT_PRODUCTS": ("TT", "CH", "EX", "TP", "MAX"),
+    "VALUE_ONLY_PRODUCTS": ("IM", "IMO", "OT"),
+    "ALL_VALUE_PRODUCTS": ("TT", "CH", "EX", "TP", "MAX", "IM", "IMO", "OT"),
+}
 
 
 def as_text(value: Any) -> str:
@@ -107,6 +117,26 @@ def normalize_product_type(value: Any) -> str:
         if key in values:
             return product
     return raw
+
+
+def normalize_stock_product_type(value: Any) -> str:
+    """Normalize Stock TYPE values without silently assigning unknown source labels."""
+    raw = " ".join(as_text(value).upper().split())
+    key = re.sub(r"[^A-Z0-9]", "", raw)
+    aliases = {
+        "TT": {"TT", "01TT"},
+        "CH": {"CH", "02CH"},
+        "EX": {"EX", "03EX"},
+        "TP": {"TP", "04TP"},
+        "MAX": {"MAX", "05MAX"},
+        "IM": {"IM", "06IM", "IMPLEMENT", "IMPLEMENTS"},
+        "IMO": {"IMO", "07IMO", "IMPLEMENTOTHER", "IMPLEMENTOTHERS"},
+        "OT": {"OT", "OTHER", "OTHERS"},
+    }
+    for group, values in aliases.items():
+        if key in values:
+            return group
+    return "Unknown"
 
 
 def header_map(ws: Any, row: int) -> dict[str, int]:
@@ -231,30 +261,99 @@ def load_booking() -> list[dict[str, Any]]:
     return rows
 
 
-def load_stock() -> list[dict[str, Any]]:
+def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     path = DATA_ROOT / "Stock" / "2026_KMM_R2_STOCK.xlsx"
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     ws = wb["02) STOCK"]
     headers = header_map(ws, 4)
+    required_headers = ["BRANCH", "TYPE", "MODEL", "CHASSIS NUMBER", "DAY IN", "Today", "Age Stock", "Car Flow", "Status PD", "MSRP", "Sales Staff"]
+    missing_headers = [name for name in required_headers if name not in headers]
+    if missing_headers:
+        raise ValueError(f"Stock import aborted: missing required header(s): {', '.join(missing_headers)}")
     rows: list[dict[str, Any]] = []
-    for row in ws.iter_rows(min_row=5, values_only=True):
+    all_rows = list(ws.iter_rows(min_row=5, values_only=True))
+    excluded_statuses: Counter[str] = Counter()
+    raw_current: list[tuple[int, tuple[Any, ...]]] = []
+    for excel_row, row in enumerate(all_rows, start=5):
+        status_pd = as_text(cell(row, headers, "Status PD"))
+        if status_pd not in {"Free Stock", "Adjust"}:
+            excluded_statuses[status_pd or "<blank>"] += 1
+            continue
+        raw_current.append((excel_row, row))
         branch = normalize_branch(cell(row, headers, "BRANCH")) or "Missing"
-        year = as_int(cell(row, headers, "Years")) or None
-        _, received_month = year_month_from_code(cell(row, headers, "เดือนที่รับจริง"))
+        date_in = iso_date(cell(row, headers, "DAY IN"))
+        year, month = year_month_from_date(cell(row, headers, "DAY IN"))
+        raw_type = as_text(cell(row, headers, "TYPE"))
         rows.append(
             {
-                "date": iso_date(cell(row, headers, "DAY IN")),
+                "date": date_in,
                 "year": year,
-                "month": received_month,
+                "month": month,
                 "branch": branch,
                 "salesperson": as_text(cell(row, headers, "Sales Staff")),
-                "productType": as_text(cell(row, headers, "TYPE")),
+                "productType": raw_type,
+                "productGroup": normalize_stock_product_type(raw_type),
                 "model": as_text(cell(row, headers, "MODEL")),
                 "ageBucket": as_text(cell(row, headers, "Car Flow")),
-                "msrp": as_number(cell(row, headers, "MSRP")),
+                "ageDays": optional_number(cell(row, headers, "Age Stock")),
+                "snapshotDate": iso_date(cell(row, headers, "Today")),
+                "msrp": optional_number(cell(row, headers, "MSRP")),
+                "serialNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None,
+                "currentStatus": status_pd,
             }
         )
-    return rows
+    known_value = set(STOCK_PRODUCT_CONFIG["ALL_VALUE_PRODUCTS"])
+    unit_groups = set(STOCK_PRODUCT_CONFIG["UNIT_PRODUCTS"])
+    groups = [*STOCK_PRODUCT_CONFIG["ALL_VALUE_PRODUCTS"], "Unknown"]
+    rows_by_group = {group: [row for row in rows if row["productGroup"] == group] for group in groups}
+    serial_keys: dict[tuple[str, str], list[int]] = defaultdict(list)
+    fallback_keys: dict[tuple[str, str, str, str, str], list[int]] = defaultdict(list)
+    missing_serial = 0
+    for (excel_row, source_row), imported in zip(raw_current, rows):
+        serial = imported["serialNumber"]
+        if serial and serial != "-":
+            serial_keys[(imported["branch"], serial)].append(excel_row)
+        else:
+            missing_serial += 1
+        fallback_keys[(imported["branch"], imported["productType"], imported["model"], imported["date"], str(imported["msrp"]))].append(excel_row)
+    exact_duplicates = {" | ".join(key): locations for key, locations in serial_keys.items() if len(locations) > 1}
+    possible_duplicates = {" | ".join(key): locations for key, locations in fallback_keys.items() if len(locations) > 1}
+    report = {
+        "source": str(path.relative_to(ROOT.parent)),
+        "sheet": "02) STOCK",
+        "headerRow": 4,
+        "headers": [as_text(ws.cell(4, col).value) for col in range(1, ws.max_column + 1) if as_text(ws.cell(4, col).value)],
+        "currentStockRule": "Status PD is Free Stock or Adjust; Status PD = S and blank status rows are excluded.",
+        "quantityRule": "No Quantity column exists; one valid current-stock row equals one unit.",
+        "snapshotDate": next((row["snapshotDate"] for row in rows if row["snapshotDate"]), None),
+        "excelTotalRows": len(all_rows),
+        "currentStockRows": len(rows),
+        "excludedRows": sum(excluded_statuses.values()),
+        "excludedByStatusPD": dict(sorted(excluded_statuses.items())),
+        "missingProductType": sum(not row["productType"] for row in rows),
+        "unknownProductTypes": sorted({row["productType"] for row in rows if row["productGroup"] not in known_value}),
+        "unknownProductRows": sum(row["productGroup"] not in known_value for row in rows),
+        "missingBranch": sum(row["branch"] == "Missing" for row in rows),
+        "missingModel": sum(not row["model"] for row in rows),
+        "missingValue": sum(row["msrp"] is None for row in rows),
+        "invalidValue": 0,
+        "invalidDateIn": sum(not row["date"] for row in rows),
+        "negativeAge": sum(row["ageDays"] is not None and row["ageDays"] < 0 for row in rows),
+        "inconsistentAge": sum(bool(row["date"] and row["snapshotDate"] and row["ageDays"] is not None and abs((datetime.fromisoformat(row["snapshotDate"]) - datetime.fromisoformat(row["date"])).days - row["ageDays"]) > 1) for row in rows),
+        "rowsWithoutSerialNumber": missing_serial,
+        "exactDuplicateRows": sum(len(locations) - 1 for locations in exact_duplicates.values()),
+        "exactDuplicateKeys": exact_duplicates,
+        "possibleDuplicateRows": sum(len(locations) - 1 for locations in possible_duplicates.values()),
+        "possibleDuplicateKeys": possible_duplicates,
+        "unitTotalByProductType": {group: len(rows_by_group[group]) for group in groups},
+        "valueTotalByProductType": {group: sum(row["msrp"] or 0 for row in rows_by_group[group]) for group in groups},
+        "unitTotalByBranch": {branch: sum(1 for row in rows if row["branch"] == branch and row["productGroup"] in unit_groups) for branch in ["KMM01", "KMM02", "KMM03"]},
+        "otherOrUnknownBranchUnit": sum(1 for row in rows if row["branch"] not in {"KMM01", "KMM02", "KMM03"} and row["productGroup"] in unit_groups),
+        "stockUnit": sum(1 for row in rows if row["productGroup"] in unit_groups),
+        "stockValue": sum(row["msrp"] or 0 for row in rows if row["productGroup"] in known_value),
+        "agedStockUnit": sum(1 for row in rows if row["productGroup"] in unit_groups and (row["ageDays"] or 0) > 90),
+    }
+    return rows, report
 
 
 def load_marketing() -> list[dict[str, Any]]:
@@ -294,6 +393,7 @@ def main() -> None:
         DATA_ROOT / "Marketing" / "2026 Marketing Summary.xlsx",
     ]
     latest_mtime = max(path.stat().st_mtime for path in sources)
+    stock, stock_report = load_stock()
     data = {
         "meta": {
             "company": "KUBOTA MAESOD MYANMAR",
@@ -305,11 +405,18 @@ def main() -> None:
         "plan": load_plan(),
         "sales": load_sales(),
         "booking": load_booking(),
-        "stock": load_stock(),
+        "stock": stock,
         "marketing": load_marketing(),
     }
-    OUT.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    report = {"generatedAt": datetime.now().isoformat(timespec="seconds"), "stock": stock_report}
+    out_tmp = OUT.with_suffix(".tmp")
+    report_tmp = IMPORT_REPORT.with_suffix(".tmp")
+    out_tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_tmp.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    out_tmp.replace(OUT)
+    report_tmp.replace(IMPORT_REPORT)
     print(f"Wrote {OUT}")
+    print(f"Wrote {IMPORT_REPORT}")
     print({key: len(data[key]) for key in ["sales", "booking", "stock", "marketing"]})
 
 

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Bell, ChevronDown, Menu } from "lucide-react";
 import { AppSidebar } from "./app-sidebar";
-import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
+import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 
 export function PlaceholderPage({ title }: { title: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -22,7 +22,7 @@ export function PlaceholderPage({ title }: { title: string }) {
             <p className="text-xs text-[#9CA3AF]">KMM Sales Intelligence</p>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <Badge variant="outline" className="hidden gap-2 py-2 sm:inline-flex"><span className="size-2 rounded-full bg-[#22C55E]" />Live data</Badge>
+            <HeaderPresentationTrigger />
             <button className="relative grid size-10 place-items-center rounded-xl border border-[#E5E7EB] text-[#55565A] transition hover:border-[#D1D5DB] hover:bg-[#F8FAFC]" aria-label="Open notifications">
               <Bell size={18} /><span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#EF4444]" />
             </button>

@@ -14,6 +14,7 @@ import { TableCard } from "../design-system/table-card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
+import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BRANCH_NAMES: Record<string, string> = { KMM01: "Hpa-an", KMM02: "Mawlamyine", KMM03: "Tharyarwaddy" };
@@ -49,9 +50,8 @@ function HorizontalBars({ rows, value, suffix = " Units", color = "#FF7A00" }: {
 }
 
 function StockTrend({ rows }: { rows: Stock[] }) {
-  const trend = MONTHS.map((label, index) => ({ label, stockIn: rows.filter((row) => row.month === index + 1).length }));
-  const max = Math.max(...trend.map((item) => item.stockIn), 1);
-  return <div><div className="mb-5 flex flex-wrap gap-4 text-xs font-semibold"><span className="text-[#FF7A00]">Stock In</span><span className="text-[#9CA3AF]">Stock Out: N/A</span><span className="text-[#9CA3AF]">Balance: N/A</span></div><div className="grid grid-cols-12 items-end gap-2 border-b border-[#E5E7EB] pb-2">{trend.map((item) => <div key={item.label} className="flex h-48 flex-col justify-end gap-2 text-center"><span className="text-[10px] font-semibold text-[#6B7280]">{item.stockIn || ""}</span><div className="rounded-t bg-[#FF7A00]" style={{ height: `${item.stockIn ? Math.max(8, (item.stockIn / max) * 150) : 0}px` }} /><span className="text-[10px] text-[#6B7280]">{item.label}</span></div>)}</div><p className="mt-4 text-xs text-[#9CA3AF]">The current Stock extract contains only remaining inventory. It does not include stock-out history or historical balance snapshots.</p></div>;
+  const values = MONTHS.map((_, index) => { const count = rows.filter((row) => row.month === index + 1).length; return count || null; });
+  return <PremiumTrendChart title="Stock Trend" subtitle="Monthly current-inventory entries by Date In" labels={MONTHS} unit="Unit" series={[{ id: "stock", label: "Stock In", values, kind: "current" }]} />;
 }
 
 export function StockIntelligencePage() {

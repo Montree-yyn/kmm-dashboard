@@ -432,8 +432,8 @@ function LegacyLineChart({
 
 void LegacyLineChart;
 
-function LineChart({ unitData, valueData, unitLabel = "Unit", valueLabel = "Sales Value", minPlotHeight = 240 }: { unitData: TrendDatum[]; valueData?: TrendDatum[]; selectedMonths: number[]; variant?: "orange" | "gray"; unitLabel?: string; valueLabel?: string; minPlotHeight?: number }) {
-  return <PremiumTrendChart labels={unitData.map((item) => item.label)} unit={valueData ? "MMK" : unitLabel} height={minPlotHeight} formatValue={formatCompact} series={[{ id: "current", label: unitLabel, values: unitData.map((item) => item.value), kind: "current" }, ...(valueData ? [{ id: "previous", label: valueLabel, values: valueData.map((item) => item.value), kind: "previous" as const }] : [])]} />;
+function LineChart({ title, unitData, valueData, unitLabel = "Unit", valueLabel = "Sales Value" }: { title: string; unitData: TrendDatum[]; valueData?: TrendDatum[]; selectedMonths: number[]; variant?: "orange" | "gray"; unitLabel?: string; valueLabel?: string; minPlotHeight?: number }) {
+  return <PremiumTrendChart title={title} labels={unitData.map((item) => item.label)} unit={valueData ? "MMK" : unitLabel} formatValue={formatCompact} series={[{ id: "current", label: unitLabel, values: unitData.map((item) => item.value), kind: "current" }, ...(valueData ? [{ id: "previous", label: valueLabel, values: valueData.map((item) => item.value), kind: "previous" as const }] : [])]} />;
 }
 
 function HorizontalBarChart({ data, color = "#FF7A00" }: { data: { label: string; value: number }[]; color?: string }) {
@@ -578,19 +578,13 @@ function ChartsSection({ data, filters }: { data: DashboardData; filters: Filter
   return (
     <section className="space-y-5" aria-label="Executive charts">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
-        <ChartCard title="Sales Trend" className="min-h-[420px]">
-          <LineChart unitData={salesTrend} valueData={salesValueTrend} selectedMonths={selectedMonthNumbers} unitLabel="Sales Unit" valueLabel="Sales Value" minPlotHeight={320} />
-        </ChartCard>
+        <LineChart title="Sales Trend" unitData={salesTrend} valueData={salesValueTrend} selectedMonths={selectedMonthNumbers} unitLabel="Sales Unit" valueLabel="Sales Value" />
         <TargetProgress data={data} filters={filters} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="Booking Trend" className="min-h-[360px]">
-          <LineChart unitData={bookingTrend} selectedMonths={selectedMonthNumbers} unitLabel="Booking Unit" minPlotHeight={260} />
-        </ChartCard>
-        <ChartCard title="Stock Trend" className="min-h-[360px]">
-          <LineChart unitData={stockTrend} selectedMonths={selectedMonthNumbers} variant="gray" unitLabel="Stock Unit" minPlotHeight={260} />
-        </ChartCard>
+        <LineChart title="Booking Trend" unitData={bookingTrend} selectedMonths={selectedMonthNumbers} unitLabel="Booking Unit" />
+        <LineChart title="Stock Trend" unitData={stockTrend} selectedMonths={selectedMonthNumbers} variant="gray" unitLabel="Stock Unit" />
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">

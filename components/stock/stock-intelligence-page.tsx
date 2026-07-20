@@ -13,6 +13,8 @@ import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { TableCard } from "../design-system/table-card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
+import { getOpenBookingUnitRows } from "../../lib/dashboard/booking-selectors";
+import { getAgedStock, getAverageStockAge, getCurrentStockRows, getStockByProduct, getStockUnitRows, getStockValue, getStockValueRows, normalizeProductType } from "../../lib/dashboard/stock-selectors";
 import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 
@@ -21,8 +23,8 @@ const BRANCH_NAMES: Record<string, string> = { KMM01: "Hpa-an", KMM02: "Mawlamyi
 const UNIT_PRODUCTS = PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[];
 type Key = "year" | "month" | "branch" | "product";
 type Filters = Record<Key, string[]>;
-type Stock = { date: string; year: number | null; month: number | null; branch: string; productType: string; productGroup: string; model: string; ageBucket: string; ageDays: number | null; snapshotDate: string; msrp: number | null; serialNumber: string | null; currentStatus: string };
-type Booking = { year: number | null; month: number | null; branch: string; productType: string; model: string; status: string };
+type Stock = { date: string; year: number | null; month: number | null; branch: string; kmm: number | string | null; productType: string; productGroup: string; model: string; ageBucket: string; ageDays: number | null; snapshotDate: string; msrp: number | null; stockId?: string | null; serialNumber: string | null; engineNumber?: string | null; chassisNumber?: string | null; currentStatus: string };
+type Booking = { date: string; year: number | null; month: number | null; branch: string; salesperson: string; productType: string; model: string; price?: number | null; deposit?: number | null; purchaseStatus?: string; status: string };
 type Data = { meta?: { sourceUpdatedAt?: string; sources?: string[] }; stock: Stock[]; booking: Booking[] };
 
 const initial: Filters = { year: [], month: [], branch: [], product: [] };
@@ -30,8 +32,7 @@ const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""'
 const numeric = (value: unknown) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
 const money = (value: unknown) => `${numeric(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 const compact = (value: unknown) => `${(numeric(value) / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
-const unitCategory = (row: { productType: string; productGroup?: string; model?: string }) => row.productGroup || "Unknown";
-const isUnitProduct = (row: Stock | Booking) => UNIT_PRODUCTS.includes(unitCategory(row));
+const unitCategory = (row: { productType: string; productGroup?: string }) => normalizeProductType(row);
 const dateDays = (row: Stock) => Number.isFinite(Number(row.ageDays)) && Number(row.ageDays) >= 0 ? Number(row.ageDays) : null;
 const aging = (row: Stock) => { const days = dateDays(row); if (days === null) return "Unknown"; return days <= 30 ? "0–30" : days <= 60 ? "31–60" : days <= 90 ? "61–90" : ">90"; };
 const risk = (row: Stock) => { const age = aging(row); return age === ">90" ? "Critical" : age === "61–90" ? "At Risk" : age === "31–60" ? "Watch" : age === "0–30" ? "Healthy" : "N/A"; };
@@ -50,19 +51,24 @@ function HorizontalBars({ rows, value, suffix = " Units", color = "#FF7A00" }: {
 }
 
 function StockTrend({ rows }: { rows: Stock[] }) {
-  const values = MONTHS.map((_, index) => { const count = rows.filter((row) => row.month === index + 1).length; return count || null; });
-  return <PremiumTrendChart title="Stock Trend" subtitle="Monthly current-inventory entries by Date In" labels={MONTHS} unit="Unit" series={[{ id: "stock", label: "Stock In", values, kind: "current" }]} />;
+  const [metric, setMetric] = useState<"unit" | "value">("unit");
+  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({ id: String(year), year, label: String(year), kind: index === 0 ? "current" as const : index === 1 ? "previous" as const : "older" as const, values: MONTHS.map((_, month) => {
+    const monthRows = rows.filter((row) => row.year === year && row.month === month + 1);
+    if (!monthRows.length) return null;
+    return metric === "unit" ? monthRows.length : monthRows.reduce((total, row) => total + numeric(row.msrp), 0);
+  }) }));
+  return <PremiumTrendChart title="Stock Trend" subtitle="Compare stock entries by year, period and metric." labels={MONTHS} unit={metric === "unit" ? "Unit" : "MMK"} formatValue={metric === "unit" ? (value) => value.toLocaleString() : compact} defaultSeriesIds={["2026", "2025"]} onMetricChange={(value) => setMetric(value as "unit" | "value")} series={series} />;
 }
 
 export function StockIntelligencePage() {
   const [data, setData] = useState<Data | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [filters, setFilters] = useState<Filters>(initial); const [collapsed, setCollapsed] = useState(false); const [mobileOpen, setMobileOpen] = useState(false); const [query, setQuery] = useState(""); const [page, setPage] = useState(1); const [sort, setSort] = useState<"age" | "date" | "value">("age");
   const load = () => { setLoading(true); setError(""); fetch("/dashboard-data.json").then((response) => response.ok ? response.json() : Promise.reject()).then((value) => setData(value)).catch(() => setError("Stock data could not be loaded.")).finally(() => setLoading(false)); };
   useEffect(() => { const id = window.setTimeout(load, 0); return () => window.clearTimeout(id); }, []);
-  const rows = useMemo(() => data?.stock.filter((row) => rowMatches(row, filters)) ?? [], [data, filters]);
-  const booking = useMemo(() => data?.booking.filter((row) => row.status === "Open" && rowMatches(row, filters) && isUnitProduct(row)) ?? [], [data, filters]);
-  const unitRows = rows.filter(isUnitProduct); const valueRows = rows.filter((row) => ["TT", "CH", "EX", "TP", "MAX", "IM", "IMO", "OT"].includes(unitCategory(row))); const stockValue = valueRows.reduce((total, row) => total + numeric(row.msrp), 0); const knownAge = unitRows.map((row) => dateDays(row)).filter((age): age is number => age !== null); const aged = unitRows.filter((row) => aging(row) === ">90");
+  const rows = useMemo(() => getCurrentStockRows(data?.stock.filter((row) => rowMatches(row, filters)) ?? []), [data, filters]);
+  const booking = useMemo(() => data ? getOpenBookingUnitRows(data.booking, filters) : [], [data, filters]);
+  const unitRows = getStockUnitRows(rows); const valueRows = getStockValueRows(rows); const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows); const knownAge = averageStockAge === null ? [] : [averageStockAge];
   const options = useMemo(() => ({ year: [...new Set(data?.stock.map((row) => String(row.year)).filter((value) => value !== "null"))].sort().reverse(), month: MONTHS.filter((month, index) => data?.stock.some((row) => row.month === index + 1)), branch: ["KMM01", "KMM02", "KMM03"].filter((branch) => data?.stock.some((row) => row.branch === branch)), product: [...UNIT_PRODUCTS] }), [data]);
-  const productRows = UNIT_PRODUCTS.map((label) => { const items = unitRows.filter((row) => unitCategory(row) === label); return { label, count: items.length, value: items.reduce((total, row) => total + numeric(row.msrp), 0) }; });
+  const productRows = getStockByProduct(rows).filter((item) => UNIT_PRODUCTS.includes(item.product)).map((item) => ({ label: item.product, count: item.unit, value: item.value }));
   const ageGroups = ["0–30", "31–60", "61–90", ">90"].map((label) => { const items = unitRows.filter((row) => aging(row) === label); return { label, count: items.length, value: items.reduce((total, row) => total + numeric(row.msrp), 0) }; });
   const modelMap = new Map<string, Stock[]>(); unitRows.forEach((row) => { const key = row.model || "Unknown model"; modelMap.set(key, [...(modelMap.get(key) ?? []), row]); });
   const models = [...modelMap.entries()].map(([label, items]) => ({ label, rows: items, count: items.length, value: items.reduce((total, row) => total + numeric(row.msrp), 0), averageAge: items.map((row) => dateDays(row)).filter((age): age is number => age !== null).reduce((a, b, _, ages) => a + b / ages.length, 0) })).sort((a, b) => b.count - a.count);

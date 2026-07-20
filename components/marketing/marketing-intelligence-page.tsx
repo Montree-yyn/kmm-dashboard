@@ -152,7 +152,15 @@ function Bars({ rows, unit = "" }: {
     unit?: string;
 }) { if (unit === " Unit")
     return <TopTownshipTable rows={rows}/>; const ranked = [...rows].sort((a, b) => b.value - a.value).slice(0, 10); const maxValue = Math.max(...ranked.map((row) => Number(row.value) || 0), 0); const totalValue = ranked.reduce((total, row) => total + (Number(row.value) || 0), 0); return ranked.length ? <div className="space-y-3">{ranked.map((row) => { const value = Number(row.value) || 0; const width = maxValue > 0 ? (value / maxValue) * 100 : 0; const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0; return <div key={row.label} className="grid grid-cols-[minmax(72px,1fr)_minmax(0,2fr)_auto] items-center gap-3"><span className="truncate text-xs font-semibold text-[#4B5563]">{row.label}</span><div className="h-2 rounded-full bg-[#F3F4F6]"><div className="h-full rounded-full bg-[#FF7A00]" style={{ width: `${width}%` }}/></div><span className="text-xs font-bold text-[#4B5563]">{count(value)}{unit}{unit ? "" : ` (${percentage.toFixed(0)}%)`}</span></div>; })}</div> : <p className="py-10 text-center text-sm text-[#9CA3AF]">No mapped township data</p>; }
-function Trend({ rows }: { rows: MarketingRow[] }) { const latest = Math.max(...rows.map((row) => row.month ?? 0), 0); const values = MONTHS.map((_, index) => index + 1 > latest ? null : rows.filter((row) => row.month === index + 1).length); return <PremiumTrendChart title="Marketing Trend" subtitle="Monthly completed activities" labels={MONTHS} unit="Activities" series={[{ id: "activities", label: "Monthly Activities", values, kind: "current" }]} />; }
+function Trend({ rows }: { rows: MarketingRow[] }) {
+  const [metric, setMetric] = useState<"unit" | "value">("unit");
+  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({ id: String(year), year, label: String(year), kind: index === 0 ? "current" as const : index === 1 ? "previous" as const : "older" as const, values: MONTHS.map((_, month) => {
+    const monthRows = rows.filter((row) => row.year === year && row.month === month + 1);
+    if (!monthRows.length) return null;
+    return metric === "unit" ? monthRows.length : monthRows.reduce((total, row) => total + row.expense, 0);
+  }) }));
+  return <PremiumTrendChart title="Marketing Trend" subtitle="Compare marketing performance by year, period and metric." labels={MONTHS} unit={metric === "unit" ? "Activities" : "MMK"} formatValue={metric === "unit" ? count : compact} defaultSeriesIds={["2026", "2025"]} onMetricChange={(value) => setMetric(value as "unit" | "value")} series={series} />;
+}
 function ShowroomChart({ months }: {
     months: {
         label: string;

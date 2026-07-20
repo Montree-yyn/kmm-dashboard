@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-11T22:07:19",
+  "generatedAt": "2026-07-20T14:03:46",
   "stock": {
     "source": "01_Data/Stock/2026_KMM_R2_STOCK.xlsx",
     "sheet": "02) STOCK",
@@ -54,24 +54,133 @@
       "WS Incentive Q.",
       "Total"
     ],
-    "currentStockRule": "Status PD is Free Stock or Adjust; Status PD = S and blank status rows are excluded.",
+    "currentStockRule": "KMM = 1 and Status PD = Free Stock (case-insensitive, trimmed) are both required.",
     "quantityRule": "No Quantity column exists; one valid current-stock row equals one unit.",
     "snapshotDate": "2026-07-11",
     "excelTotalRows": 606,
-    "currentStockRows": 282,
-    "excludedRows": 324,
-    "excludedByStatusPD": {
-      "<blank>": 1,
-      "S": 323
+    "totalSourceRows": 606,
+    "kmmOneRows": 281,
+    "statusPdFreeStockRows": 281,
+    "kmmFreeStockRows": 281,
+    "currentStockRows": 281,
+    "validRemainingStockRows": 281,
+    "excludedRows": 325,
+    "excludedByKmm": {
+      "0": 324,
+      "605": 1
+    },
+    "excludedSoldDeliveredRows": 0,
+    "excludedByStatusPD": {},
+    "excludedSamples": {
+      "kmmNotOne": [
+        {
+          "excelRow": 61,
+          "stockId": "KMMS200404",
+          "serialNumber": null,
+          "engineNumber": null,
+          "model": "CONCAVE For BK70",
+          "productType": "07-IMO",
+          "kmm": "0",
+          "statusPd": "S",
+          "branch": "KMM02"
+        },
+        {
+          "excelRow": 62,
+          "stockId": "KMMS200405",
+          "serialNumber": null,
+          "engineNumber": null,
+          "model": "CONCAVE For BK70",
+          "productType": "07-IMO",
+          "kmm": "0",
+          "statusPd": "S",
+          "branch": "KMM02"
+        },
+        {
+          "excelRow": 63,
+          "stockId": "KMMS200406",
+          "serialNumber": null,
+          "engineNumber": null,
+          "model": "CONCAVE For BK70",
+          "productType": "07-IMO",
+          "kmm": "0",
+          "statusPd": "S",
+          "branch": "KMM02"
+        }
+      ],
+      "productIM": [
+        {
+          "stockId": "KMMS14085",
+          "serialNumber": "DP224F-7213",
+          "engineNumber": null,
+          "model": "DP224F-HP(Demo)",
+          "productType": "06-IM",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM01"
+        },
+        {
+          "stockId": "KMMS160200",
+          "serialNumber": "BS350-1331",
+          "engineNumber": null,
+          "model": "BS350",
+          "productType": "06-IM",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM01"
+        },
+        {
+          "stockId": "KMMS161051",
+          "serialNumber": "2013901",
+          "engineNumber": null,
+          "model": "DH226EHP",
+          "productType": "06-IM",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM01"
+        }
+      ],
+      "productIMO": [
+        {
+          "stockId": "KMMS161259",
+          "serialNumber": "IMO-A7C49L",
+          "engineNumber": null,
+          "model": "Ripper For L Series",
+          "productType": "07-IMO",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM02"
+        },
+        {
+          "stockId": "KMMS161261",
+          "serialNumber": "IMO-A7U24Z",
+          "engineNumber": null,
+          "model": "Fertilizer with roller",
+          "productType": "07-IMO",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM02"
+        },
+        {
+          "stockId": "KMMS170254",
+          "serialNumber": "IMO-A3C72T",
+          "engineNumber": null,
+          "model": "Fertilizer Ripper + Disc Harrow 2 rows",
+          "productType": "07-IMO",
+          "kmm": 1,
+          "statusPd": "Free Stock",
+          "branch": "KMM01"
+        }
+      ],
+      "statusNotFreeStock": [],
+      "productOT": [],
+      "missingOrUnknownProduct": []
     },
     "missingProductType": 0,
-    "unknownProductTypes": [
-      "08-TX"
-    ],
-    "unknownProductRows": 3,
+    "unknownProductTypes": [],
+    "unknownProductRows": 0,
     "missingBranch": 0,
     "missingModel": 0,
-    "missingValue": 174,
+    "missingValue": 173,
     "invalidValue": 0,
     "invalidDateIn": 0,
     "negativeAge": 0,
@@ -79,6 +188,7 @@
     "rowsWithoutSerialNumber": 60,
     "exactDuplicateRows": 0,
     "exactDuplicateKeys": {},
+    "duplicateRecordsRemoved": [],
     "possibleDuplicateRows": 162,
     "possibleDuplicateKeys": {
       "KMM01 | 07-IMO | Fertilizer Ripper + Disc Harrow 2 rows | 2017-05-05 | 3100000.0": [
@@ -398,7 +508,7 @@
       ]
     },
     "unitTotalByProductType": {
-      "TT": 8,
+      "TT": 10,
       "CH": 60,
       "EX": 1,
       "TP": 5,
@@ -406,10 +516,15 @@
       "IM": 107,
       "IMO": 98,
       "OT": 0,
-      "Unknown": 3
+      "Unknown": 0
+    },
+    "excludedFromUnitByProductType": {
+      "IM": 107,
+      "IMO": 98,
+      "OT": 0
     },
     "valueTotalByProductType": {
-      "TT": 59276000.0,
+      "TT": 110688000.0,
       "CH": 0,
       "EX": 0,
       "TP": 42746000.0,
@@ -417,16 +532,97 @@
       "IM": 189555000.0,
       "IMO": 51156000.0,
       "OT": 0,
-      "Unknown": 51412000.0
+      "Unknown": 0
     },
     "unitTotalByBranch": {
       "KMM01": 56,
-      "KMM02": 11,
+      "KMM02": 13,
       "KMM03": 7
     },
     "otherOrUnknownBranchUnit": 0,
-    "stockUnit": 74,
-    "stockValue": 342733000.0,
-    "agedStockUnit": 27
+    "stockUnit": 76,
+    "stockValue": 394145000.0,
+    "agedStockUnit": 30
+  },
+  "booking": {
+    "rawBookingRows": 307,
+    "cancelledRows": 90,
+    "deliveredRows": 151,
+    "purchaseStatusCounts": {
+      "A HOT": 39,
+      "B HOT": 20,
+      "C HOT": 7
+    },
+    "openRows": 66,
+    "openUnitTotal": 66,
+    "openValueTotal": 9755886500.0,
+    "depositTotal": 108500000.0,
+    "byProduct": {
+      "TT": {
+        "openRows": 42,
+        "openUnit": 42,
+        "openValue": 6139886500.0,
+        "deposit": 42000000.0
+      },
+      "CH": {
+        "openRows": 24,
+        "openUnit": 24,
+        "openValue": 3616000000.0,
+        "deposit": 66500000.0
+      },
+      "EX": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      },
+      "TP": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      },
+      "MAX": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      },
+      "IM": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      },
+      "IMO": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      },
+      "OT": {
+        "openRows": 0,
+        "openUnit": 0,
+        "openValue": 0,
+        "deposit": 0
+      }
+    },
+    "byBranch": {
+      "KMM01": {
+        "openUnit": 6,
+        "openValue": 922258500.0,
+        "deposit": 5000000.0
+      },
+      "KMM02": {
+        "openUnit": 31,
+        "openValue": 4580930500.0,
+        "deposit": 32000000.0
+      },
+      "KMM03": {
+        "openUnit": 29,
+        "openValue": 4252697500.0,
+        "deposit": 71500000.0
+      }
+    }
   }
 }

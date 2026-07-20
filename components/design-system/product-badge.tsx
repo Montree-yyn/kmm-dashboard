@@ -1,6 +1,6 @@
 import { Badge } from "../ui/badge";
 
-export type ProductBadgeLabel = "TT" | "CH" | "EX" | "TP" | "MAX" | "IM" | "IMO" | "OT";
+export type ProductBadgeLabel = "TT" | "CH" | "EX" | "TP" | "MAX" | "IM" | "IMO" | "OT" | "Other";
 
 type ProductBadgeProps = {
   label: ProductBadgeLabel;

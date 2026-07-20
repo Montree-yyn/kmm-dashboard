@@ -8,6 +8,8 @@ import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS, filterByProductGroups, productCategory } from "../../lib/dashboard/product-groups";
+import { getBookingByProduct, getBookingValue, getDepositAmount, getOpenBookingUnit, getOpenBookingUnitRows } from "../../lib/dashboard/booking-selectors";
+import { getCurrentStockRows, getStockByProduct, getStockUnit, normalizeProductType, STOCK_UNIT_PRODUCTS } from "../../lib/dashboard/stock-selectors";
 import { ChartCard } from "../design-system/chart-card";
 import { ErrorState } from "../design-system/error-state";
 import { ExportButton } from "../design-system/export-button";
@@ -44,7 +46,9 @@ type BookingRow = {
   salesperson: string;
   productType: string;
   model: string;
-  price: number;
+  price: number | null;
+  deposit?: number | null;
+  purchaseStatus?: string;
   status: string;
 };
 
@@ -55,9 +59,16 @@ type StockRow = {
   branch: string;
   salesperson: string;
   productType: string;
+  kmm?: number | string | null;
+  productGroup?: string;
   model: string;
   ageBucket: string;
   msrp: number;
+  currentStatus?: string;
+  stockId?: string | null;
+  serialNumber?: string | null;
+  engineNumber?: string | null;
+  chassisNumber?: string | null;
 };
 
 type MarketingRow = {
@@ -103,8 +114,8 @@ type ActivityRow = {
 };
 
 const defaultFilters: FilterState = {
-  year: ["2026"],
-  month: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+  year: [],
+  month: [],
   branch: [],
   salesperson: [],
 };
@@ -244,12 +255,13 @@ function GlobalFilter({ filters, options, onChange, onRefresh, onReset, onExport
 
 function KpiSection({ data, filters }: { data: DashboardData; filters: FilterState }) {
   const filteredSales = data.sales.filter((row) => rowMatches(row, filters));
-  const filteredBooking = data.booking.filter((row) => rowMatches(row, filters));
   const filteredStock = data.stock.filter((row) => rowMatches(row, filters));
   const currentSales = filterByProductGroups(filteredSales, PRODUCT_GROUPS.UNIT_PRODUCTS);
   const currentSalesValueRows = filterByProductGroups(filteredSales, PRODUCT_GROUPS.VALUE_PRODUCTS);
-  const currentBooking = filterByProductGroups(filteredBooking, PRODUCT_GROUPS.UNIT_PRODUCTS);
-  const currentStock = filterByProductGroups(filteredStock, PRODUCT_GROUPS.UNIT_PRODUCTS);
+  const currentBooking = getOpenBookingUnit(data.booking, filters);
+  const currentBookingValue = getBookingValue(data.booking, filters);
+  const currentBookingDeposit = getDepositAmount(data.booking, filters);
+  const currentStock = getCurrentStockRows(filteredStock);
 
   const previousFilters = previousYearFilters(filters);
   const previousFilteredSales = data.sales.filter((row) => rowMatches(row, previousFilters));
@@ -271,8 +283,8 @@ function KpiSection({ data, filters }: { data: DashboardData; filters: FilterSta
       <KpiCard title="Sales Unit" value={currentSales.length} unit="Unit" comparison={{ value: `${getTrendArrow(salesComparison)} ${trendText(salesComparison)}`, direction: trendDirection(salesComparison), label: comparisonLabel }} />
       <KpiCard title="Sales Value" value={formatCompact(salesValue)} unit="MMK" comparison={{ value: `${getTrendArrow(salesValueComparison)} ${trendText(salesValueComparison)}`, direction: trendDirection(salesValueComparison), label: comparisonLabel }} />
       <KpiCard title="Gross Profit" value={formatCompact(grossProfit)} unit="MMK" comparison={{ value: `${getTrendArrow(grossProfitComparison)} ${trendText(grossProfitComparison)}`, direction: trendDirection(grossProfitComparison), label: comparisonLabel }} />
-      <KpiCard title="Booking Unit" value={currentBooking.length} unit="Total Unit" />
-      <KpiCard title="Stock Unit" value={currentStock.length} unit="Total Unit" />
+      <KpiCard title="Open Booking Unit" value={currentBooking} unit="Units" supportingText={`Booking value: ${formatCompact(currentBookingValue)} MMK · Deposit: ${formatCompact(currentBookingDeposit)} MMK`} />
+      <KpiCard title="Stock Unit" value={getStockUnit(currentStock)} unit="Total Unit" />
     </section>
   );
 }
@@ -292,13 +304,6 @@ function filterForCharts<T extends { year: number | null; month: number | null; 
 
 type TrendDatum = { label: string; value: number | null };
 type ChartPoint = TrendDatum & { x: number; y: number | null };
-
-function monthSeries<T extends { month: number | null }>(rows: T[], selector: (row: T) => number): TrendDatum[] {
-  return MONTHS.map((label, index) => ({
-    label,
-    value: rows.some((row) => row.month === index + 1) ? rows.filter((row) => row.month === index + 1).reduce((total, row) => total + selector(row), 0) : null,
-  }));
-}
 
 function productSeries<T extends { productType: string; model?: string }>(rows: T[], labels: readonly string[], selector: (row: T) => number) {
   return labels.map((label) => ({
@@ -432,8 +437,16 @@ function LegacyLineChart({
 
 void LegacyLineChart;
 
-function LineChart({ title, unitData, valueData, unitLabel = "Unit", valueLabel = "Sales Value" }: { title: string; unitData: TrendDatum[]; valueData?: TrendDatum[]; selectedMonths: number[]; variant?: "orange" | "gray"; unitLabel?: string; valueLabel?: string; minPlotHeight?: number }) {
-  return <PremiumTrendChart title={title} labels={unitData.map((item) => item.label)} unit={valueData ? "MMK" : unitLabel} formatValue={formatCompact} series={[{ id: "current", label: unitLabel, values: unitData.map((item) => item.value), kind: "current" }, ...(valueData ? [{ id: "previous", label: valueLabel, values: valueData.map((item) => item.value), kind: "previous" as const }] : [])]} />;
+type YearTrendRow = { year: number | null; month: number | null; value: number };
+
+function YearTrendChart({ title, unitRows, valueRows, unitLabel = "Unit" }: { title: string; unitRows: YearTrendRow[]; valueRows: YearTrendRow[]; unitLabel?: string }) {
+  const [metric, setMetric] = useState<"unit" | "value">("unit");
+  const rows = metric === "unit" ? unitRows : valueRows;
+  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({ id: String(year), year, label: String(year), kind: index === 0 ? "current" as const : index === 1 ? "previous" as const : "older" as const, values: MONTHS.map((_, month) => {
+    const monthRows = rows.filter((row) => row.year === year && row.month === month + 1);
+    return monthRows.length ? monthRows.reduce((total, row) => total + row.value, 0) : null;
+  }) }));
+  return <PremiumTrendChart title={title} labels={MONTHS} unit={metric === "unit" ? unitLabel : "MMK"} formatValue={metric === "unit" ? (value) => value.toLocaleString() : formatCompact} defaultSeriesIds={["2026", "2025"]} onMetricChange={(value) => setMetric(value as "unit" | "value")} series={series} />;
 }
 
 function HorizontalBarChart({ data, color = "#FF7A00" }: { data: { label: string; value: number }[]; color?: string }) {
@@ -529,11 +542,10 @@ function TargetProgressItem({ name, actual, target }: { name: string; actual: nu
 
 function TargetProgress({ data, filters }: { data: DashboardData; filters: FilterState }) {
   const filteredSales = filterForCharts(data.sales, filters);
-  const filteredBooking = filterForCharts(data.booking, filters);
   const filteredStock = filterForCharts(data.stock, filters);
   const salesActual = filterByProductGroups(filteredSales, PRODUCT_GROUPS.UNIT_PRODUCTS).length;
-  const bookingActual = filterByProductGroups(filteredBooking, PRODUCT_GROUPS.UNIT_PRODUCTS).length;
-  const landingActual = filteredStock.length;
+  const bookingActual = getOpenBookingUnit(data.booking, filters);
+  const landingActual = getStockUnit(filteredStock);
   const salesTarget = targetValue(data, filters);
 
   return (
@@ -552,39 +564,37 @@ function TargetProgress({ data, filters }: { data: DashboardData; filters: Filte
 }
 
 function ChartsSection({ data, filters }: { data: DashboardData; filters: FilterState }) {
-  const selectedMonthNumbers = selectedMonths(filters);
-  const trendSales = filterForCharts(data.sales, filters);
-  const trendBooking = filterForCharts(data.booking, filters);
-  const trendStock = filterForCharts(data.stock, filters);
+  const trendFilters = { ...filters, year: [], month: [] };
+  const trendSales = filterForCharts(data.sales, trendFilters);
+  const trendStock = filterForCharts(data.stock, trendFilters);
   const filteredSales = filterForCharts(data.sales, filters);
-  const filteredBooking = filterForCharts(data.booking, filters);
   const filteredStock = filterForCharts(data.stock, filters);
   const salesUnitRows = filterByProductGroups(trendSales, PRODUCT_GROUPS.UNIT_PRODUCTS);
   const salesValueRows = filterByProductGroups(trendSales, PRODUCT_GROUPS.VALUE_PRODUCTS);
-  const bookingRows = filterByProductGroups(trendBooking, PRODUCT_GROUPS.UNIT_PRODUCTS);
-  const stockRows = filterByProductGroups(trendStock, PRODUCT_GROUPS.UNIT_PRODUCTS);
-  const salesTrend = monthSeries(salesUnitRows, () => 1);
-  const salesValueTrend = monthSeries(salesValueRows, (row) => row.finalReceived);
-  const bookingTrend = monthSeries(bookingRows, () => 1);
-  const stockTrend = monthSeries(stockRows, () => 1);
+  const bookingRows = getOpenBookingUnitRows(data.booking, trendFilters);
+  const stockRows = getCurrentStockRows(trendStock).filter((row) => STOCK_UNIT_PRODUCTS.includes(normalizeProductType(row) as typeof STOCK_UNIT_PRODUCTS[number]));
+  const salesUnitTrendRows = salesUnitRows.map((row) => ({ year: row.year, month: row.month, value: 1 }));
+  const salesValueTrendRows = salesValueRows.map((row) => ({ year: row.year, month: row.month, value: row.finalReceived }));
+  const bookingUnitTrendRows = bookingRows.map((row) => ({ year: row.year, month: row.month, value: 1 }));
+  const bookingValueTrendRows = bookingRows.map((row) => ({ year: row.year, month: row.month, value: row.price ?? 0 }));
+  const stockUnitTrendRows = stockRows.map((row) => ({ year: row.year, month: row.month, value: 1 }));
+  const stockValueTrendRows = stockRows.map((row) => ({ year: row.year, month: row.month, value: row.msrp }));
   const salesUnitRowsForAnalysis = filterByProductGroups(filteredSales, PRODUCT_GROUPS.UNIT_PRODUCTS);
-  const bookingRowsForAnalysis = filterByProductGroups(filteredBooking, PRODUCT_GROUPS.UNIT_PRODUCTS);
-  const stockRowsForAnalysis = filterByProductGroups(filteredStock, PRODUCT_GROUPS.UNIT_PRODUCTS);
   const salesByBranch = topGroups(salesUnitRowsForAnalysis, (row) => row.branch);
   const productMix = productSeries(salesUnitRowsForAnalysis, PRODUCT_GROUPS.UNIT_PRODUCTS, () => 1);
-  const bookingByProduct = productSeries(bookingRowsForAnalysis, PRODUCT_GROUPS.UNIT_PRODUCTS, () => 1);
-  const stockByProduct = productSeries(stockRowsForAnalysis, PRODUCT_GROUPS.UNIT_PRODUCTS, () => 1);
+  const bookingByProduct = getBookingByProduct(data.booking, filters).filter((item) => (PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[]).includes(item.product)).map((item) => ({ label: item.product, value: item.unit }));
+  const stockByProduct = getStockByProduct(filteredStock).filter((item) => STOCK_UNIT_PRODUCTS.includes(item.product as typeof STOCK_UNIT_PRODUCTS[number])).map((item) => ({ label: item.product, value: item.unit }));
 
   return (
     <section className="space-y-5" aria-label="Executive charts">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
-        <LineChart title="Sales Trend" unitData={salesTrend} valueData={salesValueTrend} selectedMonths={selectedMonthNumbers} unitLabel="Sales Unit" valueLabel="Sales Value" />
+        <YearTrendChart title="Sales Trend" unitRows={salesUnitTrendRows} valueRows={salesValueTrendRows} unitLabel="Sales Unit" />
         <TargetProgress data={data} filters={filters} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <LineChart title="Booking Trend" unitData={bookingTrend} selectedMonths={selectedMonthNumbers} unitLabel="Booking Unit" />
-        <LineChart title="Stock Trend" unitData={stockTrend} selectedMonths={selectedMonthNumbers} variant="gray" unitLabel="Stock Unit" />
+        <YearTrendChart title="Booking Trend" unitRows={bookingUnitTrendRows} valueRows={bookingValueTrendRows} unitLabel="Booking Unit" />
+        <YearTrendChart title="Stock Trend" unitRows={stockUnitTrendRows} valueRows={stockValueTrendRows} unitLabel="Stock Unit" />
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">

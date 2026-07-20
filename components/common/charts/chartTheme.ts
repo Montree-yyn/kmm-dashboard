@@ -7,4 +7,4 @@ export const chartTheme = {
   text: "#4B5563",
 } as const;
 
-export const chartStroke = { current: 4, previous: 4, older: 4, target: 3 } as const;
+export const chartStroke = { current: 4, previous: 4, older: 3, target: 3 } as const;

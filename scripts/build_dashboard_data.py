@@ -31,6 +31,10 @@ def as_text(value: Any) -> str:
     return str(value).strip()
 
 
+def identifier_key(value: Any) -> str:
+    return re.sub(r"[\u200B-\u200D\uFEFF]", "", as_text(value).upper())
+
+
 def as_number(value: Any) -> float:
     if value is None or value == "":
         return 0
@@ -44,7 +48,11 @@ def optional_number(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
-        return float(str(value).replace(",", ""))
+        text = str(value).strip().replace(",", "")
+        if text.startswith("(") and text.endswith(")"):
+            text = f"-{text[1:-1]}"
+        cleaned = re.sub(r"[^0-9.\-]", "", text)
+        return float(cleaned) if cleaned not in {"", "-", "."} else None
     except ValueError:
         return None
 
@@ -119,7 +127,36 @@ def normalize_product_type(value: Any) -> str:
     return raw
 
 
-def normalize_stock_product_type(value: Any) -> str:
+def normalize_purchase_status(value: Any) -> str:
+    return " ".join(as_text(value).upper().split())
+
+
+def is_hot_booking(row: dict[str, Any]) -> bool:
+    return row["purchaseStatus"] in {"A HOT", "B HOT", "C HOT"}
+
+
+TRACTOR_MODEL_PATTERNS = (
+    re.compile(r"^NSPU[A-Z0-9-]*$"),
+    re.compile(r"^MU[0-9][A-Z0-9-]*$"),
+    re.compile(r"^M[0-9][A-Z0-9-]*$"),
+    re.compile(r"^L[0-9][A-Z0-9-]*$"),
+    re.compile(r"^B[0-9][A-Z0-9-]*$"),
+)
+
+
+def normalize_stock_model_for_fallback(value: Any) -> str:
+    model = " ".join(as_text(value).upper().split())
+    model = re.sub(r"\s*\((DEMO|SECOND)\)\s*$", "", model)
+    model = re.sub(r"(?:\+(?:FD|FG))+$", "", model)
+    return model.strip()
+
+
+def classify_stock_model_fallback(value: Any) -> str:
+    model = normalize_stock_model_for_fallback(value)
+    return "TT" if any(pattern.match(model) for pattern in TRACTOR_MODEL_PATTERNS) else "Unknown"
+
+
+def normalize_stock_product_type(value: Any, model: Any = None) -> str:
     """Normalize Stock TYPE values without silently assigning unknown source labels."""
     raw = " ".join(as_text(value).upper().split())
     key = re.sub(r"[^A-Z0-9]", "", raw)
@@ -136,7 +173,29 @@ def normalize_stock_product_type(value: Any) -> str:
     for group, values in aliases.items():
         if key in values:
             return group
-    return "Unknown"
+    return classify_stock_model_fallback(model)
+
+
+def normalize_kmm_value(value: Any) -> int | None:
+    """Return the canonical KMM ownership flag; only 1 qualifies as KMM stock."""
+    text = as_text(value)
+    return 1 if text == "1" else None
+
+
+def normalize_status_pd(value: Any) -> str:
+    return " ".join(as_text(value).casefold().split())
+
+
+def is_kmm_free_stock(kmm: Any, status_pd: Any) -> bool:
+    return normalize_kmm_value(kmm) == 1 and normalize_status_pd(status_pd) == "free stock"
+
+
+def physical_machine_key(row: dict[str, Any]) -> str | None:
+    for label, field in (("chassis", "chassisNumber"), ("engine", "engineNumber"), ("serial", "serialNumber"), ("stock", "stockId")):
+        normalized = identifier_key(row.get(field))
+        if normalized and normalized != "-":
+            return f"{label}:{normalized}"
+    return None
 
 
 def header_map(ws: Any, row: int) -> dict[str, int]:
@@ -254,6 +313,7 @@ def load_booking() -> list[dict[str, Any]]:
                 "deposit": optional_number(cell(row, headers, "Deposit")),
                 "paymentType": as_text(cell(row, headers, "Purchase Type")),
                 "financeType": as_text(cell(row, headers, "Leasing")),
+                "purchaseStatus": normalize_purchase_status(cell(row, headers, "Purchase Status")),
                 "statusDate": iso_date(cell(row, headers, "Delivery Dete/Cancer Date")),
                 "status": status,
             }
@@ -261,29 +321,83 @@ def load_booking() -> list[dict[str, Any]]:
     return rows
 
 
+def booking_reconciliation_report(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Report the same workbook-backed booking rules used by the dashboard."""
+    open_rows = [row for row in rows if is_hot_booking(row)]
+    by_product = {
+        product: {
+            "openRows": sum(row["productType"] == product for row in open_rows),
+            "openUnit": sum(row["productType"] == product for row in open_rows),
+            "openValue": sum(float(row["price"] or 0) for row in open_rows if row["productType"] == product),
+            "deposit": sum(float(row["deposit"] or 0) for row in open_rows if row["productType"] == product),
+        }
+        for product in ["TT", "CH", "EX", "TP", "MAX", "IM", "IMO", "OT"]
+    }
+    by_branch = {
+        branch: {
+            "openUnit": sum(row["branch"] == branch for row in open_rows),
+            "openValue": sum(float(row["price"] or 0) for row in open_rows if row["branch"] == branch),
+            "deposit": sum(float(row["deposit"] or 0) for row in open_rows if row["branch"] == branch),
+        }
+        for branch in ["KMM01", "KMM02", "KMM03"]
+    }
+    return {
+        "rawBookingRows": len(rows),
+        "cancelledRows": sum(row["status"] == "Cancelled" for row in rows),
+        "deliveredRows": sum(row["status"] == "Delivered" for row in rows),
+        "purchaseStatusCounts": {status: sum(row["purchaseStatus"] == status for row in rows) for status in ["A HOT", "B HOT", "C HOT"]},
+        "openRows": len(open_rows),
+        "openUnitTotal": len(open_rows),
+        "openValueTotal": sum(float(row["price"] or 0) for row in open_rows),
+        "depositTotal": sum(float(row["deposit"] or 0) for row in open_rows),
+        "byProduct": by_product,
+        "byBranch": by_branch,
+    }
+
+
 def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     path = DATA_ROOT / "Stock" / "2026_KMM_R2_STOCK.xlsx"
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     ws = wb["02) STOCK"]
     headers = header_map(ws, 4)
-    required_headers = ["BRANCH", "TYPE", "MODEL", "CHASSIS NUMBER", "DAY IN", "Today", "Age Stock", "Car Flow", "Status PD", "MSRP", "Sales Staff"]
+    required_headers = ["STOCK CODE", "BRANCH", "TYPE", "MODEL", "CHASSIS NUMBER", "ENGINE NUMBER", "DAY IN", "Today", "Age Stock", "Car Flow", "KMM", "Status PD", "MSRP", "Sales Staff"]
     missing_headers = [name for name in required_headers if name not in headers]
     if missing_headers:
         raise ValueError(f"Stock import aborted: missing required header(s): {', '.join(missing_headers)}")
     rows: list[dict[str, Any]] = []
     all_rows = list(ws.iter_rows(min_row=5, values_only=True))
+    excluded_kmm: Counter[str] = Counter()
     excluded_statuses: Counter[str] = Counter()
+    excluded_samples: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    kmm_one_rows = 0
+    free_stock_rows = 0
+    kmm_free_stock_rows = 0
     raw_current: list[tuple[int, tuple[Any, ...]]] = []
     for excel_row, row in enumerate(all_rows, start=5):
+        kmm = cell(row, headers, "KMM")
         status_pd = as_text(cell(row, headers, "Status PD"))
-        if status_pd not in {"Free Stock", "Adjust"}:
-            excluded_statuses[status_pd or "<blank>"] += 1
+        kmm_is_one = normalize_kmm_value(kmm) == 1
+        status_is_free = normalize_status_pd(status_pd) == "free stock"
+        kmm_one_rows += kmm_is_one
+        free_stock_rows += status_is_free
+        sample = {"excelRow": excel_row, "stockId": as_text(cell(row, headers, "STOCK CODE")) or None, "serialNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None, "engineNumber": as_text(cell(row, headers, "ENGINE NUMBER")) or None, "model": as_text(cell(row, headers, "MODEL")), "productType": as_text(cell(row, headers, "TYPE")), "kmm": as_text(kmm), "statusPd": status_pd, "branch": normalize_branch(cell(row, headers, "BRANCH")) or "Missing"}
+        if not kmm_is_one:
+            excluded_kmm[as_text(kmm) or "<blank>"] += 1
+            if len(excluded_samples["kmmNotOne"]) < 3:
+                excluded_samples["kmmNotOne"].append(sample)
             continue
+        if not status_is_free:
+            excluded_statuses[status_pd or "<blank>"] += 1
+            if len(excluded_samples["statusNotFreeStock"]) < 3:
+                excluded_samples["statusNotFreeStock"].append(sample)
+            continue
+        kmm_free_stock_rows += 1
         raw_current.append((excel_row, row))
         branch = normalize_branch(cell(row, headers, "BRANCH")) or "Missing"
         date_in = iso_date(cell(row, headers, "DAY IN"))
         year, month = year_month_from_date(cell(row, headers, "DAY IN"))
         raw_type = as_text(cell(row, headers, "TYPE"))
+        model = as_text(cell(row, headers, "MODEL"))
         rows.append(
             {
                 "date": date_in,
@@ -291,25 +405,52 @@ def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 "month": month,
                 "branch": branch,
                 "salesperson": as_text(cell(row, headers, "Sales Staff")),
+                "kmm": normalize_kmm_value(kmm),
+                "stockId": as_text(cell(row, headers, "STOCK CODE")) or None,
                 "productType": raw_type,
-                "productGroup": normalize_stock_product_type(raw_type),
-                "model": as_text(cell(row, headers, "MODEL")),
+                "productGroup": normalize_stock_product_type(raw_type, model),
+                "model": model,
                 "ageBucket": as_text(cell(row, headers, "Car Flow")),
                 "ageDays": optional_number(cell(row, headers, "Age Stock")),
                 "snapshotDate": iso_date(cell(row, headers, "Today")),
                 "msrp": optional_number(cell(row, headers, "MSRP")),
                 "serialNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None,
+                "chassisNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None,
+                "engineNumber": as_text(cell(row, headers, "ENGINE NUMBER")) or None,
                 "currentStatus": status_pd,
             }
         )
     known_value = set(STOCK_PRODUCT_CONFIG["ALL_VALUE_PRODUCTS"])
     unit_groups = set(STOCK_PRODUCT_CONFIG["UNIT_PRODUCTS"])
     groups = [*STOCK_PRODUCT_CONFIG["ALL_VALUE_PRODUCTS"], "Unknown"]
+    # The source has no quantity field: one current row is one unit unless the
+    # physical machine identifier repeats. Stock ID is only a fallback when
+    # chassis, engine and serial are blank.
+    deduplicated_rows: list[dict[str, Any]] = []
+    deduplicated_source_rows: list[tuple[int, tuple[Any, ...]]] = []
+    duplicate_records: list[dict[str, Any]] = []
+    seen_identifiers: dict[str, int] = {}
+    for source_row, imported in zip(raw_current, rows):
+        excel_row = source_row[0]
+        identifier = physical_machine_key(imported)
+        if identifier and identifier in seen_identifiers:
+            duplicate_records.append({"identifier": identifier, "keptExcelRow": seen_identifiers[identifier], "removedExcelRow": excel_row, "stockId": imported["stockId"], "serialNumber": imported["serialNumber"], "engineNumber": imported["engineNumber"], "productType": imported["productType"], "branch": imported["branch"], "currentStatus": imported["currentStatus"], "dateIn": imported["date"]})
+            continue
+        if identifier:
+            seen_identifiers[identifier] = excel_row
+        deduplicated_rows.append(imported)
+        deduplicated_source_rows.append(source_row)
+    rows = deduplicated_rows
     rows_by_group = {group: [row for row in rows if row["productGroup"] == group] for group in groups}
+    for group, reason in [("IM", "productIM"), ("IMO", "productIMO"), ("OT", "productOT"), ("Unknown", "missingOrUnknownProduct")]:
+        for row in rows_by_group[group][:3]:
+            excluded_samples[reason].append({"stockId": row["stockId"], "serialNumber": row["serialNumber"], "engineNumber": row["engineNumber"], "model": row["model"], "productType": row["productType"], "kmm": row["kmm"], "statusPd": row["currentStatus"], "branch": row["branch"]})
+    for reason in ["kmmNotOne", "statusNotFreeStock", "productIM", "productIMO", "productOT", "missingOrUnknownProduct"]:
+        excluded_samples.setdefault(reason, [])
     serial_keys: dict[tuple[str, str], list[int]] = defaultdict(list)
     fallback_keys: dict[tuple[str, str, str, str, str], list[int]] = defaultdict(list)
     missing_serial = 0
-    for (excel_row, source_row), imported in zip(raw_current, rows):
+    for (excel_row, source_row), imported in zip(deduplicated_source_rows, rows):
         serial = imported["serialNumber"]
         if serial and serial != "-":
             serial_keys[(imported["branch"], serial)].append(excel_row)
@@ -323,13 +464,21 @@ def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "sheet": "02) STOCK",
         "headerRow": 4,
         "headers": [as_text(ws.cell(4, col).value) for col in range(1, ws.max_column + 1) if as_text(ws.cell(4, col).value)],
-        "currentStockRule": "Status PD is Free Stock or Adjust; Status PD = S and blank status rows are excluded.",
+        "currentStockRule": "KMM = 1 and Status PD = Free Stock (case-insensitive, trimmed) are both required.",
         "quantityRule": "No Quantity column exists; one valid current-stock row equals one unit.",
         "snapshotDate": next((row["snapshotDate"] for row in rows if row["snapshotDate"]), None),
         "excelTotalRows": len(all_rows),
+        "totalSourceRows": len(all_rows),
+        "kmmOneRows": kmm_one_rows,
+        "statusPdFreeStockRows": free_stock_rows,
+        "kmmFreeStockRows": kmm_free_stock_rows,
         "currentStockRows": len(rows),
-        "excludedRows": sum(excluded_statuses.values()),
+        "validRemainingStockRows": len(rows),
+        "excludedRows": len(all_rows) - kmm_free_stock_rows,
+        "excludedByKmm": dict(sorted(excluded_kmm.items())),
+        "excludedSoldDeliveredRows": sum(excluded_statuses.values()),
         "excludedByStatusPD": dict(sorted(excluded_statuses.items())),
+        "excludedSamples": dict(excluded_samples),
         "missingProductType": sum(not row["productType"] for row in rows),
         "unknownProductTypes": sorted({row["productType"] for row in rows if row["productGroup"] not in known_value}),
         "unknownProductRows": sum(row["productGroup"] not in known_value for row in rows),
@@ -341,11 +490,13 @@ def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "negativeAge": sum(row["ageDays"] is not None and row["ageDays"] < 0 for row in rows),
         "inconsistentAge": sum(bool(row["date"] and row["snapshotDate"] and row["ageDays"] is not None and abs((datetime.fromisoformat(row["snapshotDate"]) - datetime.fromisoformat(row["date"])).days - row["ageDays"]) > 1) for row in rows),
         "rowsWithoutSerialNumber": missing_serial,
-        "exactDuplicateRows": sum(len(locations) - 1 for locations in exact_duplicates.values()),
+        "exactDuplicateRows": len(duplicate_records),
         "exactDuplicateKeys": exact_duplicates,
+        "duplicateRecordsRemoved": duplicate_records,
         "possibleDuplicateRows": sum(len(locations) - 1 for locations in possible_duplicates.values()),
         "possibleDuplicateKeys": possible_duplicates,
         "unitTotalByProductType": {group: len(rows_by_group[group]) for group in groups},
+        "excludedFromUnitByProductType": {group: len(rows_by_group[group]) for group in ["IM", "IMO", "OT"]},
         "valueTotalByProductType": {group: sum(row["msrp"] or 0 for row in rows_by_group[group]) for group in groups},
         "unitTotalByBranch": {branch: sum(1 for row in rows if row["branch"] == branch and row["productGroup"] in unit_groups) for branch in ["KMM01", "KMM02", "KMM03"]},
         "otherOrUnknownBranchUnit": sum(1 for row in rows if row["branch"] not in {"KMM01", "KMM02", "KMM03"} and row["productGroup"] in unit_groups),
@@ -408,7 +559,7 @@ def main() -> None:
         "stock": stock,
         "marketing": load_marketing(),
     }
-    report = {"generatedAt": datetime.now().isoformat(timespec="seconds"), "stock": stock_report}
+    report = {"generatedAt": datetime.now().isoformat(timespec="seconds"), "stock": stock_report, "booking": booking_reconciliation_report(data["booking"])}
     out_tmp = OUT.with_suffix(".tmp")
     report_tmp = IMPORT_REPORT.with_suffix(".tmp")
     out_tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -418,6 +569,18 @@ def main() -> None:
     print(f"Wrote {OUT}")
     print(f"Wrote {IMPORT_REPORT}")
     print({key: len(data[key]) for key in ["sales", "booking", "stock", "marketing"]})
+    booking_report = report["booking"]
+    print({
+        "totalRows": booking_report["rawBookingRows"],
+        "aHot": booking_report["purchaseStatusCounts"]["A HOT"],
+        "bHot": booking_report["purchaseStatusCounts"]["B HOT"],
+        "cHot": booking_report["purchaseStatusCounts"]["C HOT"],
+        "openBookingUnit": booking_report["openUnitTotal"],
+        "bookingValuePrice": booking_report["openValueTotal"],
+        "depositReceived": booking_report["depositTotal"],
+        "bookingValueByBranch": booking_report["byBranch"],
+        "bookingValueByProduct": booking_report["byProduct"],
+    })
 
 
 if __name__ == "__main__":

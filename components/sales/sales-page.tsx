@@ -18,6 +18,7 @@ import { ProductBadge } from "../design-system/product-badge";
 import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 import { TableCard } from "../design-system/table-card";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import type { StandardLineSeries } from "../common/charts/StandardLineChart";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const PRODUCT_FILTER_OPTIONS = ["All Products", ...PRODUCT_GROUPS.UNIT_PRODUCTS];
@@ -250,9 +251,10 @@ function ExecutiveSalesTrend({ sales, filters, plan }: { sales: SalesRow[]; filt
   const availableYears = useMemo(() => [...new Set(sales.map((row) => row.year))].sort((a, b) => b - a), [sales]);
   const scopedRows = sales.filter((row) => rowMatches(row, { ...filters, year: [], month: [] }));
   const targetAllowed = metric === "unit" && availableYears[0] === plan.year && filters.branch.length === 0 && filters.salesperson.length === 0 && selectedProductGroups(filters).length === 0;
-  const series = availableYears.map((year, index) => ({ id: String(year), year, label: String(year), kind: (index === 0 ? "current" : index === 1 ? "previous" : "older") as "current" | "previous" | "older", values: MONTHS.map((_, month) => { const rows = scopedRows.filter((row) => row.year === year && row.month === month + 1); const measure = metric === "unit" ? filterByProductGroups(rows, PRODUCT_GROUPS.UNIT_PRODUCTS) : filterByProductGroups(rows, PRODUCT_GROUPS.VALUE_PRODUCTS); return measure.length ? metric === "unit" ? measure.length : sum(measure, (row) => row.finalReceived) : null; }) }));
+  const chartYears = [2026, 2025, 2024, 2023, 2022, ...availableYears].filter((year, index, values) => values.indexOf(year) === index);
+  const series: StandardLineSeries[] = chartYears.map((year, index) => ({ id: String(year), year, label: String(year), kind: index === 0 ? "current" : index === 1 ? "previous" : "older", values: MONTHS.map((_, month) => { const rows = scopedRows.filter((row) => row.year === year && row.month === month + 1); const measure = metric === "unit" ? filterByProductGroups(rows, PRODUCT_GROUPS.UNIT_PRODUCTS) : filterByProductGroups(rows, PRODUCT_GROUPS.VALUE_PRODUCTS); return measure.length ? metric === "unit" ? measure.length : sum(measure, (row) => row.finalReceived) : null; }) }));
   if (targetAllowed) series.push({ id: "target", year: plan.year, label: "Target", kind: "target", values: plan.units.map((value) => value || null) });
-  return <PremiumTrendChart title="Sales Trend" subtitle="Compare sales performance by year, period and metric." labels={MONTHS} unit={metric === "unit" ? "Unit" : "MMK"} formatValue={metric === "unit" ? (value) => value.toLocaleString() : formatCompact} metricOptions={[{ id: "unit", label: "Sales Unit" }, { id: "value", label: "Sales Value" }]} defaultMetric="unit" onMetricChange={(value) => setMetric(value as TrendMetric)} defaultSeriesIds={availableYears.slice(0, 2).map(String)} series={series} />;
+  return <PremiumTrendChart title="Sales Trend" subtitle="Compare sales performance by year, period and metric." labels={MONTHS} unit={metric === "unit" ? "Unit" : "MMK"} formatValue={metric === "unit" ? (value) => value.toLocaleString() : formatCompact} metricOptions={[{ id: "unit", label: "Sales Unit" }, { id: "value", label: "Sales Value" }]} defaultMetric="unit" onMetricChange={(value) => setMetric(value as TrendMetric)} defaultSeriesIds={["2026", "2025"]} series={series} />;
 }
 
 function TargetProgressCard({ target, actual }: { target: number | null; actual: number }) {

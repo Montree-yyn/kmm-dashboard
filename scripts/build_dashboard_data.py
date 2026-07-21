@@ -259,6 +259,7 @@ def load_sales() -> list[dict[str, Any]]:
                 "finalReceived": as_number(cell(row, headers, "Final Received")),
                 "netReceived": as_number(cell(row, headers, "Net Received")),
                 "gp1": as_number(cell(row, headers, "GP1")),
+                "commission": as_number(cell(row, headers, "Total")),
                 "expense": as_number(cell(row, headers, "Total Expense")),
             }
         )

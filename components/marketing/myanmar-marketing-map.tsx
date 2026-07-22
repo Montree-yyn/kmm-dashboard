@@ -10,8 +10,30 @@ type Showroom = { id: string; name: string; stateRegion: string; township: strin
 type GeoFeature = { geometry?: { coordinates?: unknown }; properties: { TS?: string; TS_PCODE?: string; ST?: string } };
 type LabelFeature = { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { id: string; name: string } };
 type LabelCollection = { type: "FeatureCollection"; features: LabelFeature[] };
-type TownshipMetric = { township: string; stateRegion: string; population: number; activities: number; salesUnit: number; booking: number | null; density: number | null; fill: string };
-type PopupAnchor = "top" | "bottom" | "left" | "right";
+type SalesByProduct = { tractor: number; combineHarvester: number; excavator: number; transplanter: number; drone: number; other: number };
+type TownshipMetric = {
+  township: string;
+  stateRegion: string;
+  installedBase: number;
+  population: number;
+  salesByProduct: SalesByProduct;
+  salesUnit: number;
+  salesValue: number;
+  gpValue: number;
+  gpPercent: number | null;
+  bookingUnit: number | null;
+  bookingValue: number | null;
+  activities: number;
+  lastActivityDate: string | null;
+  activityDensity: number | null;
+  topActivityType: string | null;
+  riskLevel?: string | null;
+  installedBaseDensity?: number | null;
+  agriculturalArea?: number | null;
+  mainCrops?: string[] | null;
+  density: number | null;
+  fill: string;
+};
 type FitPadding = { top: number; right: number; bottom: number; left: number };
 
 type MyanmarMarketingMapProps = {
@@ -29,8 +51,6 @@ const MYANMAR_BOUNDS: [[number, number], [number, number]] = [
 ];
 const EMPTY_LABELS: LabelCollection = { type: "FeatureCollection", features: [] };
 const MAP_CAMERA_PADDING: FitPadding = { top: 24, right: 44, bottom: 24, left: 44 };
-const DESKTOP_POPUP_WIDTH = 280;
-const DESKTOP_POPUP_HEIGHT = 260;
 const MOBILE_BREAKPOINT = 768;
 const REGION_ALIASES: Record<string, string> = {
   ayeyarwady: "ayeyarwady",
@@ -82,8 +102,11 @@ function format(value: number) {
   return Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
+function formatMoney(value: number) {
+  if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return format(value);
 }
 
 function normalizeRegionName(name = "") {
@@ -165,43 +188,119 @@ function fitMyanmar(map: MapLibreMap) {
   return { calculatedZoom: camera.zoom, appliedZoom, center: camera.center };
 }
 
-function popupHtml(metric: TownshipMetric) {
-  const booking = metric.booking === null ? "N/A" : format(metric.booking);
-  return `<div class="kmm-map-popup-card">
-    <p class="kmm-map-popup-title">${escapeHtml(metric.township)}</p>
-    <div class="kmm-map-popup-meta">${escapeHtml(metric.stateRegion)}</div>
-    <dl class="kmm-map-popup-list">
-      <div><dt>Engine Population</dt><dd>${format(metric.population)}</dd></div>
-      <div><dt>Activities</dt><dd>${format(metric.activities)}</dd></div>
-      <div><dt>Sales Unit</dt><dd>${format(metric.salesUnit)}</dd></div>
-      <div><dt>Booking</dt><dd>${booking}</dd></div>
-    </dl>
-    <button type="button" class="kmm-map-popup-details">View Details &rarr;</button>
-  </div>`;
-}
-
-function choosePopupAnchor(map: MapLibreMap, lngLat: { lng: number; lat: number }): PopupAnchor {
-  const point = map.project(lngLat);
-  const { width, height } = map.getContainer().getBoundingClientRect();
-  const horizontalEdge = point.x < DESKTOP_POPUP_WIDTH + 24 || width - point.x < DESKTOP_POPUP_WIDTH + 24;
-  const verticalEdge = point.y < DESKTOP_POPUP_HEIGHT + 24 || height - point.y < DESKTOP_POPUP_HEIGHT + 24;
-  if (horizontalEdge && point.x > width / 2) return "right";
-  if (horizontalEdge) return "left";
-  if (verticalEdge && point.y > height / 2) return "bottom";
-  return "top";
-}
-
-function shouldUseBottomSheet(container: HTMLDivElement | null) {
+function shouldUseBottomSheet() {
   if (window.innerWidth < MOBILE_BREAKPOINT) return true;
-  if (!container) return false;
-  const bounds = container.getBoundingClientRect();
-  return DESKTOP_POPUP_WIDTH * DESKTOP_POPUP_HEIGHT > bounds.width * bounds.height * 0.3;
+  return false;
+}
+
+const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
+  { key: "tractor", label: "Tractor" },
+  { key: "combineHarvester", label: "Combine Harvester" },
+  { key: "excavator", label: "Excavator" },
+  { key: "transplanter", label: "Transplanter" },
+  { key: "drone", label: "Drone" },
+  { key: "other", label: "Other Engine Products" },
+];
+
+function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric | null; onClose: () => void; mobile?: boolean }) {
+  if (!metric) {
+    return (
+      <aside className={cn("kmm-township-detail-panel kmm-township-detail-empty", mobile && "kmm-township-detail-panel-mobile")}>
+        <div>
+          <h3>Select a township on the map</h3>
+          <p>Click a township or showroom marker to view detailed sales, market, and activity information.</p>
+        </div>
+      </aside>
+    );
+  }
+
+  const maxProduct = Math.max(...PRODUCT_ROWS.map((row) => metric.salesByProduct[row.key]), 1);
+  const showBooking = metric.bookingUnit !== null || metric.bookingValue !== null;
+  const marketItems = [
+    metric.riskLevel ? { label: "Risk Level", value: metric.riskLevel, bar: null } : null,
+    metric.installedBaseDensity !== null && metric.installedBaseDensity !== undefined ? { label: "Installed Base Density", value: metric.installedBaseDensity.toFixed(2), bar: Math.min(metric.installedBaseDensity * 100, 100) } : null,
+    metric.agriculturalArea !== null && metric.agriculturalArea !== undefined ? { label: "Agricultural Area", value: `${format(metric.agriculturalArea)} acres`, bar: null } : null,
+    metric.mainCrops?.length ? { label: "Main Crops", value: metric.mainCrops.join(", "), bar: null } : null,
+  ].filter((item): item is { label: string; value: string; bar: number | null } => Boolean(item));
+
+  return (
+    <aside className={cn("kmm-township-detail-panel", mobile && "kmm-township-detail-panel-mobile")}>
+      <div className="kmm-township-detail-header">
+        <div>
+          <h3>{metric.township}</h3>
+          <p>{metric.stateRegion}</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Clear township selection">
+          <X size={16} />
+        </button>
+      </div>
+
+      <section className="kmm-township-detail-section kmm-township-installed-base">
+        <p>Installed Base</p>
+        <strong>{format(metric.installedBase)} <span>Units</span></strong>
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Sales Breakdown</h4>
+        <div className="kmm-township-bar-list">
+          {PRODUCT_ROWS.map((row) => {
+            const value = metric.salesByProduct[row.key];
+            return (
+              <div key={row.key} className="kmm-township-bar-row">
+                <span>{row.label}</span>
+                <div><i style={{ width: `${(value / maxProduct) * 100}%` }} /></div>
+                <b>{format(value)}</b>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Sales Summary</h4>
+        <dl className="kmm-township-metric-list">
+          <div><dt>Sales Unit</dt><dd>{format(metric.salesUnit)}</dd></div>
+          <div><dt>Sales Value</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
+          <div><dt>GP Value</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
+          <div><dt>GP %</dt><dd>{metric.gpPercent === null ? "0.0%" : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
+          {showBooking && metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}
+          {showBooking && metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}
+        </dl>
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Marketing Activity</h4>
+        {metric.activities ? (
+          <dl className="kmm-township-metric-list">
+            <div><dt>Marketing Activities</dt><dd>{format(metric.activities)}</dd></div>
+            <div><dt>Last Activity Date</dt><dd>{metric.lastActivityDate ?? "Data not connected"}</dd></div>
+            <div><dt>Activity Density</dt><dd>{metric.activityDensity === null ? "Data not connected" : metric.activityDensity.toFixed(2)}</dd></div>
+            <div><dt>Top Activity Type</dt><dd>{metric.topActivityType ?? "Data not connected"}</dd></div>
+          </dl>
+        ) : <p className="kmm-township-empty-text">No marketing activity in selected period</p>}
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Market / Area Context</h4>
+        {marketItems.length ? (
+          <div className="kmm-township-context-grid">
+            {marketItems.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                {item.bar !== null && <em><i style={{ width: `${item.bar}%` }} /></em>}
+              </div>
+            ))}
+          </div>
+        ) : <p className="kmm-township-empty-text">Data not connected</p>}
+      </section>
+    </aside>
+  );
 }
 
 export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className }: MyanmarMarketingMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const popupRef = useRef<{ remove: () => void } | null>(null);
   const townshipsRef = useRef<GeoFeature[]>([]);
   const resizeTimerRef = useRef<number | null>(null);
   const fitLogRef = useRef(false);
@@ -210,11 +309,10 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
   const visibleIdsRef = useRef(visibleShowroomIds);
   const sheetStartYRef = useRef<number | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [sheetMetric, setSheetMetric] = useState<TownshipMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<TownshipMetric | null>(null);
 
   const closeSelection = () => {
-    popupRef.current?.remove();
-    setSheetMetric(null);
+    setSelectedMetric(null);
   };
 
   const logFitOnce = (map: MapLibreMap, camera: NonNullable<ReturnType<typeof fitMyanmar>>) => {
@@ -286,7 +384,6 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
     const map = mapRef.current;
     if (!map?.loaded()) return;
     scheduleResizeThenFit(map, false);
-    popupRef.current?.remove();
   }, [resetSignal]);
 
   useEffect(() => {
@@ -368,7 +465,12 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
             element.className = "kmm-showroom-marker";
             element.setAttribute("aria-label", `View ${showroom.name}`);
             element.style.display = !visibleIdsRef.current?.length || visibleIdsRef.current.includes(showroom.id) ? "block" : "none";
-            element.addEventListener("click", () => map.flyTo({ center: showroom.coordinates, zoom: Math.max(map.getZoom(), 7), duration: 500, essential: true }));
+            element.addEventListener("click", (event) => {
+              event.stopPropagation();
+              const metric = metricsRef.current[normalizeLocation(showroom.township)];
+              if (metric) setSelectedMetric(metric);
+              map.flyTo({ center: showroom.coordinates, zoom: Math.max(map.getZoom(), 7), duration: 500, essential: true });
+            });
             markers.set(showroom.id, new maplibregl.Marker({ element, anchor: "center" }).setLngLat(showroom.coordinates).addTo(map));
           });
           applyMetrics();
@@ -384,27 +486,12 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
           map.on("click", "township-heatmap", (event) => {
             const feature = event.features?.[0] as GeoFeature | undefined;
             const metric = feature ? metricsRef.current[normalizeLocation(feature.properties.TS)] : undefined;
-            closeSelection();
-            if (!metric || !event.lngLat) return;
-            if (shouldUseBottomSheet(containerRef.current)) {
-              setSheetMetric(metric);
-              return;
-            }
-            const popup = new maplibregl.Popup({
-              anchor: choosePopupAnchor(map, event.lngLat),
-              className: "kmm-map-popup",
-              closeButton: true,
-              closeOnClick: true,
-              closeOnMove: false,
-              maxWidth: "320px",
-              offset: 14,
-            });
-            popup.setLngLat(event.lngLat).setHTML(popupHtml(metric)).addTo(map);
-            popupRef.current = popup;
+            if (!metric) return;
+            setSelectedMetric(metric);
           });
           map.on("click", (event) => {
             const features = map.queryRenderedFeatures(event.point, { layers: ["township-heatmap"] });
-            if (!features.length) closeSelection();
+            if (!features.length && shouldUseBottomSheet()) closeSelection();
           });
           setStatus("ready");
         });
@@ -427,16 +514,20 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
       if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
       markers.forEach((marker) => marker.remove());
       markers.clear();
-      popupRef.current?.remove();
       mapRef.current?.remove();
       mapRef.current = null;
     };
   }, []);
 
   return (
-    <div className={cn("kmm-marketing-map relative h-full w-full overflow-hidden bg-[#F8FAFC]", className)}>
-      <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
-      {sheetMetric && (
+    <div className={cn("kmm-marketing-map relative grid h-full w-full min-w-0 grid-cols-1 overflow-hidden bg-[#F8FAFC] md:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)]", className)}>
+      <div className="relative min-h-0 min-w-0 overflow-hidden">
+        <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
+      </div>
+      <div className="hidden min-h-0 min-w-0 overflow-hidden border-l border-[#EEF0F3] bg-white md:block">
+        <DetailPanel metric={selectedMetric} onClose={closeSelection} />
+      </div>
+      {selectedMetric && (
         <div className="kmm-map-sheet-backdrop" onClick={closeSelection}>
           <div
             className="kmm-map-sheet"
@@ -448,20 +539,7 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
             }}
           >
             <div className="kmm-map-sheet-handle" />
-            <button type="button" className="kmm-map-sheet-close" onClick={closeSelection} aria-label="Close map details">
-              <X size={16} />
-            </button>
-            <div className="kmm-map-popup-card">
-              <p className="kmm-map-popup-title">{sheetMetric.township}</p>
-              <div className="kmm-map-popup-meta">{sheetMetric.stateRegion}</div>
-              <dl className="kmm-map-popup-list">
-                <div><dt>Engine Population</dt><dd>{format(sheetMetric.population)}</dd></div>
-                <div><dt>Activities</dt><dd>{format(sheetMetric.activities)}</dd></div>
-                <div><dt>Sales Unit</dt><dd>{format(sheetMetric.salesUnit)}</dd></div>
-                <div><dt>Booking</dt><dd>{sheetMetric.booking === null ? "N/A" : format(sheetMetric.booking)}</dd></div>
-              </dl>
-              <button type="button" className="kmm-map-popup-details">View Details &rarr;</button>
-            </div>
+            <DetailPanel metric={selectedMetric} onClose={closeSelection} mobile />
           </div>
         </div>
       )}

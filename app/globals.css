@@ -264,88 +264,222 @@ select:focus-visible {
   color: #6b7280;
 }
 
-.kmm-map-popup .maplibregl-popup-content {
-  width: 280px;
-  max-width: 320px;
-  max-height: 360px;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+.kmm-township-detail-panel {
+  height: 100%;
+  overflow-y: auto;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgb(31 41 55 / 14%);
+  padding: 18px;
   color: #1f2937;
-  padding: 0;
-  overflow: hidden;
 }
 
-.kmm-map-popup .maplibregl-popup-tip {
-  border-top-color: #ffffff;
-  border-bottom-color: #ffffff;
+.kmm-township-detail-panel-mobile {
+  padding: 12px 16px 18px;
 }
 
-.kmm-map-popup-card {
-  padding: 16px;
+.kmm-township-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  text-align: center;
 }
 
-.kmm-map-popup-title {
+.kmm-township-detail-empty h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 16px;
+  font-weight: 800;
 }
 
-.kmm-map-popup-meta {
-  margin-top: 5px;
-  font-size: 11px;
-  font-weight: 600;
+.kmm-township-detail-empty p {
+  margin: 8px auto 0;
+  max-width: 260px;
   color: #6b7280;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-.kmm-map-popup-list {
+.kmm-township-detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: start;
+}
+
+.kmm-township-detail-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.kmm-township-detail-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kmm-township-detail-header button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #4b5563;
+}
+
+.kmm-township-detail-section {
+  margin-top: 16px;
+  border-top: 1px solid #eef0f3;
+  padding-top: 15px;
+}
+
+.kmm-township-detail-section h4 {
+  margin: 0 0 12px;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kmm-township-installed-base {
+  border: 1px solid #ffedd5;
+  border-radius: 12px;
+  background: #fff7ed;
+  padding: 14px;
+}
+
+.kmm-township-installed-base p {
+  margin: 0;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.kmm-township-installed-base strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.kmm-township-installed-base span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kmm-township-bar-list {
+  display: grid;
+  gap: 10px;
+}
+
+.kmm-township-bar-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1.2fr) minmax(0, 1fr) 34px;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.kmm-township-bar-row span {
+  color: #4b5563;
+  font-weight: 700;
+}
+
+.kmm-township-bar-row div,
+.kmm-township-context-grid em {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.kmm-township-bar-row i,
+.kmm-township-context-grid i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ff7a00;
+}
+
+.kmm-township-bar-row b {
+  color: #1f2937;
+  font-size: 12px;
+  text-align: right;
+}
+
+.kmm-township-metric-list {
   display: grid;
   gap: 8px;
-  margin: 14px 0 0;
+  margin: 0;
 }
 
-.kmm-map-popup-list div {
+.kmm-township-metric-list div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: baseline;
-  gap: 16px;
-  min-height: 22px;
 }
 
-.kmm-map-popup-list dt,
-.kmm-map-popup-list dd {
+.kmm-township-metric-list dt,
+.kmm-township-metric-list dd {
   margin: 0;
   font-size: 12px;
   line-height: 1.35;
 }
 
-.kmm-map-popup-list dt {
+.kmm-township-metric-list dt {
   color: #6b7280;
-  font-weight: 600;
+  font-weight: 650;
 }
 
-.kmm-map-popup-list dd {
+.kmm-township-metric-list dd {
   color: #1f2937;
   font-weight: 800;
   text-align: right;
 }
 
-.kmm-map-popup-details {
-  margin-top: 14px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: #ff8615;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.4;
-  cursor: pointer;
+.kmm-township-empty-text {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-.kmm-map-popup-details:hover {
-  color: #c2410c;
+.kmm-township-context-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.kmm-township-context-grid div {
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  background: #fafbfc;
+  padding: 11px;
+}
+
+.kmm-township-context-grid span {
+  display: block;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.kmm-township-context-grid strong {
+  display: block;
+  margin-top: 5px;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.kmm-township-context-grid em {
+  display: block;
+  margin-top: 9px;
 }
 
 .kmm-map-sheet-backdrop {
@@ -360,7 +494,7 @@ select:focus-visible {
 .kmm-map-sheet {
   position: relative;
   width: 100%;
-  max-height: 45vh;
+  max-height: 65vh;
   overflow-y: auto;
   border-radius: 18px 18px 0 0;
   border: 1px solid #e5e7eb;
@@ -378,26 +512,7 @@ select:focus-visible {
   background: #d1d5db;
 }
 
-.kmm-map-sheet-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  display: grid;
-  height: 30px;
-  width: 30px;
-  place-items: center;
-  border: 1px solid #e5e7eb;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #4b5563;
-  cursor: pointer;
-}
-
 @media (max-width: 767px) {
-  .kmm-map-popup {
-    display: none;
-  }
-
   .kmm-map-sheet-backdrop {
     display: flex;
   }

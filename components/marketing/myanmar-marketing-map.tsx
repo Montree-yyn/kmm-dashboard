@@ -202,22 +202,10 @@ const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
   { key: "other", label: "Other Engine Products" },
 ];
 
-function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric | null; onClose: () => void; mobile?: boolean }) {
-  if (!metric) {
-    return (
-      <aside className={cn("kmm-township-detail-panel kmm-township-detail-empty", mobile && "kmm-township-detail-panel-mobile")}>
-        <div>
-          <h3>Select a township on the map</h3>
-          <p>Click a township or showroom marker to view detailed sales, market, and activity information.</p>
-        </div>
-      </aside>
-    );
-  }
-
+function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean }) {
   const maxProduct = Math.max(...PRODUCT_ROWS.map((row) => metric.salesByProduct[row.key]), 1);
   const showBooking = metric.bookingUnit !== null || metric.bookingValue !== null;
   const marketItems = [
-    metric.riskLevel ? { label: "Risk Level", value: metric.riskLevel, bar: null } : null,
     metric.installedBaseDensity !== null && metric.installedBaseDensity !== undefined ? { label: "Installed Base Density", value: metric.installedBaseDensity.toFixed(2), bar: Math.min(metric.installedBaseDensity * 100, 100) } : null,
     metric.agriculturalArea !== null && metric.agriculturalArea !== undefined ? { label: "Agricultural Area", value: `${format(metric.agriculturalArea)} acres`, bar: null } : null,
     metric.mainCrops?.length ? { label: "Main Crops", value: metric.mainCrops.join(", "), bar: null } : null,
@@ -269,7 +257,7 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>Marketing Activity</h4>
+        <h4>Marketing Summary</h4>
         {metric.activities ? (
           <dl className="kmm-township-metric-list">
             <div><dt>Marketing Activities</dt><dd>{format(metric.activities)}</dd></div>
@@ -281,7 +269,12 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>Market / Area Context</h4>
+        <h4>Risk Level</h4>
+        {metric.riskLevel ? <p className="kmm-township-empty-text">{metric.riskLevel}</p> : <p className="kmm-township-empty-text">Data not connected</p>}
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Crop Information</h4>
         {marketItems.length ? (
           <div className="kmm-township-context-grid">
             {marketItems.map((item) => (
@@ -293,6 +286,11 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
             ))}
           </div>
         ) : <p className="kmm-township-empty-text">Data not connected</p>}
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Quick Actions</h4>
+        <button type="button" className="kmm-township-quick-action" onClick={onClose}>Clear selection</button>
       </section>
     </aside>
   );
@@ -520,15 +518,17 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
   }, []);
 
   return (
-    <div className={cn("kmm-marketing-map relative grid h-full w-full min-w-0 grid-cols-1 overflow-hidden bg-[#F8FAFC] md:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)]", className)}>
-      <div className="relative min-h-0 min-w-0 overflow-hidden">
+    <div className={cn("kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]", className)}>
+      <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
       </div>
-      <div className="hidden min-h-0 min-w-0 overflow-hidden border-l border-[#EEF0F3] bg-white md:block">
-        <DetailPanel metric={selectedMetric} onClose={closeSelection} />
-      </div>
       {selectedMetric && (
-        <div className="kmm-map-sheet-backdrop" onClick={closeSelection}>
+        <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-10 hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">
+          <DetailPanel metric={selectedMetric} onClose={closeSelection} />
+        </div>
+      )}
+      {selectedMetric && (
+        <div className="kmm-map-sheet-backdrop md:hidden" onClick={closeSelection}>
           <div
             className="kmm-map-sheet"
             onClick={(event) => event.stopPropagation()}

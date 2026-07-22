@@ -16,5 +16,5 @@ export function getCurrentCountryMapDataset(countryCode: string) {
 }
 
 export function getMapEngine() {
-  return process.env.NEXT_PUBLIC_MAP_ENGINE === "maplibre" ? "maplibre" : "legacy";
+  return process.env.NEXT_PUBLIC_MAP_ENGINE === "legacy" ? "legacy" : "maplibre";
 }

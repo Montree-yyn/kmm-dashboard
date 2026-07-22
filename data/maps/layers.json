@@ -1,13 +1,13 @@
 [
   {"id":"country-boundary","type":"line","enabled":false,"description":"Future country outline."},
   {"id":"admin-level-1-boundary","type":"line","enabled":false,"description":"Future State / Region outline."},
-  {"id":"township-fill","type":"fill","enabled":true,"description":"Active township polygon fill."},
-  {"id":"township-outline","type":"line","enabled":true,"description":"Active township polygon outline."},
-  {"id":"township-hover","type":"feature-state","enabled":true,"description":"Active hover state."},
-  {"id":"township-selected","type":"feature-state","enabled":true,"description":"Active selected state."},
-  {"id":"showroom-points","type":"symbol","enabled":false,"description":"Future showroom points."},
-  {"id":"sales-heatmap","type":"heatmap","enabled":false,"description":"Future sales overlay."},
-  {"id":"installed-base","type":"circle","enabled":false,"description":"Future installed-base overlay."},
-  {"id":"booking","type":"circle","enabled":false,"description":"Future booking overlay."},
-  {"id":"marketing-activity","type":"circle","enabled":false,"description":"Future marketing overlay."}
+  {"id":"township-fill","group":"heatmap","label":"Heatmap","type":"fill","enabled":true,"functional":true,"description":"Active township metric fill."},
+  {"id":"township-outline","group":"township-boundary","label":"Township Boundary","type":"line","enabled":true,"functional":true,"description":"Active township polygon outline."},
+  {"id":"township-hover","group":"township-boundary","label":"Township Boundary","type":"feature-state","enabled":true,"functional":true,"description":"Active hover state."},
+  {"id":"township-selected","group":"township-boundary","label":"Township Boundary","type":"feature-state","enabled":true,"functional":true,"description":"Active selected state."},
+  {"id":"showroom-points","group":"showroom","label":"Showroom","type":"symbol","enabled":false,"functional":false,"description":"Sprint 1 placeholder; no business data connected."},
+  {"id":"sales-heatmap","group":"sales","label":"Sales","type":"heatmap","enabled":false,"functional":false,"description":"Sprint 1 placeholder; no business data connected."},
+  {"id":"booking","group":"booking","label":"Booking","type":"circle","enabled":false,"functional":false,"description":"Sprint 1 placeholder; no business data connected."},
+  {"id":"installed-base","group":"installed-base","label":"Installed Base","type":"circle","enabled":false,"functional":false,"description":"Sprint 1 placeholder; no business data connected."},
+  {"id":"marketing-activity","group":"marketing-activity","label":"Marketing Activity","type":"circle","enabled":false,"functional":false,"description":"Sprint 1 placeholder; no business data connected."}
 ]

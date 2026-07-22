@@ -27,4 +27,12 @@ export interface BusinessMapFeatureProperties {
   category?: string | null;
 }
 
-export interface MapLayerConfig { id: string; type: string; enabled: boolean; description: string; }
+export interface MapLayerConfig {
+  id: string;
+  group?: string;
+  label?: string;
+  type: string;
+  enabled: boolean;
+  functional?: boolean;
+  description: string;
+}

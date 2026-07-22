@@ -1,0 +1,19 @@
+[
+  { "raw_state_region": "Ayeyarwady", "raw_township": "Danu Phyu", "canonical_state_region": "Ayeyarwady", "canonical_township": "Danubyu" },
+  { "raw_state_region": "Ayeyarwady", "raw_township": "Bo Kalay", "canonical_state_region": "Ayeyarwady", "canonical_township": "Bogale" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Zeekone", "canonical_state_region": "Bago (West)", "canonical_township": "Zigon" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Oakpho", "canonical_state_region": "Bago (West)", "canonical_township": "Okpho" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Gyopinkouk", "canonical_state_region": "Bago (West)", "canonical_township": "Gyobingauk" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Moe Nyo", "canonical_state_region": "Bago (West)", "canonical_township": "Monyo" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Thae Kone", "canonical_state_region": "Bago (West)", "canonical_township": "Thegon" },
+  { "raw_state_region": "Bago (West)", "raw_township": "Shwe Taung", "canonical_state_region": "Bago (West)", "canonical_township": "Shwedaung" },
+  { "raw_state_region": "Magway", "raw_township": "Myoe Thit", "canonical_state_region": "Magway", "canonical_township": "Myothit" },
+  { "raw_state_region": "Magway", "raw_township": "Saik Phyu", "canonical_state_region": "Magway", "canonical_township": "Seikphyu" },
+  { "raw_state_region": "Magway", "raw_township": "Taung Twin Gyi", "canonical_state_region": "Magway", "canonical_township": "Taungdwingyi" },
+  { "raw_state_region": "Mon", "raw_township": "Kyaikhto", "canonical_state_region": "Mon", "canonical_township": "Kyaikto" },
+  { "raw_state_region": "Shan (South)", "raw_township": "Taung Gyi", "canonical_state_region": "Shan (South)", "canonical_township": "Taunggyi" },
+  { "raw_state_region": "Yangon", "raw_township": "Mayan Kone", "canonical_state_region": "Yangon", "canonical_township": "Mayangone" },
+  { "raw_state_region": "Yangon", "raw_township": "Lanmataw", "canonical_state_region": "Yangon", "canonical_township": "Lanmadaw" },
+  { "raw_state_region": "Yangon", "raw_township": "Tikkyi", "canonical_state_region": "Yangon", "canonical_township": "Taikkyi" },
+  { "raw_state_region": "Bago (East)", "raw_township": "Kyauk Tagar", "canonical_state_region": "Bago (East)", "canonical_township": "Kyauktaga" }
+]

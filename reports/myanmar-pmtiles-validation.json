@@ -1,0 +1,8 @@
+{
+  "archive": "public/maps/vector/myanmar-townships.pmtiles",
+  "file_exists": true,
+  "file_size_bytes": 1378674,
+  "validation_result": "passed",
+  "metadata_output": "pmtiles spec version: 3\ntile type: mvt\nbounds: (long: 92.172105, lat: 9.605884) (long: 101.170015, lat: 28.545539)\nmin zoom: 3\nmax zoom: 10\ncenter: (long: 96.152344, lat: 16.804466)\ncenter zoom: 10\naddressed tiles count: 941\ntile entries count: 939\ntile contents count: 938\nclustered: true\ninternal compression: gzip\ntile compression: gzip\ntilestats <object, use --metadata to view full JSON metadata>\nvector_layers <object, use --metadata to view full JSON metadata>\nantimeridian_adjusted_bounds 92.172105,9.605884,101.170015,28.545539\ndescription /Users/CAKE/Documents/KMM_Sales_2026/kmm-dashboard/build/maps/myanmar-townships.mbtiles\ngenerator_options tippecanoe -o /Users/CAKE/Documents/KMM_Sales_2026/kmm-dashboard/build/maps/myanmar-townships.mbtiles -l townships -Z 3 -z 10 --force --read-parallel --detect-shared-borders '--simplification=8' /Users/CAKE/Documents/KMM_Sales_2026/kmm-dashboard/build/maps/myanmar-townships.normalized.geojson\nmaxzoom 10\nname /Users/CAKE/Documents/KMM_Sales_2026/kmm-dashboard/build/maps/myanmar-townships.mbtiles\nstrategies [{},{},{},{\"tiny_polygons\":52},{\"tiny_polygons\":34},{\"tiny_polygons\":23},{\"tiny_polygons\":7},{\"tiny_polygons\":3},{\"tiny_polygons\":1},{\"tiny_polygons\":5},{\"tiny_polygons\":1}]\ntype overlay\nversion 2\nformat pbf\ngenerator tippecanoe v2.79.0\nminzoom 3\n",
+  "stderr": ""
+}

@@ -1,0 +1,35 @@
+{
+  "source": "public/maps/myanmar-townships.geojson",
+  "file_size_bytes": 11429434,
+  "feature_count": 330,
+  "geometry_types": {
+    "MultiPolygon": 330
+  },
+  "crs_assumption": "RFC 7946 GeoJSON / WGS84 longitude-latitude coordinates (no CRS member supplied)",
+  "property_names": [
+    "DT",
+    "DT_PCODE",
+    "PCode_V",
+    "ST",
+    "ST_PCODE",
+    "TS",
+    "TS_MMR",
+    "TS_PCODE"
+  ],
+  "canonical_location_id_property": null,
+  "township_name_property": "TS",
+  "state_region_property": "ST",
+  "invalid_or_empty_geometries": [],
+  "duplicate_canonical_ids": [],
+  "missing_canonical_id_count": 330,
+  "missing_township_name_count": 0,
+  "missing_state_region_name_count": 0,
+  "bounds": [
+    92.17210485865233,
+    9.60588355708055,
+    101.1700150545512,
+    28.54553886232867
+  ],
+  "invalid_coordinate_count": 0,
+  "winding_or_topology_note": "Not repaired or fully validated; source polygons are retained unchanged."
+}

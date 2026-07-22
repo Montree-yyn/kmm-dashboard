@@ -1,0 +1,13 @@
+[
+  {"id":"country-boundary","type":"line","enabled":false,"description":"Future country outline."},
+  {"id":"admin-level-1-boundary","type":"line","enabled":false,"description":"Future State / Region outline."},
+  {"id":"township-fill","type":"fill","enabled":true,"description":"Active township polygon fill."},
+  {"id":"township-outline","type":"line","enabled":true,"description":"Active township polygon outline."},
+  {"id":"township-hover","type":"feature-state","enabled":true,"description":"Active hover state."},
+  {"id":"township-selected","type":"feature-state","enabled":true,"description":"Active selected state."},
+  {"id":"showroom-points","type":"symbol","enabled":false,"description":"Future showroom points."},
+  {"id":"sales-heatmap","type":"heatmap","enabled":false,"description":"Future sales overlay."},
+  {"id":"installed-base","type":"circle","enabled":false,"description":"Future installed-base overlay."},
+  {"id":"booking","type":"circle","enabled":false,"description":"Future booking overlay."},
+  {"id":"marketing-activity","type":"circle","enabled":false,"description":"Future marketing overlay."}
+]

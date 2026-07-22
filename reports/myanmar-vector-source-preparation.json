@@ -1,0 +1,12 @@
+{
+  "source_feature_count": 330,
+  "output_feature_count": 330,
+  "preserved_features": 330,
+  "skipped_invalid_geometries": [],
+  "missing_canonical_ids": [],
+  "duplicate_canonical_ids": [],
+  "property_normalization_counts": {
+    "canonical_properties_added": 1320
+  },
+  "output_size_bytes": 11460023
+}

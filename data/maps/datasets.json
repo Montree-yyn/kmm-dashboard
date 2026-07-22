@@ -1,0 +1,23 @@
+[
+  {
+    "id": "mm-townships-geojson",
+    "country_code": "MM",
+    "dataset_type": "geojson",
+    "url": "/maps/myanmar-townships.geojson",
+    "source_id": "administrative-boundaries",
+    "source_layer": null,
+    "bounds": [92.17210485865233, 9.60588355708055, 101.17001505455121, 28.54553886232867],
+    "center": [96.0, 19.0],
+    "default_zoom": 4,
+    "enabled": true
+  },
+  {
+    "id": "mm-townships-pmtiles",
+    "country_code": "MM",
+    "dataset_type": "pmtiles",
+    "url": "/maps/vector/myanmar-townships.pmtiles",
+    "source_id": "administrative-boundaries-vector",
+    "source_layer": "townships",
+    "enabled": true
+  }
+]

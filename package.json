@@ -11,8 +11,13 @@
     "deploy": "npm run build && wrangler deploy",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "update-data": "python3 scripts/build_dashboard_data.py",
+    "maps:audit:mm": "python3 scripts/maps/audit_myanmar_geojson.py",
+    "maps:prepare:mm": "python3 scripts/maps/prepare_myanmar_vector_source.py",
+    "maps:build:mm": "bash scripts/maps/build_myanmar_pmtiles.sh",
+    "maps:validate:mm": "python3 scripts/maps/validate_myanmar_pmtiles.py",
+    "maps:pipeline:mm": "npm run maps:audit:mm && npm run maps:prepare:mm && npm run maps:build:mm && npm run maps:validate:mm",
     "validate-data": "python3 scripts/validate_data.py",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/map-foundation.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
@@ -24,6 +29,7 @@
     "lucide-react": "^1.24.0",
     "maplibre-gl": "^5.24.0",
     "next": "16.2.6",
+    "pmtiles": "^4.4.1",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "tailwind-merge": "^3.6.0"

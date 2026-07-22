@@ -1,0 +1,12 @@
+{
+  "version": 8,
+  "name": "KMM light boundary foundation",
+  "sources": {},
+  "layers": [
+    {
+      "id": "kmm-light-background",
+      "type": "background",
+      "paint": { "background-color": "#f8fafc" }
+    }
+  ]
+}

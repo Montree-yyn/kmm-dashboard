@@ -5,13 +5,15 @@ import type { Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl
 import { AlertTriangle, X } from "lucide-react";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
+import { getMapEngine } from "../../lib/maps/datasets";
+import { MyanmarMarketingMapMapLibre } from "./myanmar-marketing-map-maplibre";
 
 type Showroom = { id: string; name: string; stateRegion: string; township: string; coordinates: [number, number] };
 type GeoFeature = { geometry?: { coordinates?: unknown }; properties: { TS?: string; TS_PCODE?: string; ST?: string } };
 type LabelFeature = { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { id: string; name: string } };
 type LabelCollection = { type: "FeatureCollection"; features: LabelFeature[] };
 type SalesByProduct = { tractor: number; combineHarvester: number; excavator: number; transplanter: number; drone: number; other: number };
-type TownshipMetric = {
+export type TownshipMetric = {
   township: string;
   stateRegion: string;
   installedBase: number;
@@ -37,7 +39,7 @@ type TownshipMetric = {
 };
 type FitPadding = { top: number; right: number; bottom: number; left: number };
 
-type MyanmarMarketingMapProps = {
+export type MyanmarMarketingMapProps = {
   visibleShowroomIds?: string[];
   townshipMetrics?: Record<string, TownshipMetric>;
   productLabel?: string;
@@ -203,7 +205,7 @@ const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
   { key: "other", label: "Other Engine Products" },
 ];
 
-function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean }) {
+export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean }) {
   const showBooking = metric.bookingUnit !== null || metric.bookingValue !== null;
 
   return (
@@ -272,7 +274,7 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
   );
 }
 
-export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className }: MyanmarMarketingMapProps) {
+function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className }: MyanmarMarketingMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const townshipsRef = useRef<GeoFeature[]>([]);
@@ -500,7 +502,7 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
       </div>
       {selectedMetric && (
         <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-10 hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">
-          <DetailPanel metric={selectedMetric} onClose={closeSelection} />
+          <MyanmarTownshipDetailPanel metric={selectedMetric} onClose={closeSelection} />
         </div>
       )}
       {selectedMetric && (
@@ -515,7 +517,7 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
             }}
           >
             <div className="kmm-map-sheet-handle" />
-            <DetailPanel metric={selectedMetric} onClose={closeSelection} mobile />
+            <MyanmarTownshipDetailPanel metric={selectedMetric} onClose={closeSelection} mobile />
           </div>
         </div>
       )}
@@ -523,4 +525,8 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
       {status === "error" && <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center text-sm text-[#DC2626]"><span><AlertTriangle className="mx-auto mb-3" size={22} />Unable to load the Myanmar map files.</span></div>}
     </div>
   );
+}
+
+export function MyanmarMarketingMap(props: MyanmarMarketingMapProps) {
+  return getMapEngine() === "maplibre" ? <MyanmarMarketingMapMapLibre {...props} /> : <LegacyMyanmarMarketingMap {...props} />;
 }

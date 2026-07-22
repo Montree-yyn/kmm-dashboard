@@ -41,3 +41,12 @@ test("legacy is the feature-flag default and PMTiles registration is guarded", a
   assert.match(protocol, /typeof window === "undefined" \|\| registered/);
   assert.match(protocol, /maplibre.addProtocol\("pmtiles"/);
 });
+
+test("Marketing map migration keeps the legacy path and gates PMTiles GlobalVectorMap", async () => {
+  const [legacy, maplibre] = await Promise.all([read("components/marketing/myanmar-marketing-map.tsx"), read("components/marketing/myanmar-marketing-map-maplibre.tsx")]);
+  assert.match(legacy, /getMapEngine\(\) === "maplibre"/);
+  assert.match(legacy, /LegacyMyanmarMarketingMap/);
+  assert.match(maplibre, /getMapDataset\("mm-townships-pmtiles"\)/);
+  assert.match(maplibre, /canonical_location_id/);
+  assert.match(maplibre, /GlobalVectorMap/);
+});

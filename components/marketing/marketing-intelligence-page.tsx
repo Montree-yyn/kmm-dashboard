@@ -93,6 +93,14 @@ type TownshipMetric = {
     stateRegion: string;
     installedBase: number;
     population: number;
+    installedBaseByProduct: {
+        tractor: number;
+        combineHarvester: number;
+        excavator: number;
+        transplanter: number;
+        drone: number;
+        other: number;
+    };
     salesByProduct: {
         tractor: number;
         combineHarvester: number;
@@ -226,12 +234,17 @@ export function MarketingIntelligencePage() {
         return { raw, key: null, status: "missing" }; if (/[\\/;]/.test(trimmed))
         return { raw, key: null, status: "ambiguous" }; const direct = normalizeLocation(trimmed); if (geoIndex.has(direct))
         return { raw, key: direct, status: "direct" }; const alias = normalizeTownshipAlias(trimmed); const aliasKey = alias ? normalizeLocation(alias) : ""; return aliasKey && geoIndex.has(aliasKey) ? { raw, key: aliasKey, status: "alias" } : { raw, key: null, status: "unmatched" }; }, [geoIndex]);
-    const marketing = useMemo(() => (data?.marketing ?? []).filter((row) => currentMatch(row, filters) && isComplete(row)), [data, filters]);
-    const periodSales = useMemo(() => (data?.sales ?? []).filter((row) => currentMatch(row, filters)), [data, filters]);
+    const matchesSelectedShowroom = useCallback((branch: string) => !filters.showroom.length || filters.showroom.includes(operationalShowroomForBranch(branch)?.name ?? ""), [filters.showroom]);
+    const marketing = useMemo(() => (data?.marketing ?? []).filter((row) => currentMatch(row, filters) && matchesSelectedShowroom(row.branch) && isComplete(row)), [data, filters, matchesSelectedShowroom]);
+    const periodSales = useMemo(() => (data?.sales ?? []).filter((row) => currentMatch(row, filters) && matchesSelectedShowroom(row.branch)), [data, filters, matchesSelectedShowroom]);
     const populationSales = useMemo(() => { if (!data)
         return []; const end = cutoff(filters, data); return data.sales.filter((row) => { const category = productGroup(row.productType); const inProduct = product === "All" ? UNIT_PRODUCTS.includes(category) : category === product; const beforeEnd = (row.year ?? 0) < end.year || ((row.year ?? 0) === end.year && (row.month ?? 0) <= end.month); return inProduct && beforeEnd && (!filters.branch.length || filters.branch.includes(row.branch)); }); }, [data, filters, product]);
-    const mapped = useMemo(() => { const population = new Map<string, number>(); const activities = new Map<string, number>(); const salesUnits = new Map<string, number>(); const salesValues = new Map<string, number>(); const gpValues = new Map<string, number>(); const salesByProduct = new Map<string, TownshipMetric["salesByProduct"]>(); const lastActivityDates = new Map<string, string>(); const activityTypes = new Map<string, Map<string, number>>(); const source = new Map<string, GeoTownship>(); const productKey = (category: string): keyof TownshipMetric["salesByProduct"] => category === "TT" ? "tractor" : category === "CH" ? "combineHarvester" : category === "EX" ? "excavator" : category === "TP" ? "transplanter" : category === "MAX" ? "drone" : "other"; const blankProducts = (): TownshipMetric["salesByProduct"] => ({ tractor: 0, combineHarvester: 0, excavator: 0, transplanter: 0, drone: 0, other: 0 }); populationSales.forEach((row) => { const resolved = resolveTownship(row.township); if (resolved.key) {
+    const mapped = useMemo(() => { const population = new Map<string, number>(); const activities = new Map<string, number>(); const salesUnits = new Map<string, number>(); const salesValues = new Map<string, number>(); const gpValues = new Map<string, number>(); const installedBaseByProduct = new Map<string, TownshipMetric["installedBaseByProduct"]>(); const salesByProduct = new Map<string, TownshipMetric["salesByProduct"]>(); const lastActivityDates = new Map<string, string>(); const activityTypes = new Map<string, Map<string, number>>(); const source = new Map<string, GeoTownship>(); const productKey = (category: string): keyof TownshipMetric["salesByProduct"] => category === "TT" ? "tractor" : category === "CH" ? "combineHarvester" : category === "EX" ? "excavator" : category === "TP" ? "transplanter" : category === "MAX" ? "drone" : "other"; const blankProducts = (): TownshipMetric["salesByProduct"] => ({ tractor: 0, combineHarvester: 0, excavator: 0, transplanter: 0, drone: 0, other: 0 }); populationSales.forEach((row) => { const resolved = resolveTownship(row.township); if (resolved.key) {
         population.set(resolved.key, (population.get(resolved.key) ?? 0) + 1);
+        const category = productGroup(row.productType);
+        const detail = installedBaseByProduct.get(resolved.key) ?? blankProducts();
+        detail[productKey(category)] += 1;
+        installedBaseByProduct.set(resolved.key, detail);
         const feature = geoIndex.get(resolved.key);
         if (feature)
             source.set(resolved.key, feature);
@@ -252,7 +265,7 @@ export function MarketingIntelligencePage() {
         activityTypes.set(resolved.key, counts);
     } }); const keys = new Set([...population.keys(), ...activities.keys(), ...salesUnits.keys(), ...salesValues.keys()]); const raw = [...keys].map((key) => ({ key, feature: source.get(key) ?? geoIndex.get(key), population: population.get(key) ?? 0, activities: activities.get(key) ?? 0, salesUnit: salesUnits.get(key) ?? 0 })).filter((item): item is typeof item & {
         feature: GeoTownship;
-    } => Boolean(item.feature)); const visible = raw.map((item) => mode === "population" ? item.population : item.activities); const metrics: Record<string, TownshipMetric> = {}; raw.forEach((item) => { const density = item.population ? item.activities / item.population : null; const value = salesValues.get(item.key) ?? 0; const gp = gpValues.get(item.key) ?? 0; const topType = Array.from(activityTypes.get(item.key)?.entries() ?? []).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null; metrics[item.key] = { township: item.feature.properties.TS, stateRegion: item.feature.properties.ST, installedBase: item.population, population: item.population, salesByProduct: salesByProduct.get(item.key) ?? blankProducts(), activities: item.activities, salesUnit: item.salesUnit, salesValue: value, gpValue: gp, gpPercent: value ? (gp / value) * 100 : null, bookingUnit: null, bookingValue: null, lastActivityDate: lastActivityDates.get(item.key) ?? null, activityDensity: density, topActivityType: topType, density, fill: heatColor(mode === "population" ? item.population : item.activities, visible) }; }); return { metrics, rows: raw, population, activities, salesUnits }; }, [populationSales, periodSales, marketing, mode, product, geoIndex, resolveTownship]);
+    } => Boolean(item.feature)); const visible = raw.map((item) => mode === "population" ? item.population : item.activities); const metrics: Record<string, TownshipMetric> = {}; raw.forEach((item) => { const density = item.population ? item.activities / item.population : null; const value = salesValues.get(item.key) ?? 0; const gp = gpValues.get(item.key) ?? 0; const topType = Array.from(activityTypes.get(item.key)?.entries() ?? []).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null; metrics[item.key] = { township: item.feature.properties.TS, stateRegion: item.feature.properties.ST, installedBase: item.population, population: item.population, installedBaseByProduct: installedBaseByProduct.get(item.key) ?? blankProducts(), salesByProduct: salesByProduct.get(item.key) ?? blankProducts(), activities: item.activities, salesUnit: item.salesUnit, salesValue: value, gpValue: gp, gpPercent: value ? (gp / value) * 100 : null, bookingUnit: null, bookingValue: null, lastActivityDate: lastActivityDates.get(item.key) ?? null, activityDensity: density, topActivityType: topType, density, fill: heatColor(mode === "population" ? item.population : item.activities, visible) }; }); return { metrics, rows: raw, population, activities, salesUnits }; }, [populationSales, periodSales, marketing, mode, product, geoIndex, resolveTownship]);
     const quality = useMemo(() => { const summarize = (rows: Array<{
         township: string;
     }>) => { const results = rows.map((row) => resolveTownship(row.township)); const names = (status: ResolvedTownship["status"]) => Array.from(new Set(results.filter((result) => result.status === status).map((result) => result.raw))).filter(Boolean).sort(); return { total: rows.length, mapped: results.filter((result) => result.key).length, normalized: results.filter((result) => result.status === "alias").length, missing: results.filter((result) => result.status === "missing").length, unmatched: names("unmatched"), ambiguous: names("ambiguous") }; }; return { cpi: summarize(data?.sales ?? []), marketing: summarize(data?.marketing ?? []) }; }, [data, resolveTownship]);

@@ -16,6 +16,7 @@ type TownshipMetric = {
   stateRegion: string;
   installedBase: number;
   population: number;
+  installedBaseByProduct: SalesByProduct;
   salesByProduct: SalesByProduct;
   salesUnit: number;
   salesValue: number;
@@ -202,26 +203,8 @@ const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
   { key: "other", label: "Other Engine Products" },
 ];
 
-function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric | null; onClose: () => void; mobile?: boolean }) {
-  if (!metric) {
-    return (
-      <aside className={cn("kmm-township-detail-panel kmm-township-detail-empty", mobile && "kmm-township-detail-panel-mobile")}>
-        <div>
-          <h3>Select a township on the map</h3>
-          <p>Click a township or showroom marker to view detailed sales, market, and activity information.</p>
-        </div>
-      </aside>
-    );
-  }
-
-  const maxProduct = Math.max(...PRODUCT_ROWS.map((row) => metric.salesByProduct[row.key]), 1);
+function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean }) {
   const showBooking = metric.bookingUnit !== null || metric.bookingValue !== null;
-  const marketItems = [
-    metric.riskLevel ? { label: "Risk Level", value: metric.riskLevel, bar: null } : null,
-    metric.installedBaseDensity !== null && metric.installedBaseDensity !== undefined ? { label: "Installed Base Density", value: metric.installedBaseDensity.toFixed(2), bar: Math.min(metric.installedBaseDensity * 100, 100) } : null,
-    metric.agriculturalArea !== null && metric.agriculturalArea !== undefined ? { label: "Agricultural Area", value: `${format(metric.agriculturalArea)} acres`, bar: null } : null,
-    metric.mainCrops?.length ? { label: "Main Crops", value: metric.mainCrops.join(", "), bar: null } : null,
-  ].filter((item): item is { label: string; value: string; bar: number | null } => Boolean(item));
 
   return (
     <aside className={cn("kmm-township-detail-panel", mobile && "kmm-township-detail-panel-mobile")}>
@@ -238,6 +221,19 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
       <section className="kmm-township-detail-section kmm-township-installed-base">
         <p>Installed Base</p>
         <strong>{format(metric.installedBase)} <span>Units</span></strong>
+        <dl className="kmm-township-metric-list mt-4">
+          {PRODUCT_ROWS.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>)}
+        </dl>
+      </section>
+
+      <section className="kmm-township-detail-section">
+        <h4>Sales Performance</h4>
+        <dl className="kmm-township-metric-list">
+          <div><dt>Sales Unit</dt><dd>{format(metric.salesUnit)}</dd></div>
+          <div><dt>Sales Value</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
+          <div><dt>GP Value</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
+          <div><dt>GP %</dt><dd>{metric.gpPercent === null ? "N/A" : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
+        </dl>
       </section>
 
       <section className="kmm-township-detail-section">
@@ -245,27 +241,10 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
         <div className="kmm-township-bar-list">
           {PRODUCT_ROWS.map((row) => {
             const value = metric.salesByProduct[row.key];
-            return (
-              <div key={row.key} className="kmm-township-bar-row">
-                <span>{row.label}</span>
-                <div><i style={{ width: `${(value / maxProduct) * 100}%` }} /></div>
-                <b>{format(value)}</b>
-              </div>
-            );
+            const percentage = metric.salesUnit ? (value / metric.salesUnit) * 100 : 0;
+            return <div key={row.key} className="kmm-township-bar-row"><span>{row.label}</span><div><i style={{ width: `${percentage}%` }} /></div><b>{format(value)} <small>{percentage.toFixed(0)}%</small></b></div>;
           })}
         </div>
-      </section>
-
-      <section className="kmm-township-detail-section">
-        <h4>Sales Summary</h4>
-        <dl className="kmm-township-metric-list">
-          <div><dt>Sales Unit</dt><dd>{format(metric.salesUnit)}</dd></div>
-          <div><dt>Sales Value</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
-          <div><dt>GP Value</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
-          <div><dt>GP %</dt><dd>{metric.gpPercent === null ? "0.0%" : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
-          {showBooking && metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}
-          {showBooking && metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}
-        </dl>
       </section>
 
       <section className="kmm-township-detail-section">
@@ -280,20 +259,15 @@ function DetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetr
         ) : <p className="kmm-township-empty-text">No marketing activity in selected period</p>}
       </section>
 
-      <section className="kmm-township-detail-section">
-        <h4>Market / Area Context</h4>
-        {marketItems.length ? (
-          <div className="kmm-township-context-grid">
-            {marketItems.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                {item.bar !== null && <em><i style={{ width: `${item.bar}%` }} /></em>}
-              </div>
-            ))}
-          </div>
-        ) : <p className="kmm-township-empty-text">Data not connected</p>}
-      </section>
+      {showBooking && (
+        <section className="kmm-township-detail-section">
+          <h4>Booking</h4>
+          <dl className="kmm-township-metric-list">
+            {metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}
+            {metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}
+          </dl>
+        </section>
+      )}
     </aside>
   );
 }
@@ -520,15 +494,17 @@ export function MyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, 
   }, []);
 
   return (
-    <div className={cn("kmm-marketing-map relative grid h-full w-full min-w-0 grid-cols-1 overflow-hidden bg-[#F8FAFC] md:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)]", className)}>
-      <div className="relative min-h-0 min-w-0 overflow-hidden">
+    <div className={cn("kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]", className)}>
+      <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
       </div>
-      <div className="hidden min-h-0 min-w-0 overflow-hidden border-l border-[#EEF0F3] bg-white md:block">
-        <DetailPanel metric={selectedMetric} onClose={closeSelection} />
-      </div>
       {selectedMetric && (
-        <div className="kmm-map-sheet-backdrop" onClick={closeSelection}>
+        <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-10 hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">
+          <DetailPanel metric={selectedMetric} onClose={closeSelection} />
+        </div>
+      )}
+      {selectedMetric && (
+        <div className="kmm-map-sheet-backdrop md:hidden" onClick={closeSelection}>
           <div
             className="kmm-map-sheet"
             onClick={(event) => event.stopPropagation()}

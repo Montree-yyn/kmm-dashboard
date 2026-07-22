@@ -1,0 +1,24 @@
+{
+  "scope": "Marketing default selected period: 2026 Jan-Jun",
+  "source_sales_rows": 308,
+  "resolved_rows": 278,
+  "unresolved_rows": 30,
+  "mapped_rows": 278,
+  "unmapped_canonical_rows": 0,
+  "source_sales_unit": 308,
+  "mapped_township_sales_unit": 278,
+  "unresolved_sales_unit": 30,
+  "sales_unit_difference": 0,
+  "source_sales_value": 23021740223,
+  "mapped_township_sales_value": 22305673483,
+  "unresolved_sales_value": 716066740,
+  "sales_value_difference": 0,
+  "unmatched_records": [
+    { "raw_state_region": "", "raw_township": "", "normalized_state_region": "", "normalized_township": "", "alias_status": "NONE", "reason": "MISSING_TOWNSHIP", "row_count": 22, "sales_unit": 22, "sales_value": 0 },
+    { "raw_state_region": "MANDALAY", "raw_township": "Tatkon", "normalized_state_region": "mandalay", "normalized_township": "tatkon", "alias_status": "NONE", "reason": "UNKNOWN_TOWNSHIP", "row_count": 2, "sales_unit": 2, "sales_value": 172878500 },
+    { "raw_state_region": "BAGO WEST", "raw_township": "Taungoo", "normalized_state_region": "bagowest", "normalized_township": "taungoo", "alias_status": "NONE", "reason": "UNKNOWN_TOWNSHIP", "row_count": 2, "sales_unit": 2, "sales_value": 145522770 },
+    { "raw_state_region": "YANGON", "raw_township": "Oakkan", "normalized_state_region": "yangon", "normalized_township": "oakkan", "alias_status": "NONE", "reason": "UNKNOWN_TOWNSHIP", "row_count": 2, "sales_unit": 2, "sales_value": 150956470 },
+    { "raw_state_region": "BAGO WEST", "raw_township": "Htan Ta Pin", "normalized_state_region": "bagowest", "normalized_township": "htantapin", "alias_status": "NONE", "reason": "UNKNOWN_TOWNSHIP", "row_count": 1, "sales_unit": 1, "sales_value": 152709000 },
+    { "raw_state_region": "YANGON", "raw_township": "Hlaing Tharyar", "normalized_state_region": "yangon", "normalized_township": "hlaingtharyar", "alias_status": "NONE", "reason": "UNKNOWN_TOWNSHIP", "row_count": 1, "sales_unit": 1, "sales_value": 94000000 }
+  ]
+}

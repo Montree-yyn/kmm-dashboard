@@ -1,6 +1,7 @@
 {
   "version": 8,
   "name": "KMM light boundary foundation",
+  "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   "sources": {},
   "layers": [
     {

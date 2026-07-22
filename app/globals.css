@@ -211,12 +211,13 @@ select:focus-visible {
 
 .kmm-showroom-marker {
   position: relative;
+  z-index: 5;
   width: 18px;
   height: 18px;
-  border: 2px solid #fff3e8;
+  border: 2px solid #ff7a00;
   border-radius: 999px;
-  background: #ff7a00;
-  box-shadow: 0 0 0 7px rgb(255 122 0 / 16%), 0 0 26px rgb(255 122 0 / 72%);
+  background: #ffffff;
+  box-shadow: 0 0 0 7px rgb(255 122 0 / 16%), 0 3px 9px rgb(31 41 55 / 28%), 0 0 24px rgb(255 122 0 / 56%);
   cursor: pointer;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
@@ -240,7 +241,7 @@ select:focus-visible {
 .kmm-showroom-marker:hover,
 .kmm-showroom-marker.is-selected {
   transform: scale(1.14);
-  box-shadow: 0 0 0 9px rgb(255 122 0 / 18%), 0 0 34px rgb(255 122 0 / 86%);
+  box-shadow: 0 0 0 9px rgb(255 122 0 / 20%), 0 4px 12px rgb(31 41 55 / 30%), 0 0 30px rgb(255 122 0 / 72%);
 }
 
 .kmm-map-label {
@@ -307,10 +308,15 @@ select:focus-visible {
 }
 
 .kmm-township-detail-header {
+  position: sticky;
+  top: -18px;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 34px;
   gap: 10px;
   align-items: start;
+  padding: 18px 0 12px;
+  background: #ffffff;
 }
 
 .kmm-township-detail-header h3 {
@@ -351,6 +357,37 @@ select:focus-visible {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.kmm-township-debug summary {
+  cursor: pointer;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.kmm-township-debug button {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 8px;
+}
+
+.kmm-township-debug pre {
+  max-height: 280px;
+  overflow: auto;
+  margin: 12px 0 0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #374151;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .kmm-township-quick-action {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
 import { AlertTriangle, X } from "lucide-react";
+import townshipMaster from "../../data/master-townships.json";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
 import { getMapEngine } from "../../lib/maps/datasets";
@@ -30,12 +31,23 @@ export type TownshipMetric = {
   lastActivityDate: string | null;
   activityDensity: number | null;
   topActivityType: string | null;
+  lastActivityType?: string | null;
   riskLevel?: string | null;
   installedBaseDensity?: number | null;
   agriculturalArea?: number | null;
   mainCrops?: string[] | null;
   density: number | null;
   fill: string;
+  canonicalLocationId?: string;
+  responsibleShowroom?: string | null;
+  salesTerritory?: string | null;
+  topModels?: { model: string; unit: number; metric: "Sales Unit" | "Installed Base" }[];
+  topSalesperson?: string | null;
+  unresolvedGeographyCount?: number;
+  debugCompanySales?: { unit: number; value: number };
+  debugCompanyBooking?: { unit: number; value: number };
+  debugCompanyInstalledBase?: number;
+  debugSalesReconciliation?: unknown;
 };
 type FitPadding = { top: number; right: number; bottom: number; left: number };
 
@@ -43,7 +55,7 @@ export type MyanmarMarketingMapProps = {
   visibleShowroomIds?: string[];
   townshipMetrics?: Record<string, TownshipMetric>;
   productLabel?: string;
-  mode?: "population" | "activity";
+  mode?: "sales" | "population" | "activity";
   resetSignal?: number;
   className?: string;
 };
@@ -54,6 +66,7 @@ const MYANMAR_BOUNDS: [[number, number], [number, number]] = [
 ];
 const EMPTY_LABELS: LabelCollection = { type: "FeatureCollection", features: [] };
 const MAP_CAMERA_PADDING: FitPadding = { top: 24, right: 44, bottom: 24, left: 44 };
+const masterLocationIds = new Map((townshipMaster as { township_id: string; township: string; state_region: string }[]).map((record) => [`${normalizeLocation(record.township)}|${normalizeLocation(record.state_region)}`, record.township_id]));
 const MOBILE_BREAKPOINT = 768;
 const REGION_ALIASES: Record<string, string> = {
   ayeyarwady: "ayeyarwady",
@@ -196,17 +209,85 @@ function shouldUseBottomSheet() {
   return false;
 }
 
+function metricForLegacyFeature(metrics: Record<string, TownshipMetric>, feature: GeoFeature) {
+  const canonicalId = masterLocationIds.get(`${normalizeLocation(feature.properties.TS)}|${normalizeLocation(feature.properties.ST)}`);
+  return (canonicalId ? metrics[canonicalId] : undefined) ?? metrics[normalizeLocation(feature.properties.TS)];
+}
+
 const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
   { key: "tractor", label: "Tractor" },
   { key: "combineHarvester", label: "Combine Harvester" },
   { key: "excavator", label: "Excavator" },
   { key: "transplanter", label: "Transplanter" },
-  { key: "drone", label: "Drone" },
+  { key: "drone", label: "MAX" },
   { key: "other", label: "Other Engine Products" },
 ];
 
-export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean }) {
-  const showBooking = metric.bookingUnit !== null || metric.bookingValue !== null;
+export type TownshipDebugStatus = {
+  selectedFeatureId: string | number | null;
+  hoveredFeatureId: string | number | null;
+  selectedCanonicalLocationId: string | null;
+  activeMetricLayer: string | null;
+  zoom: number | null;
+  visibleLayerIds: string[];
+  actualMapLayerOrder: string[];
+  selectedFillVisibility: boolean;
+  selectedOutlineVisibility: boolean;
+  hoverFillVisibility: boolean;
+  layerOrderWarning: boolean;
+};
+
+function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; mapStatus: TownshipDebugStatus | null }) {
+  const enabled = process.env.NODE_ENV !== "production" && (process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEBUG_PANEL === "true");
+  if (!enabled) return null;
+  const joinStatus = metric.unresolvedGeographyCount ? "Partial" : "OK";
+  const debug = {
+    selectedTownship: metric.township,
+    selectedStateRegion: metric.stateRegion,
+    canonical_location_id: metric.canonicalLocationId ?? null,
+    resolvedAlias: null,
+    joinStatus,
+    datasets: {
+      sales: metric.debugSalesReconciliation ?? { matchedRows: metric.salesUnit, matchedValue: metric.salesValue, missingRows: 0, ignoredRows: metric.unresolvedGeographyCount ?? 0 },
+      booking: { matchedRows: null, matchedValue: null, missingRows: null, ignoredRows: null, note: "Township geography unavailable in verified booking data" },
+      installedBase: { matchedRows: metric.installedBase, matchedValue: metric.installedBase, missingRows: 0, ignoredRows: 0 },
+      marketing: { matchedRows: metric.activities, matchedValue: metric.activities, missingRows: 0, ignoredRows: metric.unresolvedGeographyCount ?? 0 },
+    },
+    joinDetails: { key: metric.canonicalLocationId ?? null, matchedBy: "canonical_location_id" },
+    businessTotalCheck: {
+      companySales: metric.debugCompanySales ?? null,
+      companyBooking: metric.debugCompanyBooking ?? null,
+      companyInstalledBase: metric.debugCompanyInstalledBase ?? null,
+      selectedTownshipSales: { unit: metric.salesUnit, value: metric.salesValue },
+      selectedTownshipBooking: metric.bookingUnit === null ? "Unavailable: verified booking data has no township geography" : { unit: metric.bookingUnit, value: metric.bookingValue },
+      selectedTownshipInstalledBase: metric.installedBase,
+      difference: { salesUnit: metric.debugCompanySales ? metric.debugCompanySales.unit - metric.salesUnit : null, installedBase: metric.debugCompanyInstalledBase === undefined ? null : metric.debugCompanyInstalledBase - metric.installedBase },
+    },
+    mapStatus: {
+      selectedFeatureId: mapStatus?.selectedFeatureId ?? metric.canonicalLocationId ?? null,
+      hoveredFeatureId: mapStatus?.hoveredFeatureId ?? null,
+      selectedCanonicalLocationId: mapStatus?.selectedCanonicalLocationId ?? metric.canonicalLocationId ?? null,
+      activeMetricLayer: mapStatus?.activeMetricLayer ?? null,
+      currentZoom: mapStatus?.zoom ?? null,
+      visibleLayerIds: mapStatus?.visibleLayerIds ?? [],
+      actualMapLayerOrder: mapStatus?.actualMapLayerOrder ?? [],
+      selectedFillVisibility: mapStatus?.selectedFillVisibility ?? false,
+      selectedOutlineVisibility: mapStatus?.selectedOutlineVisibility ?? false,
+      hoverFillVisibility: mapStatus?.hoverFillVisibility ?? false,
+      layerOrderWarning: mapStatus?.layerOrderWarning ?? false,
+      layers: { heatmap: true, boundary: true, labels: true, showrooms: true, installedBase: false, sales: false, booking: false, marketing: false },
+    },
+    dataQuality: { resolved: !metric.unresolvedGeographyCount, pendingAliases: "Not available in panel scope", duplicateCanonicalIds: "Not available in panel scope", unknownTownshipCount: metric.unresolvedGeographyCount ?? 0, unknownStateCount: metric.unresolvedGeographyCount ?? 0 },
+  };
+  const json = JSON.stringify(debug, null, 2);
+  const copy = () => { void navigator.clipboard?.writeText(json); };
+  const exportJson = () => { const url = URL.createObjectURL(new Blob([json], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = "sales-geography-reconciliation.json"; link.click(); URL.revokeObjectURL(url); };
+  return <details className="kmm-township-detail-section kmm-township-debug"><summary>🔧 Debug Information</summary><div className="mt-3 flex gap-2"><button type="button" onClick={copy}>Copy</button><button type="button" onClick={exportJson}>Export Debug JSON</button></div><pre>{json}</pre></details>;
+}
+
+export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
+  const installedProducts = PRODUCT_ROWS.filter((row) => metric.installedBaseByProduct[row.key] > 0);
+  const salesProducts = PRODUCT_ROWS.filter((row) => metric.salesByProduct[row.key] > 0);
 
   return (
     <aside className={cn("kmm-township-detail-panel", mobile && "kmm-township-detail-panel-mobile")}>
@@ -214,6 +295,8 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: 
         <div>
           <h3>{metric.township}</h3>
           <p>{metric.stateRegion}</p>
+          {metric.responsibleShowroom && <p>Showroom · {metric.responsibleShowroom}</p>}
+          {metric.salesTerritory && <p>Territory · {metric.salesTerritory}</p>}
         </div>
         <button type="button" onClick={onClose} aria-label="Clear township selection">
           <X size={16} />
@@ -224,7 +307,7 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: 
         <p>Installed Base</p>
         <strong>{format(metric.installedBase)} <span>Units</span></strong>
         <dl className="kmm-township-metric-list mt-4">
-          {PRODUCT_ROWS.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>)}
+          {installedProducts.length ? installedProducts.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>) : <p className="kmm-township-empty-text">No installed-base product detail</p>}
         </dl>
       </section>
 
@@ -240,13 +323,13 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: 
 
       <section className="kmm-township-detail-section">
         <h4>Sales Breakdown</h4>
-        <div className="kmm-township-bar-list">
-          {PRODUCT_ROWS.map((row) => {
+        {salesProducts.length ? <div className="kmm-township-bar-list">
+          {salesProducts.map((row) => {
             const value = metric.salesByProduct[row.key];
             const percentage = metric.salesUnit ? (value / metric.salesUnit) * 100 : 0;
             return <div key={row.key} className="kmm-township-bar-row"><span>{row.label}</span><div><i style={{ width: `${percentage}%` }} /></div><b>{format(value)} <small>{percentage.toFixed(0)}%</small></b></div>;
           })}
-        </div>
+        </div> : <p className="kmm-township-empty-text">No selected-period sales product detail</p>}
       </section>
 
       <section className="kmm-township-detail-section">
@@ -255,26 +338,23 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false }: 
           <dl className="kmm-township-metric-list">
             <div><dt>Marketing Activities</dt><dd>{format(metric.activities)}</dd></div>
             <div><dt>Last Activity Date</dt><dd>{metric.lastActivityDate ?? "Data not connected"}</dd></div>
+            <div><dt>Most Recent Activity</dt><dd>{metric.lastActivityType ?? "Data not connected"}</dd></div>
             <div><dt>Activity Density</dt><dd>{metric.activityDensity === null ? "Data not connected" : metric.activityDensity.toFixed(2)}</dd></div>
             <div><dt>Top Activity Type</dt><dd>{metric.topActivityType ?? "Data not connected"}</dd></div>
           </dl>
         ) : <p className="kmm-township-empty-text">No marketing activity in selected period</p>}
       </section>
 
-      {showBooking && (
-        <section className="kmm-township-detail-section">
-          <h4>Booking</h4>
-          <dl className="kmm-township-metric-list">
-            {metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}
-            {metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}
-          </dl>
-        </section>
-      )}
+      <section className="kmm-township-detail-section"><h4>Booking</h4>{metric.bookingUnit === null && metric.bookingValue === null ? <p className="kmm-township-empty-text">No booking data</p> : <dl className="kmm-township-metric-list">{metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}{metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}</dl>}</section>
+      <section className="kmm-township-detail-section"><h4>Top Models</h4>{metric.topModels?.length ? <><p className="kmm-township-empty-text">Ranked by {metric.topModels[0].metric}</p><dl className="kmm-township-metric-list">{metric.topModels.map((model) => <div key={model.model}><dt>{model.model}</dt><dd>{format(model.unit)}</dd></div>)}</dl></> : <p className="kmm-township-empty-text">No model data</p>}</section>
+      <section className="kmm-township-detail-section"><h4>Salesperson</h4>{metric.topSalesperson ? <dl className="kmm-township-metric-list"><div><dt>Top by Sales Unit</dt><dd>{metric.topSalesperson}</dd></div></dl> : <p className="kmm-township-empty-text">No salesperson data</p>}</section>
+      {!!metric.unresolvedGeographyCount && <section className="kmm-township-detail-section"><p className="kmm-township-empty-text">Data quality: {metric.unresolvedGeographyCount} source record{metric.unresolvedGeographyCount === 1 ? "" : "s"} could not be assigned to this township.</p></section>}
+      <TownshipDebugPanel metric={metric} mapStatus={mapStatus} />
     </aside>
   );
 }
 
-function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className }: MyanmarMarketingMapProps) {
+function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className, fallbackNotice = false }: MyanmarMarketingMapProps & { fallbackNotice?: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const townshipsRef = useRef<GeoFeature[]>([]);
@@ -337,7 +417,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
     const pairs: unknown[] = ["match", ["get", "TS_PCODE"]];
     townshipsRef.current.forEach((feature) => {
       const key = normalizeLocation(feature.properties.TS);
-      const metric = metricsRef.current[key];
+      const metric = metricForLegacyFeature(metricsRef.current, feature);
       if (feature.properties.TS_PCODE && metric) pairs.push(feature.properties.TS_PCODE, metric.fill);
     });
     pairs.push("#FFFFFF");
@@ -453,7 +533,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
 
           map.on("mousemove", "township-heatmap", (event) => {
             const feature = event.features?.[0] as GeoFeature | undefined;
-            const metric = feature ? metricsRef.current[normalizeLocation(feature.properties.TS)] : undefined;
+            const metric = feature ? metricForLegacyFeature(metricsRef.current, feature) : undefined;
             map.getCanvas().style.cursor = metric ? "pointer" : "";
           });
           map.on("mouseleave", "township-heatmap", () => {
@@ -461,7 +541,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
           });
           map.on("click", "township-heatmap", (event) => {
             const feature = event.features?.[0] as GeoFeature | undefined;
-            const metric = feature ? metricsRef.current[normalizeLocation(feature.properties.TS)] : undefined;
+            const metric = feature ? metricForLegacyFeature(metricsRef.current, feature) : undefined;
             if (!metric) return;
             setSelectedMetric(metric);
           });
@@ -497,6 +577,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
 
   return (
     <div className={cn("kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]", className)}>
+      {fallbackNotice && <div role="alert" className="absolute left-3 right-3 top-3 z-20 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">PMTiles map could not be loaded. Showing the legacy Myanmar map.</div>}
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
       </div>
@@ -528,5 +609,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
 }
 
 export function MyanmarMarketingMap(props: MyanmarMarketingMapProps) {
-  return getMapEngine() === "maplibre" ? <MyanmarMarketingMapMapLibre {...props} /> : <LegacyMyanmarMarketingMap {...props} />;
+  const [pmtilesFailed, setPmtilesFailed] = useState(false);
+  if (getMapEngine() === "maplibre" && !pmtilesFailed) return <MyanmarMarketingMapMapLibre {...props} onLoadError={() => setPmtilesFailed(true)} />;
+  return <LegacyMyanmarMarketingMap {...props} fallbackNotice={pmtilesFailed} />;
 }

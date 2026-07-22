@@ -1,0 +1,11 @@
+[
+  {
+    "id": "openfreemap-liberty-development",
+    "provider": "OpenFreeMap",
+    "dataset_type": "vector_style",
+    "url": "https://tiles.openfreemap.org/styles/liberty",
+    "attribution": "© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors",
+    "status": "development",
+    "requires_token": false
+  }
+]

@@ -8,6 +8,8 @@ import { getMapDataset } from "../../lib/maps/datasets";
 import { applyRequiredLayerOrder } from "../../lib/maps/layer-order";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
+import { useLocale } from "../../src/hooks/useLocale";
+import type { LocaleKey } from "../../src/locales";
 import { GlobalVectorMap } from "../maps/global-vector-map";
 import { MyanmarTownshipDetailPanel, type MyanmarMarketingMapProps, type TownshipDebugStatus, type TownshipMetric } from "./myanmar-marketing-map";
 
@@ -16,7 +18,7 @@ type Showroom = { id: string; name: string; stateRegion: string; township: strin
 type GeoFeature = { geometry?: { coordinates?: unknown }; properties: { TS?: string; ST?: string } };
 type MyanmarMarketingMapMapLibreProps = MyanmarMarketingMapProps & { onLoadError?: () => void };
 type ExecutiveMetricKey = "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities";
-type LegendClass = { label: string; color: string; min: number; max: number };
+type LegendClass = { labelKey: LocaleKey; color: string; min: number; max: number };
 type LabelCollection = { type: "FeatureCollection"; features: { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { name: string; metric_label?: string; has_showroom: boolean } }[] };
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
@@ -24,16 +26,16 @@ const developmentBasemap = getBasemap("openfreemap-liberty-development");
 const NO_DATA_COLOR = "#F8FAFC";
 const ZERO_COLOR = "#F3F4F6";
 const CHOROPLETH_COLORS = ["#FFE6C7", "#FFC98B", "#FFA64D", "#F26B00", "#C84A00"];
-const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; label: string }[] = [
-  { key: "salesUnit", label: "Sales Unit" },
-  { key: "salesValue", label: "Sales Value" },
-  { key: "achievement", label: "Achievement %" },
-  { key: "gpValue", label: "GP Value" },
-  { key: "bookingUnit", label: "Booking" },
-  { key: "installedBase", label: "Installed Base" },
-  { key: "activities", label: "Marketing Activity" },
+const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
+  { key: "salesUnit", labelKey: "metric.salesUnit" },
+  { key: "salesValue", labelKey: "metric.salesValue" },
+  { key: "achievement", labelKey: "metric.achievement" },
+  { key: "gpValue", labelKey: "metric.gpValue" },
+  { key: "bookingUnit", labelKey: "metric.booking" },
+  { key: "installedBase", labelKey: "metric.installedBase" },
+  { key: "activities", labelKey: "metric.marketingActivity" },
 ];
-const CLASS_LABELS = ["Very Low", "Low", "Medium", "High", "Very High"];
+const CLASS_LABEL_KEYS: LocaleKey[] = ["legend.veryLow", "legend.low", "legend.medium", "legend.high", "legend.veryHigh"];
 
 function initialMetricFromMode(mode: MyanmarMarketingMapProps["mode"]): ExecutiveMetricKey {
   if (mode === "activity") return "activities";
@@ -41,8 +43,8 @@ function initialMetricFromMode(mode: MyanmarMarketingMapProps["mode"]): Executiv
   return "salesUnit";
 }
 
-function metricLabel(metricKey: ExecutiveMetricKey) {
-  return EXECUTIVE_METRICS.find((metric) => metric.key === metricKey)?.label ?? "Sales Unit";
+function metricLabel(metricKey: ExecutiveMetricKey, t: (key: LocaleKey) => string) {
+  return t(EXECUTIVE_METRICS.find((metric) => metric.key === metricKey)?.labelKey ?? "metric.salesUnit");
 }
 
 function metricValue(metric: TownshipMetric, metricKey: ExecutiveMetricKey) {
@@ -138,7 +140,7 @@ function legendClasses(breaks: number[]) {
     const min = Math.max(1, Math.floor(previous));
     const max = Math.ceil(breakValue);
     previous = max + 1;
-    return { label: CLASS_LABELS[index], color: CHOROPLETH_COLORS[index], min, max };
+    return { labelKey: CLASS_LABEL_KEYS[index], color: CHOROPLETH_COLORS[index], min, max };
   });
 }
 
@@ -170,10 +172,11 @@ function getLabelPositions(features: GeoFeature[], kind: "state" | "township") {
   return Array.from(groups.values(), ({ name, stateRegion, points }) => ({ name, stateRegion, coordinates: [points.reduce((sum, point) => sum + point[0], 0) / points.length, points.reduce((sum, point) => sum + point[1], 0) / points.length] as [number, number] }));
 }
 
-export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
+export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", activeMetric: sharedActiveMetric, onActiveMetricChange, className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
+  const { t } = useLocale();
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
-  const [activeMetric, setActiveMetric] = useState<ExecutiveMetricKey>(() => initialMetricFromMode(mode));
+  const [activeMetric, setActiveMetric] = useState<ExecutiveMetricKey>(() => sharedActiveMetric ?? initialMetricFromMode(mode));
   const [tooltip, setTooltip] = useState<{ x: number; y: number; metric: TownshipMetric } | null>(null);
   const presentationMapRef = useRef<MapLibreMap | null>(null);
   const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
@@ -223,8 +226,8 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   }, [activeMetric, metricById]);
 
   useEffect(() => {
-    setActiveMetric(initialMetricFromMode(mode));
-  }, [mode]);
+    setActiveMetric(sharedActiveMetric ?? initialMetricFromMode(mode));
+  }, [mode, sharedActiveMetric]);
 
   useEffect(() => {
     showroomMarkersRef.current.forEach((marker, id) => {
@@ -283,14 +286,14 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     });
   }
 
-  if (!dataset) return <div className={cn("grid h-full place-items-center text-sm text-red-700", className)}>Myanmar PMTiles dataset is not configured.</div>;
+  if (!dataset) return <div className={cn("grid h-full place-items-center text-sm text-red-700", className)}>{t("map.unableToLoad")}</div>;
   const tooltipRows = tooltip ? [
-    ["Sales Unit", formatMetricValue(tooltip.metric.salesUnit, "salesUnit")],
-    ["Sales Value", formatMetricValue(tooltip.metric.salesValue, "salesValue")],
-    ["GP", formatMetricValue(tooltip.metric.gpValue, "gpValue")],
-    ["Achievement", formatMetricValue(null, "achievement")],
-    ["Booking", formatMetricValue(tooltip.metric.bookingUnit, "bookingUnit")],
-    ["Installed Base", formatMetricValue(tooltip.metric.installedBase, "installedBase")],
+    [t("metric.salesUnit"), formatMetricValue(tooltip.metric.salesUnit, "salesUnit")],
+    [t("metric.salesValue"), formatMetricValue(tooltip.metric.salesValue, "salesValue")],
+    [t("metric.gp"), formatMetricValue(tooltip.metric.gpValue, "gpValue")],
+    [t("metric.achievement"), formatMetricValue(null, "achievement")],
+    [t("metric.booking"), formatMetricValue(tooltip.metric.bookingUnit, "bookingUnit")],
+    [t("metric.installedBase"), formatMetricValue(tooltip.metric.installedBase, "installedBase")],
   ].filter((row): row is [string, string] => Boolean(row[1])) : [];
   return (
     <div className={cn("kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]", className)}>
@@ -325,21 +328,21 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         }}
       />
       <label className="absolute left-4 top-4 z-[6] rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-xs font-semibold text-[#4B5563] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">
-        <span className="mr-2 text-[#9CA3AF]">Metric</span>
-        <select value={activeMetric} onChange={(event) => setActiveMetric(event.target.value as ExecutiveMetricKey)} className="bg-transparent text-sm font-bold text-[#1F2937] outline-none">
-          {EXECUTIVE_METRICS.map((metric) => <option key={metric.key} value={metric.key}>{metric.label}</option>)}
+        <span className="mr-2 text-[#9CA3AF]">{t("map.metric")}</span>
+        <select value={activeMetric} onChange={(event) => { const next = event.target.value as ExecutiveMetricKey; setActiveMetric(next); onActiveMetricChange?.(next); }} className="bg-transparent text-sm font-bold text-[#1F2937] outline-none">
+          {EXECUTIVE_METRICS.map((metric) => <option key={metric.key} value={metric.key}>{t(metric.labelKey)}</option>)}
         </select>
       </label>
       <div className="pointer-events-none absolute bottom-4 left-4 z-[6] min-w-[168px] rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-xs text-[#4B5563] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">
-        <p className="font-semibold text-[#1F2937]">{metricLabel(activeMetric)}</p>
+        <p className="font-semibold text-[#1F2937]">{metricLabel(activeMetric, t)}</p>
         <p className="mt-0.5 text-[10px] text-[#9CA3AF]">{choropleth.method}</p>
         <div className="mt-2 space-y-1.5">
           {[...choropleth.legend].reverse().map((item, reverseIndex) => {
             const index = choropleth.legend.length - 1 - reverseIndex;
-            return <div key={item.label} className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm" style={{ backgroundColor: item.color }} />{item.label}</span><b>{legendRange(item, index, choropleth.legend.length)}</b></div>;
+            return <div key={item.labelKey} className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm" style={{ backgroundColor: item.color }} />{t(item.labelKey)}</span><b>{legendRange(item, index, choropleth.legend.length)}</b></div>;
           })}
           <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm" style={{ backgroundColor: ZERO_COLOR }} />0</span><b>0</b></div>
-          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm border border-[#E5E7EB]" style={{ backgroundColor: NO_DATA_COLOR }} />No Data</span><b>N/A</b></div>
+          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm border border-[#E5E7EB]" style={{ backgroundColor: NO_DATA_COLOR }} />{t("common.noData")}</span><b>{t("common.notAvailable")}</b></div>
         </div>
       </div>
       {tooltip && tooltipRows.length > 0 && (

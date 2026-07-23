@@ -61,7 +61,7 @@ test("Marketing map defaults to PMTiles and falls back to legacy on a load failu
   const [legacy, maplibre] = await Promise.all([read("components/marketing/myanmar-marketing-map.tsx"), read("components/marketing/myanmar-marketing-map-maplibre.tsx")]);
   assert.match(legacy, /getMapEngine\(\) === "maplibre"/);
   assert.match(legacy, /LegacyMyanmarMarketingMap/);
-  assert.match(legacy, /PMTiles map could not be loaded/);
+  assert.match(legacy, /t\("map\.unableToLoad"\)/);
   assert.match(maplibre, /getMapDataset\("mm-townships-pmtiles"\)/);
   assert.match(maplibre, /canonical_location_id/);
   assert.match(maplibre, /onError=\{onLoadError\}/);
@@ -173,7 +173,7 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(workspace, /mapped\.metrics\[record\.township_id\]\?\.fill/);
   assert.match(maplibre, /initialMetricFromMode/);
   assert.match(maplibre, /return "salesUnit"/);
-  assert.match(maplibre, /Sales Unit/);
+  assert.match(maplibre, /metric\.salesUnit/);
   assert.match(vectorMap, /colorPairs\.push\("#F8FAFC"\)/);
 });
 
@@ -192,7 +192,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, tooltip
   assert.match(maplibre, /#F26B00/);
   assert.match(maplibre, /#C84A00/);
   assert.match(maplibre, /EXECUTIVE_METRICS/);
-  assert.match(maplibre, /Achievement %/);
+  assert.match(maplibre, /metric\.achievement/);
   assert.match(maplibre, /legendRange/);
   assert.match(maplibre, /topCanonicalLocationIds/);
   assert.match(maplibre, /onFeatureHover/);
@@ -201,6 +201,77 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, tooltip
   assert.match(vectorMap, /"fill-color": "#FFFFFF"/);
   assert.match(vectorMap, /"line-width": 2\.5/);
   assert.match(layerOrder, /township-top-five-outline/);
+});
+
+test("Executive GIS V2.1 centralizes time filters, comparisons, KPI strip, and panel debug fields", async () => {
+  const [workspace, panel, maplibre, timeFilters] = await Promise.all([
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("lib/marketing/time-filters.ts"),
+  ]);
+  assert.match(timeFilters, /PeriodMode/);
+  assert.match(timeFilters, /ComparisonMode/);
+  assert.match(timeFilters, /PROJECT_TIMEZONE = "Asia\/Bangkok"/);
+  assert.match(timeFilters, /resolvePeriod/);
+  assert.match(timeFilters, /resolveComparison/);
+  assert.match(timeFilters, /rolling-12-months/);
+  assert.match(timeFilters, /rowInDateRange/);
+  assert.match(timeFilters, /comparison === 0 \? null/);
+  assert.match(workspace, /useState<ExecutiveGisFilters>/);
+  assert.match(workspace, /ExecutiveGisControls/);
+  assert.match(workspace, /ExecutiveKpiStrip/);
+  assert.match(workspace, /rowInDateRange\(row, gisFilters\)/);
+  assert.match(workspace, /comparisonSales/);
+  assert.match(workspace, /activeMetric=\{gisFilters\.activeMetric\}/);
+  assert.match(workspace, /periodLabel: formatPeriodLabel\(gisFilters\)/);
+  assert.match(workspace, /resolvedPeriodMode/);
+  assert.match(workspace, /currentFilteredSalesRows/);
+  assert.match(workspace, /timezoneUsed: PROJECT_TIMEZONE/);
+  assert.match(panel, /panel\.salesPerformance/);
+  assert.match(panel, /timeFilter: metric\.debugPeriod/);
+  assert.match(maplibre, /onActiveMetricChange/);
+});
+
+test("Executive KPI strip is compact and preserves map-first layout", async () => {
+  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  assert.match(workspace, /max-h-20/);
+  assert.match(workspace, /overflow-x-auto/);
+  assert.match(workspace, /visibleLabels = \["Sales Unit", "Sales Value", "GP Value", "Booking Unit", "Installed Base"\]/);
+  assert.match(workspace, /compactComparison/);
+  assert.match(workspace, /t\("common\.more"\)/);
+  assert.match(workspace, /min-h-0 flex-1 w-full/);
+  assert.match(workspace, /gap-2 p-3 sm:p-4 xl:p-4/);
+});
+
+test("Localization foundation defaults to Thai and exposes English switching", async () => {
+  const [layout, context, hook, locales, thai, english, workspace, maplibre, panel] = await Promise.all([
+    read("app/layout.tsx"),
+    read("src/context/LocaleContext.tsx"),
+    read("src/hooks/useLocale.ts"),
+    read("src/locales/index.ts"),
+    read("src/locales/th.ts"),
+    read("src/locales/en.ts"),
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+  ]);
+  assert.match(layout, /<html lang="th">/);
+  assert.match(layout, /<LocaleProvider>/);
+  assert.match(context, /STORAGE_KEY = "kmm-language"/);
+  assert.match(context, /useState<Language>\(defaultLanguage\)/);
+  assert.match(context, /window\.localStorage\.setItem\(STORAGE_KEY, nextLanguage\)/);
+  assert.match(hook, /useLocale/);
+  assert.match(locales, /defaultLanguage: Language = "th"/);
+  assert.match(thai, /"metric\.salesUnit": "ยอดขาย \(คัน\)"/);
+  assert.match(thai, /"comparison\.samePeriodLastYear": "ช่วงเดียวกันของปีก่อน"/);
+  assert.match(english, /"metric\.salesUnit": "Sales Unit"/);
+  assert.match(workspace, /setLanguage\("th"\)/);
+  assert.match(workspace, /setLanguage\("en"\)/);
+  assert.match(workspace, /t\("nav\.marketing"\)/);
+  assert.match(workspace, /t\("period\.rolling12Months"\)/);
+  assert.match(maplibre, /t\(metric\.labelKey\)/);
+  assert.match(panel, /t\("panel\.salesPerformance"\)/);
 });
 
 test("Township Intelligence uses canonical IDs and explicit no-data safeguards", async () => {
@@ -214,8 +285,8 @@ test("Township Intelligence uses canonical IDs and explicit no-data safeguards",
   assert.match(workspace, /townshipIntelligenceMetrics/);
   assert.match(workspace, /normalizeLocation\(row\.township\) === normalizeLocation\(record\.township\)/);
   assert.match(workspace, /bookingUnit: null, bookingValue: null/);
-  assert.match(panel, /No booking data/);
-  assert.match(panel, /No model data/);
+  assert.match(panel, /panel\.noBookingData/);
+  assert.match(panel, /panel\.noModelData/);
   assert.match(panel, /unresolvedGeographyCount/);
   assert.match(legacy, /metricForLegacyFeature/);
 });
@@ -229,11 +300,11 @@ test("Developer Debug Panel is production-hidden and exports canonical map diagn
   ]);
   assert.match(panel, /process\.env\.NODE_ENV !== "production"/);
   assert.match(panel, /NEXT_PUBLIC_DEBUG_PANEL === "true"/);
-  assert.match(panel, /🔧 Debug Information/);
+  assert.match(panel, /debug\.title/);
   assert.match(panel, /canonical_location_id/);
   assert.match(panel, /matchedBy: "canonical_location_id"/);
   assert.match(panel, /navigator\.clipboard/);
-  assert.match(panel, /Export Debug JSON/);
+  assert.match(panel, /common\.exportDebugJson/);
   assert.match(maplibre, /onMapStatus=\{setMapStatus\}/);
   assert.match(vectorMap, /onMapStatus/);
   assert.match(css, /\.kmm-township-debug pre/);

@@ -7,6 +7,7 @@ import townshipMaster from "../../data/master-townships.json";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
 import { getMapEngine } from "../../lib/maps/datasets";
+import { useLocale } from "../../src/hooks/useLocale";
 import { MyanmarMarketingMapMapLibre } from "./myanmar-marketing-map-maplibre";
 
 type Showroom = { id: string; name: string; stateRegion: string; township: string; coordinates: [number, number] };
@@ -48,6 +49,10 @@ export type TownshipMetric = {
   debugCompanyBooking?: { unit: number; value: number };
   debugCompanyInstalledBase?: number;
   debugSalesReconciliation?: unknown;
+  periodLabel?: string;
+  comparisonLabel?: string;
+  comparison?: { salesUnit: number; salesValue: number; gpValue: number; gpPercent: number | null; activities: number };
+  debugPeriod?: unknown;
 };
 type FitPadding = { top: number; right: number; bottom: number; left: number };
 
@@ -56,6 +61,8 @@ export type MyanmarMarketingMapProps = {
   townshipMetrics?: Record<string, TownshipMetric>;
   productLabel?: string;
   mode?: "sales" | "population" | "activity";
+  activeMetric?: "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities";
+  onActiveMetricChange?: (metric: "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities") => void;
   resetSignal?: number;
   className?: string;
 };
@@ -238,6 +245,7 @@ export type TownshipDebugStatus = {
 };
 
 function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; mapStatus: TownshipDebugStatus | null }) {
+  const { t } = useLocale();
   const enabled = process.env.NODE_ENV !== "production" && (process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEBUG_PANEL === "true");
   if (!enabled) return null;
   const joinStatus = metric.unresolvedGeographyCount ? "Partial" : "OK";
@@ -278,14 +286,16 @@ function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; map
       layers: { heatmap: true, boundary: true, labels: true, showrooms: true, installedBase: false, sales: false, booking: false, marketing: false },
     },
     dataQuality: { resolved: !metric.unresolvedGeographyCount, pendingAliases: "Not available in panel scope", duplicateCanonicalIds: "Not available in panel scope", unknownTownshipCount: metric.unresolvedGeographyCount ?? 0, unknownStateCount: metric.unresolvedGeographyCount ?? 0 },
+    timeFilter: metric.debugPeriod ?? null,
   };
   const json = JSON.stringify(debug, null, 2);
   const copy = () => { void navigator.clipboard?.writeText(json); };
   const exportJson = () => { const url = URL.createObjectURL(new Blob([json], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = "sales-geography-reconciliation.json"; link.click(); URL.revokeObjectURL(url); };
-  return <details className="kmm-township-detail-section kmm-township-debug"><summary>🔧 Debug Information</summary><div className="mt-3 flex gap-2"><button type="button" onClick={copy}>Copy</button><button type="button" onClick={exportJson}>Export Debug JSON</button></div><pre>{json}</pre></details>;
+  return <details className="kmm-township-detail-section kmm-township-debug"><summary>{t("debug.title")}</summary><div className="mt-3 flex gap-2"><button type="button" onClick={copy}>{t("common.copy")}</button><button type="button" onClick={exportJson}>{t("common.exportDebugJson")}</button></div><pre>{json}</pre></details>;
 }
 
 export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
+  const { t } = useLocale();
   const installedProducts = PRODUCT_ROWS.filter((row) => metric.installedBaseByProduct[row.key] > 0);
   const salesProducts = PRODUCT_ROWS.filter((row) => metric.salesByProduct[row.key] > 0);
 
@@ -295,66 +305,69 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, ma
         <div>
           <h3>{metric.township}</h3>
           <p>{metric.stateRegion}</p>
-          {metric.responsibleShowroom && <p>Showroom · {metric.responsibleShowroom}</p>}
-          {metric.salesTerritory && <p>Territory · {metric.salesTerritory}</p>}
+          {metric.responsibleShowroom && <p>{t("metric.showroom")} · {metric.responsibleShowroom}</p>}
+          {metric.salesTerritory && <p>{t("panel.territory")} · {metric.salesTerritory}</p>}
         </div>
-        <button type="button" onClick={onClose} aria-label="Clear township selection">
+        <button type="button" onClick={onClose} aria-label={t("common.clearTownshipSelection")}>
           <X size={16} />
         </button>
       </div>
 
       <section className="kmm-township-detail-section kmm-township-installed-base">
-        <p>Installed Base</p>
-        <strong>{format(metric.installedBase)} <span>Units</span></strong>
+        <p>{t("panel.installedBase")}</p>
+        <strong>{format(metric.installedBase)} <span>{t("common.units")}</span></strong>
         <dl className="kmm-township-metric-list mt-4">
-          {installedProducts.length ? installedProducts.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>) : <p className="kmm-township-empty-text">No installed-base product detail</p>}
+          {installedProducts.length ? installedProducts.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>) : <p className="kmm-township-empty-text">{t("panel.noInstalledBaseProductDetail")}</p>}
         </dl>
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>Sales Performance</h4>
+        <h4>{t("panel.salesPerformance")} · {metric.periodLabel ?? t("common.selectedPeriod")}</h4>
         <dl className="kmm-township-metric-list">
-          <div><dt>Sales Unit</dt><dd>{format(metric.salesUnit)}</dd></div>
-          <div><dt>Sales Value</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
-          <div><dt>GP Value</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
-          <div><dt>GP %</dt><dd>{metric.gpPercent === null ? "N/A" : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
+          <div><dt>{t("panel.period")}</dt><dd>{metric.periodLabel ?? t("common.selectedPeriod")}</dd></div>
+          <div><dt>{t("metric.salesUnit")}</dt><dd>{format(metric.salesUnit)}</dd></div>
+          <div><dt>{t("metric.salesValue")}</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
+          <div><dt>{t("metric.gpValue")}</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
+          <div><dt>{t("metric.gpPercent")}</dt><dd>{metric.gpPercent === null ? t("common.notAvailable") : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
         </dl>
+        {metric.comparison && <p className="mt-3 text-xs text-[#6B7280]">{t("comparison.title")} · {metric.comparisonLabel}: {t("metric.salesUnit")} {format(metric.comparison.salesUnit)} · {t("metric.salesValue")} {formatMoney(metric.comparison.salesValue)} MMK</p>}
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>Sales Breakdown</h4>
+        <h4>{t("panel.salesBreakdown")}</h4>
         {salesProducts.length ? <div className="kmm-township-bar-list">
           {salesProducts.map((row) => {
             const value = metric.salesByProduct[row.key];
             const percentage = metric.salesUnit ? (value / metric.salesUnit) * 100 : 0;
             return <div key={row.key} className="kmm-township-bar-row"><span>{row.label}</span><div><i style={{ width: `${percentage}%` }} /></div><b>{format(value)} <small>{percentage.toFixed(0)}%</small></b></div>;
           })}
-        </div> : <p className="kmm-township-empty-text">No selected-period sales product detail</p>}
+        </div> : <p className="kmm-township-empty-text">{t("panel.noSelectedPeriodSalesProductDetail")}</p>}
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>Marketing Activity</h4>
+        <h4>{t("metric.marketingActivity")}</h4>
         {metric.activities ? (
           <dl className="kmm-township-metric-list">
-            <div><dt>Marketing Activities</dt><dd>{format(metric.activities)}</dd></div>
-            <div><dt>Last Activity Date</dt><dd>{metric.lastActivityDate ?? "Data not connected"}</dd></div>
-            <div><dt>Most Recent Activity</dt><dd>{metric.lastActivityType ?? "Data not connected"}</dd></div>
-            <div><dt>Activity Density</dt><dd>{metric.activityDensity === null ? "Data not connected" : metric.activityDensity.toFixed(2)}</dd></div>
-            <div><dt>Top Activity Type</dt><dd>{metric.topActivityType ?? "Data not connected"}</dd></div>
+            <div><dt>{t("metric.marketingActivities")}</dt><dd>{format(metric.activities)}</dd></div>
+            <div><dt>{t("panel.lastActivityDate")}</dt><dd>{metric.lastActivityDate ?? t("common.dataNotConnected")}</dd></div>
+            <div><dt>{t("panel.mostRecentActivity")}</dt><dd>{metric.lastActivityType ?? t("common.dataNotConnected")}</dd></div>
+            <div><dt>{t("panel.activityDensity")}</dt><dd>{metric.activityDensity === null ? t("common.dataNotConnected") : metric.activityDensity.toFixed(2)}</dd></div>
+            <div><dt>{t("panel.topActivityType")}</dt><dd>{metric.topActivityType ?? t("common.dataNotConnected")}</dd></div>
           </dl>
-        ) : <p className="kmm-township-empty-text">No marketing activity in selected period</p>}
+        ) : <p className="kmm-township-empty-text">{t("panel.noMarketingActivity")}</p>}
       </section>
 
-      <section className="kmm-township-detail-section"><h4>Booking</h4>{metric.bookingUnit === null && metric.bookingValue === null ? <p className="kmm-township-empty-text">No booking data</p> : <dl className="kmm-township-metric-list">{metric.bookingUnit !== null && <div><dt>Booking Unit</dt><dd>{format(metric.bookingUnit)}</dd></div>}{metric.bookingValue !== null && <div><dt>Booking Value</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}</dl>}</section>
-      <section className="kmm-township-detail-section"><h4>Top Models</h4>{metric.topModels?.length ? <><p className="kmm-township-empty-text">Ranked by {metric.topModels[0].metric}</p><dl className="kmm-township-metric-list">{metric.topModels.map((model) => <div key={model.model}><dt>{model.model}</dt><dd>{format(model.unit)}</dd></div>)}</dl></> : <p className="kmm-township-empty-text">No model data</p>}</section>
-      <section className="kmm-township-detail-section"><h4>Salesperson</h4>{metric.topSalesperson ? <dl className="kmm-township-metric-list"><div><dt>Top by Sales Unit</dt><dd>{metric.topSalesperson}</dd></div></dl> : <p className="kmm-township-empty-text">No salesperson data</p>}</section>
-      {!!metric.unresolvedGeographyCount && <section className="kmm-township-detail-section"><p className="kmm-township-empty-text">Data quality: {metric.unresolvedGeographyCount} source record{metric.unresolvedGeographyCount === 1 ? "" : "s"} could not be assigned to this township.</p></section>}
+      <section className="kmm-township-detail-section"><h4>{t("metric.booking")}</h4>{metric.bookingUnit === null && metric.bookingValue === null ? <p className="kmm-township-empty-text">{t("panel.noBookingData")}</p> : <dl className="kmm-township-metric-list">{metric.bookingUnit !== null && <div><dt>{t("metric.bookingUnit")}</dt><dd>{format(metric.bookingUnit)}</dd></div>}{metric.bookingValue !== null && <div><dt>{t("metric.bookingValue")}</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}</dl>}</section>
+      <section className="kmm-township-detail-section"><h4>{t("panel.topModels")}</h4>{metric.topModels?.length ? <><p className="kmm-township-empty-text">{t("panel.rankedBy")} {metric.topModels[0].metric === "Sales Unit" ? t("metric.salesUnit") : t("metric.installedBase")}</p><dl className="kmm-township-metric-list">{metric.topModels.map((model) => <div key={model.model}><dt>{model.model}</dt><dd>{format(model.unit)}</dd></div>)}</dl></> : <p className="kmm-township-empty-text">{t("panel.noModelData")}</p>}</section>
+      <section className="kmm-township-detail-section"><h4>{t("panel.salesperson")}</h4>{metric.topSalesperson ? <dl className="kmm-township-metric-list"><div><dt>{t("panel.topBySalesUnit")}</dt><dd>{metric.topSalesperson}</dd></div></dl> : <p className="kmm-township-empty-text">{t("panel.noSalespersonData")}</p>}</section>
+      {!!metric.unresolvedGeographyCount && <section className="kmm-township-detail-section"><p className="kmm-township-empty-text">{t("panel.dataQuality")}: {metric.unresolvedGeographyCount} {metric.unresolvedGeographyCount === 1 ? t("panel.sourceRecord") : t("panel.sourceRecords")} {t("panel.couldNotAssign")}</p></section>}
       <TownshipDebugPanel metric={metric} mapStatus={mapStatus} />
     </aside>
   );
 }
 
 function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, mode = "population", resetSignal = 0, className, fallbackNotice = false }: MyanmarMarketingMapProps & { fallbackNotice?: boolean }) {
+  const { t } = useLocale();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const townshipsRef = useRef<GeoFeature[]>([]);
@@ -577,7 +590,7 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
 
   return (
     <div className={cn("kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]", className)}>
-      {fallbackNotice && <div role="alert" className="absolute left-3 right-3 top-3 z-20 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">PMTiles map could not be loaded. Showing the legacy Myanmar map.</div>}
+      {fallbackNotice && <div role="alert" className="absolute left-3 right-3 top-3 z-20 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">{t("map.unableToLoad")}</div>}
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
       </div>
@@ -602,8 +615,8 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
           </div>
         </div>
       )}
-      {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-white/80 text-sm font-semibold text-[#6B7280]">Loading Myanmar map...</div>}
-      {status === "error" && <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center text-sm text-[#DC2626]"><span><AlertTriangle className="mx-auto mb-3" size={22} />Unable to load the Myanmar map files.</span></div>}
+      {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-white/80 text-sm font-semibold text-[#6B7280]">{t("common.loading")}</div>}
+      {status === "error" && <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center text-sm text-[#DC2626]"><span><AlertTriangle className="mx-auto mb-3" size={22} />{t("map.unableToLoad")}</span></div>}
     </div>
   );
 }

@@ -303,7 +303,9 @@ test("Township Intelligence uses canonical IDs and explicit no-data safeguards",
     read("components/marketing/myanmar-marketing-map.tsx"),
   ]);
   assert.match(maplibre, /townshipMetrics\[record\.township_id\]/);
-  assert.match(workspace, /selectedTownshipMetric = selectedCanonicalId \? mapped\.metrics\[selectedCanonicalId\]/);
+  assert.match(workspace, /selectedTownshipMetric = selectedCanonicalId \? \(\(\) =>/);
+  assert.match(workspace, /priorSalesByTownship/);
+  assert.match(workspace, /benchmarkByTownship/);
   assert.doesNotMatch(workspace, /townshipIntelligenceMetrics/);
   assert.match(workspace, /bookingUnit: null, bookingValue: null/);
   assert.match(panel, /metric\.gpPercent/);

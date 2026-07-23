@@ -575,6 +575,22 @@ select:focus-visible {
   background: #d1d5db;
 }
 
+/* The desktop Township panel owns exactly one scroll region. Its first child is
+   the compact header, which must cover the padded scroll edge while sticky. */
+aside[aria-label="Right Intelligence Panel"] {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+aside[aria-label="Right Intelligence Panel"] > div:first-child {
+  isolation: isolate;
+  z-index: 20;
+  margin: -1rem -1rem 0;
+  padding: 1rem 1rem 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 1px 0 #eef0f3;
+}
+
 @media (max-width: 767px) {
   .kmm-map-sheet-backdrop {
     display: flex;

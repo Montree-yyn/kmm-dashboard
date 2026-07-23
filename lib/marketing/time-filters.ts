@@ -1,10 +1,12 @@
-export type PeriodMode = "this-month" | "previous-month" | "this-quarter" | "previous-quarter" | "this-year" | "ytd" | "rolling-12-months" | "custom";
+export type PeriodMode = "this-month" | "previous-month" | "this-quarter" | "previous-quarter" | "this-year" | "ytd" | "rolling-12-months" | "custom" | "all";
 export type ComparisonMode = "none" | "previous-period" | "same-period-last-year" | "previous-year" | "custom";
-export type ExecutiveMetricKey = "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities";
+export type ExecutiveMetricKey = "salesUnit" | "salesValue" | "gpValue" | "gpPercent";
 
 export type DateRange = { dateFrom: string; dateTo: string };
 export type ExecutiveGisFilters = DateRange & {
   periodMode: PeriodMode;
+  selectedYears: string[];
+  selectedMonths: string[];
   comparisonMode: ComparisonMode;
   comparisonDateFrom: string;
   comparisonDateTo: string;
@@ -36,9 +38,8 @@ const endOfQuarter = (year: number, month: number) => endOfMonth(year, Math.floo
 
 export function defaultExecutiveGisFilters(): ExecutiveGisFilters {
   const dateFrom = "2026-01-01";
-  const dateTo = "2026-06-30";
-  const comparison = resolveComparison("previous-year", { dateFrom, dateTo });
-  return { periodMode: "ytd", dateFrom, dateTo, comparisonMode: "previous-year", comparisonDateFrom: comparison.dateFrom, comparisonDateTo: comparison.dateTo, activeMetric: "salesUnit" };
+  const dateTo = "2026-12-31";
+  return { periodMode: "custom", selectedYears: ["2026"], selectedMonths: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], dateFrom, dateTo, comparisonMode: "none", comparisonDateFrom: "", comparisonDateTo: "", activeMetric: "salesUnit" };
 }
 
 export function dateKeyFromRow(row: { date?: string; year: number | null; month: number | null }) {
@@ -55,8 +56,35 @@ export function rowInDateRange(row: { date?: string; year: number | null; month:
   return value >= range.dateFrom && value <= range.dateTo;
 }
 
+export function rangeFromYearMonthSelections(selectedYears: string[], selectedMonths: string[]): DateRange {
+  const years = selectedYears.map(Number).filter(Number.isFinite);
+  const months = selectedMonths.map(Number).filter(Number.isFinite);
+  if (years.length && months.length) {
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    const minMonth = Math.min(...months);
+    const maxMonth = Math.max(...months);
+    return { dateFrom: startOfMonth(minYear, minMonth), dateTo: endOfMonth(maxYear, maxMonth) };
+  }
+  return { dateFrom: "1900-01-01", dateTo: "9999-12-31" };
+}
+
+export function rowInYearMonthSelection(row: { date?: string; year: number | null; month: number | null }, filters: Pick<ExecutiveGisFilters, "selectedYears" | "selectedMonths" | "dateFrom" | "dateTo">) {
+  const parsed = dateKeyFromRow(row);
+  if (!parsed) return false;
+  const date = localDate(parsed);
+  const rowYear = row.year ?? date.getFullYear();
+  const rowMonth = row.month ?? date.getMonth() + 1;
+  const years = new Set(filters.selectedYears.map(Number).filter(Number.isFinite));
+  const months = new Set(filters.selectedMonths.map(Number).filter(Number.isFinite));
+  const yearMatches = years.has(rowYear);
+  const monthMatches = months.has(rowMonth);
+  return yearMatches && monthMatches;
+}
+
 export function resolvePeriod(mode: PeriodMode, anchorDate: string, custom?: DateRange): DateRange {
   if (mode === "custom" && custom && custom.dateFrom <= custom.dateTo) return custom;
+  if (mode === "all") return { dateFrom: "1900-01-01", dateTo: "9999-12-31" };
   const anchor = localDate(anchorDate);
   const year = anchor.getFullYear();
   const month = anchor.getMonth() + 1;
@@ -94,6 +122,7 @@ export function resolveComparison(mode: ComparisonMode, current: DateRange, cust
 
 export function formatPeriodLabel(range: DateRange) {
   if (!range.dateFrom || !range.dateTo) return "No comparison";
+  if (range.dateFrom === "1900-01-01" && range.dateTo === "9999-12-31") return "All";
   const from = localDate(range.dateFrom);
   const to = localDate(range.dateTo);
   const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth() && from.getDate() === 1 && range.dateTo === endOfMonth(to.getFullYear(), to.getMonth() + 1);

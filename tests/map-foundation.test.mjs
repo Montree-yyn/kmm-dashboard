@@ -99,7 +99,8 @@ test("Marketing route renders the map-first territory workspace", async () => {
   const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
   assert.match(workspace, /aria-label="Marketing territory map"/);
   assert.match(workspace, /h-\[calc\(100vh-56px\)\]/);
-  assert.match(workspace, /aria-label="Right Intelligence Panel placeholder"/);
+  assert.match(workspace, /aria-label="Right Intelligence Panel"/);
+  assert.match(workspace, /Phase1TownshipPanel/);
   assert.match(workspace, /aria-label="Strategic Focus placeholder"/);
   assert.match(workspace, /<MyanmarMarketingMap visibleShowroomIds=\{visibleShowroomIds\} townshipMetrics=\{mapped\.metrics\}/);
 });
@@ -113,7 +114,8 @@ test("Marketing markers and the detail panel preserve a correct navigable viewpo
   assert.equal(JSON.parse(showrooms).length, 6);
   assert.match(maplibre, /element\.title = showroom\.name/);
   assert.match(maplibre, /showroomMarkersRef\.current\.size/);
-  assert.match(maplibre, /viewportPaddingRight=\{selectedMetric \? 440 : 0\}/);
+  assert.match(maplibre, /viewportPaddingRight=\{0\}/);
+  assert.match(maplibre, /onSelectedTownshipChange/);
   assert.match(vectorMap, /map\.resize\(\)/);
   assert.match(vectorMap, /getFitPadding\(fitPaddingRef\.current, viewportPaddingRight\)/);
 });
@@ -172,14 +174,14 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(workspace, /NO_DATA_COLOR = "#F8FAFC"/);
   assert.match(workspace, /metricValue.*mode === "sales" \? item\.salesUnit/);
   assert.match(workspace, /heatColor\(metricValue\(item\), visible, mode === "sales" \? ZERO_SALES_COLOR : NO_DATA_COLOR\)/);
-  assert.match(workspace, /mapped\.metrics\[record\.township_id\]\?\.fill/);
+  assert.match(workspace, /canonicalLocationId: item\.key/);
   assert.match(maplibre, /initialMetricFromMode/);
   assert.match(maplibre, /return "salesUnit"/);
   assert.match(maplibre, /metric\.salesUnit/);
   assert.match(vectorMap, /colorPairs\.push\("#F8FAFC"\)/);
 });
 
-test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, tooltip, and top-township layer", async () => {
+test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover highlight, and top-township layer", async () => {
   const [maplibre, vectorMap, layerOrder] = await Promise.all([
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
@@ -194,10 +196,11 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, tooltip
   assert.match(maplibre, /#F26B00/);
   assert.match(maplibre, /#C84A00/);
   assert.match(maplibre, /EXECUTIVE_METRICS/);
-  assert.match(maplibre, /metric\.achievement/);
+  assert.match(maplibre, /metric\.gpPercent/);
   assert.match(maplibre, /legendRange/);
   assert.match(maplibre, /topCanonicalLocationIds/);
-  assert.match(maplibre, /onFeatureHover/);
+  assert.doesNotMatch(maplibre, /tooltip/);
+  assert.match(vectorMap, /setFeatureState/);
   assert.match(vectorMap, /topCanonicalLocationIds/);
   assert.match(vectorMap, /topTownshipLayerId/);
   assert.match(vectorMap, /"fill-color": "#FFFFFF"/);
@@ -215,21 +218,22 @@ test("Executive GIS V2.1 centralizes time filters, comparisons, decision toolbar
   assert.match(timeFilters, /PeriodMode/);
   assert.match(timeFilters, /ComparisonMode/);
   assert.match(timeFilters, /PROJECT_TIMEZONE = "Asia\/Bangkok"/);
+  assert.match(timeFilters, /selectedYears: \["2026"\]/);
+  assert.match(timeFilters, /selectedMonths: \["1", "2", "3"/);
   assert.match(timeFilters, /resolvePeriod/);
   assert.match(timeFilters, /resolveComparison/);
   assert.match(timeFilters, /rolling-12-months/);
   assert.match(timeFilters, /rowInDateRange/);
+  assert.match(timeFilters, /rowInYearMonthSelection/);
   assert.match(timeFilters, /comparison === 0 \? null/);
   assert.match(workspace, /useState<ExecutiveGisFilters>/);
   assert.match(workspace, /DecisionToolbar/);
   assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
-  assert.match(workspace, /rowInDateRange\(row, gisFilters\)/);
+  assert.match(workspace, /rowInYearMonthSelection\(row, gisFilters\)/);
   assert.match(workspace, /comparisonSales/);
   assert.match(workspace, /activeMetric=\{gisFilters\.activeMetric\}/);
-  assert.match(workspace, /periodLabel: formatPeriodLabel\(gisFilters\)/);
-  assert.match(workspace, /resolvedPeriodMode/);
-  assert.match(workspace, /currentFilteredSalesRows/);
-  assert.match(workspace, /timezoneUsed: PROJECT_TIMEZONE/);
+  assert.match(workspace, /rangeFromYearMonthSelections/);
+  assert.match(workspace, /selectedYears/);
   assert.match(panel, /panel\.salesPerformance/);
   assert.match(panel, /timeFilter: metric\.debugPeriod/);
   assert.match(maplibre, /onActiveMetricChange/);
@@ -238,13 +242,26 @@ test("Executive GIS V2.1 centralizes time filters, comparisons, decision toolbar
 test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell", async () => {
   const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
   assert.match(workspace, /aria-label="Decision Toolbar"/);
+  assert.match(workspace, /ปี/);
+  assert.match(workspace, /เดือน/);
   assert.match(workspace, /สินค้า/);
-  assert.match(workspace, /Metric/);
-  assert.match(workspace, /พื้นที่/);
-  assert.match(workspace, /Layer/);
+  assert.match(workspace, /ตัวชี้วัด/);
+  assert.match(workspace, /ApplyMultiSelect/);
+  assert.match(workspace, /เลือกทั้งหมด/);
+  assert.match(workspace, /นำไปใช้/);
+  assert.match(workspace, /กรุณาเลือกอย่างน้อย 1 รายการ/);
+  assert.match(workspace, /Unit/);
+  assert.match(workspace, /GP%/);
+  assert.doesNotMatch(workspace, /value=\{filters\.selectedYear\}/);
+  assert.doesNotMatch(workspace, /value=\{filters\.selectedMonth\}/);
+  assert.doesNotMatch(workspace, /onProductChange/);
+  assert.doesNotMatch(workspace, /เทียบช่วงเดียวกันปีก่อน/);
+  assert.doesNotMatch(workspace, /onGeographyChange/);
   assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]/);
-  assert.match(workspace, /Right Intelligence Panel area reserved for Sprint 2/);
+  assert.match(workspace, /ไม่พบข้อมูลตามตัวกรองที่เลือก/);
+  assert.match(workspace, /ยังไม่ได้กำหนด Showroom รับผิดชอบ/);
   assert.match(workspace, /Strategic Focus/);
+  assert.match(workspace, /Coming in Phase 2/);
   assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
 });
 
@@ -274,7 +291,7 @@ test("Localization foundation defaults to Thai and exposes English switching", a
   assert.match(workspace, /setLanguage\("en"\)/);
   assert.match(workspace, /วิเคราะห์การตลาด/);
   assert.match(workspace, /t\("period\.rolling12Months"\)/);
-  assert.match(maplibre, /t\(metric\.labelKey\)/);
+  assert.match(maplibre, /metricLabel\(activeMetric, t\)/);
   assert.match(panel, /t\("panel\.salesPerformance"\)/);
 });
 
@@ -286,12 +303,11 @@ test("Township Intelligence uses canonical IDs and explicit no-data safeguards",
     read("components/marketing/myanmar-marketing-map.tsx"),
   ]);
   assert.match(maplibre, /townshipMetrics\[record\.township_id\]/);
-  assert.match(workspace, /townshipIntelligenceMetrics/);
-  assert.match(workspace, /normalizeLocation\(row\.township\) === normalizeLocation\(record\.township\)/);
+  assert.match(workspace, /selectedTownshipMetric = selectedCanonicalId \? mapped\.metrics\[selectedCanonicalId\]/);
+  assert.doesNotMatch(workspace, /townshipIntelligenceMetrics/);
   assert.match(workspace, /bookingUnit: null, bookingValue: null/);
-  assert.match(panel, /panel\.noBookingData/);
-  assert.match(panel, /panel\.noModelData/);
-  assert.match(panel, /unresolvedGeographyCount/);
+  assert.match(panel, /metric\.gpPercent/);
+  assert.match(workspace, /canonicalLocationId: item\.key/);
   assert.match(legacy, /metricForLegacyFeature/);
 });
 
@@ -340,7 +356,7 @@ test("Sales geography reconciliation is state-aware, canonical, and lossless", a
   assert.match(aliases, /Taung Gyi/);
   assert.match(stateAliases, /AYEYARWADDY/);
   assert.match(workspace, /resolveTownship\(row\.township, row\.stateRegion\)/);
-  assert.match(workspace, /unresolvedGroups/);
+  assert.match(workspace, /resolveTownship\(row\.township, row\.stateRegion\)/);
   assert.match(panel, /sales-geography-reconciliation\.json/);
 });
 

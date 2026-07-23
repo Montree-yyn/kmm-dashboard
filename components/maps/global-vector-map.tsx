@@ -209,7 +209,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
           zoom: dataset.default_zoom ?? 2,
           minZoom: dataset.min_zoom,
           maxZoom: dataset.max_zoom,
-          attributionControl: Boolean(dataset.attribution),
+          attributionControl: dataset.attribution ? {} : false,
           scrollZoom: true,
           dragPan: true,
           doubleClickZoom: true,
@@ -245,7 +245,6 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
             hoveredFeatureIdRef.current = hoveredId ?? null;
             if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: true });
             onFeatureHoverRef.current?.(feature, event.point);
-            emitMapStatus(map);
           });
           map.on("mouseleave", baseFillLayerId, () => {
             map.getCanvas().style.cursor = "";
@@ -253,7 +252,6 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
             hoveredId = undefined;
             hoveredFeatureIdRef.current = null;
             onFeatureHoverRef.current?.(null);
-            emitMapStatus(map);
           });
           map.on("click", baseFillLayerId, (event) => { const feature = event.features?.[0]; if (feature) { selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null); onFeatureClickRef.current?.(feature); } });
           map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });

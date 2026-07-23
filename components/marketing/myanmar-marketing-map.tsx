@@ -26,6 +26,7 @@ export type TownshipMetric = {
   salesValue: number;
   gpValue: number;
   gpPercent: number | null;
+  hasFilteredSalesData?: boolean;
   bookingUnit: number | null;
   bookingValue: number | null;
   activities: number;
@@ -61,8 +62,10 @@ export type MyanmarMarketingMapProps = {
   townshipMetrics?: Record<string, TownshipMetric>;
   productLabel?: string;
   mode?: "sales" | "population" | "activity";
-  activeMetric?: "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities";
-  onActiveMetricChange?: (metric: "salesUnit" | "salesValue" | "achievement" | "gpValue" | "bookingUnit" | "installedBase" | "activities") => void;
+  activeMetric?: "salesUnit" | "salesValue" | "gpValue" | "gpPercent";
+  filterContext?: { year: string; month: string; product: string };
+  onActiveMetricChange?: (metric: "salesUnit" | "salesValue" | "gpValue" | "gpPercent") => void;
+  onSelectedTownshipChange?: (canonicalLocationId: string | null) => void;
   resetSignal?: number;
   className?: string;
 };
@@ -296,8 +299,6 @@ function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; map
 
 export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
   const { t } = useLocale();
-  const installedProducts = PRODUCT_ROWS.filter((row) => metric.installedBaseByProduct[row.key] > 0);
-  const salesProducts = PRODUCT_ROWS.filter((row) => metric.salesByProduct[row.key] > 0);
 
   return (
     <aside className={cn("kmm-township-detail-panel", mobile && "kmm-township-detail-panel-mobile")}>
@@ -313,18 +314,17 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, ma
         </button>
       </div>
 
-      <section className="kmm-township-detail-section kmm-township-installed-base">
-        <p>{t("panel.installedBase")}</p>
-        <strong>{format(metric.installedBase)} <span>{t("common.units")}</span></strong>
-        <dl className="kmm-township-metric-list mt-4">
-          {installedProducts.length ? installedProducts.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{format(metric.installedBaseByProduct[row.key])}</dd></div>) : <p className="kmm-township-empty-text">{t("panel.noInstalledBaseProductDetail")}</p>}
+      <section className="kmm-township-detail-section">
+        <h4>Area</h4>
+        <dl className="kmm-township-metric-list">
+          <div><dt>Township</dt><dd>{metric.township}</dd></div>
+          <div><dt>State / Region</dt><dd>{metric.stateRegion}</dd></div>
         </dl>
       </section>
 
       <section className="kmm-township-detail-section">
-        <h4>{t("panel.salesPerformance")} · {metric.periodLabel ?? t("common.selectedPeriod")}</h4>
+        <h4>{t("panel.salesPerformance")}</h4>
         <dl className="kmm-township-metric-list">
-          <div><dt>{t("panel.period")}</dt><dd>{metric.periodLabel ?? t("common.selectedPeriod")}</dd></div>
           <div><dt>{t("metric.salesUnit")}</dt><dd>{format(metric.salesUnit)}</dd></div>
           <div><dt>{t("metric.salesValue")}</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
           <div><dt>{t("metric.gpValue")}</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
@@ -333,35 +333,6 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, ma
         {metric.comparison && <p className="mt-3 text-xs text-[#6B7280]">{t("comparison.title")} · {metric.comparisonLabel}: {t("metric.salesUnit")} {format(metric.comparison.salesUnit)} · {t("metric.salesValue")} {formatMoney(metric.comparison.salesValue)} MMK</p>}
       </section>
 
-      <section className="kmm-township-detail-section">
-        <h4>{t("panel.salesBreakdown")}</h4>
-        {salesProducts.length ? <div className="kmm-township-bar-list">
-          {salesProducts.map((row) => {
-            const value = metric.salesByProduct[row.key];
-            const percentage = metric.salesUnit ? (value / metric.salesUnit) * 100 : 0;
-            return <div key={row.key} className="kmm-township-bar-row"><span>{row.label}</span><div><i style={{ width: `${percentage}%` }} /></div><b>{format(value)} <small>{percentage.toFixed(0)}%</small></b></div>;
-          })}
-        </div> : <p className="kmm-township-empty-text">{t("panel.noSelectedPeriodSalesProductDetail")}</p>}
-      </section>
-
-      <section className="kmm-township-detail-section">
-        <h4>{t("metric.marketingActivity")}</h4>
-        {metric.activities ? (
-          <dl className="kmm-township-metric-list">
-            <div><dt>{t("metric.marketingActivities")}</dt><dd>{format(metric.activities)}</dd></div>
-            <div><dt>{t("panel.lastActivityDate")}</dt><dd>{metric.lastActivityDate ?? t("common.dataNotConnected")}</dd></div>
-            <div><dt>{t("panel.mostRecentActivity")}</dt><dd>{metric.lastActivityType ?? t("common.dataNotConnected")}</dd></div>
-            <div><dt>{t("panel.activityDensity")}</dt><dd>{metric.activityDensity === null ? t("common.dataNotConnected") : metric.activityDensity.toFixed(2)}</dd></div>
-            <div><dt>{t("panel.topActivityType")}</dt><dd>{metric.topActivityType ?? t("common.dataNotConnected")}</dd></div>
-          </dl>
-        ) : <p className="kmm-township-empty-text">{t("panel.noMarketingActivity")}</p>}
-      </section>
-
-      <section className="kmm-township-detail-section"><h4>{t("metric.booking")}</h4>{metric.bookingUnit === null && metric.bookingValue === null ? <p className="kmm-township-empty-text">{t("panel.noBookingData")}</p> : <dl className="kmm-township-metric-list">{metric.bookingUnit !== null && <div><dt>{t("metric.bookingUnit")}</dt><dd>{format(metric.bookingUnit)}</dd></div>}{metric.bookingValue !== null && <div><dt>{t("metric.bookingValue")}</dt><dd>{formatMoney(metric.bookingValue)} MMK</dd></div>}</dl>}</section>
-      <section className="kmm-township-detail-section"><h4>{t("panel.topModels")}</h4>{metric.topModels?.length ? <><p className="kmm-township-empty-text">{t("panel.rankedBy")} {metric.topModels[0].metric === "Sales Unit" ? t("metric.salesUnit") : t("metric.installedBase")}</p><dl className="kmm-township-metric-list">{metric.topModels.map((model) => <div key={model.model}><dt>{model.model}</dt><dd>{format(model.unit)}</dd></div>)}</dl></> : <p className="kmm-township-empty-text">{t("panel.noModelData")}</p>}</section>
-      <section className="kmm-township-detail-section"><h4>{t("panel.salesperson")}</h4>{metric.topSalesperson ? <dl className="kmm-township-metric-list"><div><dt>{t("panel.topBySalesUnit")}</dt><dd>{metric.topSalesperson}</dd></div></dl> : <p className="kmm-township-empty-text">{t("panel.noSalespersonData")}</p>}</section>
-      {!!metric.unresolvedGeographyCount && <section className="kmm-township-detail-section"><p className="kmm-township-empty-text">{t("panel.dataQuality")}: {metric.unresolvedGeographyCount} {metric.unresolvedGeographyCount === 1 ? t("panel.sourceRecord") : t("panel.sourceRecords")} {t("panel.couldNotAssign")}</p></section>}
-      <TownshipDebugPanel metric={metric} mapStatus={mapStatus} />
     </aside>
   );
 }

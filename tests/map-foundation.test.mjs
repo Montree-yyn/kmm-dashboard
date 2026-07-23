@@ -98,7 +98,9 @@ test("Marketing labels switch cleanly between State and Township zoom levels", a
 test("Marketing route renders the map-first territory workspace", async () => {
   const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
   assert.match(workspace, /aria-label="Marketing territory map"/);
-  assert.match(workspace, /h-\[calc\(100vh-82px\)\]/);
+  assert.match(workspace, /h-\[calc\(100vh-56px\)\]/);
+  assert.match(workspace, /aria-label="Right Intelligence Panel placeholder"/);
+  assert.match(workspace, /aria-label="Strategic Focus placeholder"/);
   assert.match(workspace, /<MyanmarMarketingMap visibleShowroomIds=\{visibleShowroomIds\} townshipMetrics=\{mapped\.metrics\}/);
 });
 
@@ -203,7 +205,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, tooltip
   assert.match(layerOrder, /township-top-five-outline/);
 });
 
-test("Executive GIS V2.1 centralizes time filters, comparisons, KPI strip, and panel debug fields", async () => {
+test("Executive GIS V2.1 centralizes time filters, comparisons, decision toolbar, and panel debug fields", async () => {
   const [workspace, panel, maplibre, timeFilters] = await Promise.all([
     read("components/marketing/marketing-intelligence-page.tsx"),
     read("components/marketing/myanmar-marketing-map.tsx"),
@@ -219,8 +221,8 @@ test("Executive GIS V2.1 centralizes time filters, comparisons, KPI strip, and p
   assert.match(timeFilters, /rowInDateRange/);
   assert.match(timeFilters, /comparison === 0 \? null/);
   assert.match(workspace, /useState<ExecutiveGisFilters>/);
-  assert.match(workspace, /ExecutiveGisControls/);
-  assert.match(workspace, /ExecutiveKpiStrip/);
+  assert.match(workspace, /DecisionToolbar/);
+  assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
   assert.match(workspace, /rowInDateRange\(row, gisFilters\)/);
   assert.match(workspace, /comparisonSales/);
   assert.match(workspace, /activeMetric=\{gisFilters\.activeMetric\}/);
@@ -233,15 +235,17 @@ test("Executive GIS V2.1 centralizes time filters, comparisons, KPI strip, and p
   assert.match(maplibre, /onActiveMetricChange/);
 });
 
-test("Executive KPI strip is compact and preserves map-first layout", async () => {
+test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell", async () => {
   const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
-  assert.match(workspace, /max-h-20/);
-  assert.match(workspace, /overflow-x-auto/);
-  assert.match(workspace, /visibleLabels = \["Sales Unit", "Sales Value", "GP Value", "Booking Unit", "Installed Base"\]/);
-  assert.match(workspace, /compactComparison/);
-  assert.match(workspace, /t\("common\.more"\)/);
-  assert.match(workspace, /min-h-0 flex-1 w-full/);
-  assert.match(workspace, /gap-2 p-3 sm:p-4 xl:p-4/);
+  assert.match(workspace, /aria-label="Decision Toolbar"/);
+  assert.match(workspace, /สินค้า/);
+  assert.match(workspace, /Metric/);
+  assert.match(workspace, /พื้นที่/);
+  assert.match(workspace, /Layer/);
+  assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]/);
+  assert.match(workspace, /Right Intelligence Panel area reserved for Sprint 2/);
+  assert.match(workspace, /Strategic Focus/);
+  assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
 });
 
 test("Localization foundation defaults to Thai and exposes English switching", async () => {
@@ -268,7 +272,7 @@ test("Localization foundation defaults to Thai and exposes English switching", a
   assert.match(english, /"metric\.salesUnit": "Sales Unit"/);
   assert.match(workspace, /setLanguage\("th"\)/);
   assert.match(workspace, /setLanguage\("en"\)/);
-  assert.match(workspace, /t\("nav\.marketing"\)/);
+  assert.match(workspace, /วิเคราะห์การตลาด/);
   assert.match(workspace, /t\("period\.rolling12Months"\)/);
   assert.match(maplibre, /t\(metric\.labelKey\)/);
   assert.match(panel, /t\("panel\.salesPerformance"\)/);

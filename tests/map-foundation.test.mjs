@@ -290,11 +290,10 @@ test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, 
   assert.match(workspace, /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/);
   assert.match(workspace, /compareMode \? <ComparisonPanel/);
   assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
-  assert.doesNotMatch(workspace, /ComparisonMatrix/);
   assert.doesNotMatch(workspace, /selectComparisonInsights/);
 });
 
-test("Area Comparison Phase B renders map selection badges and approved panel structure without metrics", async () => {
+test("Area Comparison Phase B renders map selection badges and approved panel structure", async () => {
   const [workspace, mapProps, maplibre] = await Promise.all([
     read("components/marketing/marketing-intelligence-page.tsx"),
     read("components/marketing/myanmar-marketing-map.tsx"),
@@ -305,8 +304,8 @@ test("Area Comparison Phase B renders map selection badges and approved panel st
   assert.match(workspace, /<ComparisonPanel selectedTownships=\{selectedComparisonTownships\}/);
   assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
   assert.match(workspace, /เลือกอีก 1 Township เพื่อเริ่มเปรียบเทียบ/);
-  assert.match(workspace, /ข้อมูลเปรียบเทียบจะถูกเพิ่มใน Phase C/);
-  assert.match(workspace, /Future Insights Placeholder/);
+  assert.match(workspace, /<ComparisonMatrix selectedTownships=\{selectedTownships\}/);
+  assert.match(workspace, /ข้อมูลเชิงวิเคราะห์จะถูกเพิ่มใน Phase C3/);
   assert.match(workspace, /selectedTownships\.map\(\(township, index\)/);
   assert.match(workspace, /aria-label=\{`Remove \$\{township\.township\} from comparison`\}/);
   assert.match(maplibre, /COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline"/);
@@ -320,6 +319,36 @@ test("Area Comparison Phase B renders map selection badges and approved panel st
   assert.doesNotMatch(maplibre, /source\.setData\(.*comparison/i);
   assert.doesNotMatch(workspace, /Best/);
   assert.doesNotMatch(workspace, /Worst/);
+});
+
+test("Area Comparison Phase C1 renders executive metric matrix from shared Township aggregates", async () => {
+  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  assert.match(workspace, /function ComparisonMatrix/);
+  assert.match(workspace, /aria-label="Comparison Matrix"/);
+  assert.match(workspace, /<table className=/);
+  assert.match(workspace, /<caption className="sr-only">Executive metric comparison for selected Townships<\/caption>/);
+  assert.match(workspace, /scope="col"/);
+  assert.match(workspace, /scope="row"/);
+  assert.match(workspace, /scope="rowgroup"/);
+  assert.match(workspace, /Performance/);
+  assert.match(workspace, /Growth/);
+  assert.match(workspace, /Unit/);
+  assert.match(workspace, /Value/);
+  assert.match(workspace, /GP%/);
+  assert.match(workspace, /YoY Unit/);
+  assert.match(workspace, /YoY Value/);
+  assert.match(workspace, /YoY GP%/);
+  assert.match(workspace, /formatComparisonValue/);
+  assert.match(workspace, /formatComparisonGrowth/);
+  assert.match(workspace, /compact\(value\)} MMK/);
+  assert.match(workspace, /value\.toFixed\(1\)/);
+  assert.match(workspace, /changeArrow\(delta\)/);
+  assert.match(workspace, /Math\.abs\(delta\)\.toFixed\(1\)} pp/);
+  assert.match(workspace, /priorSalesByTownship\.get\(id\) \?\? null/);
+  assert.match(workspace, /metric\?\.hasFilteredSalesData \?/);
+  assert.match(workspace, /value === null \? "—"/);
+  assert.doesNotMatch(workspace, /Product Share/);
+  assert.doesNotMatch(workspace, /Lowest/);
 });
 
 test("Localization foundation defaults to Thai and exposes English switching", async () => {

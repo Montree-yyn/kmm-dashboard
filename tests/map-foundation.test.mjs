@@ -288,10 +288,38 @@ test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, 
   assert.match(workspace, /handleSelectedTownshipChange/);
   assert.match(workspace, /if \(!compareMode\)/);
   assert.match(workspace, /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/);
-  assert.match(workspace, /compareMode \? <PhaseAComparisonPanel/);
-  assert.match(workspace, /เลือกพื้นที่บนแผนที่เพื่อเริ่มต้น/);
+  assert.match(workspace, /compareMode \? <ComparisonPanel/);
+  assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
   assert.doesNotMatch(workspace, /ComparisonMatrix/);
   assert.doesNotMatch(workspace, /selectComparisonInsights/);
+});
+
+test("Area Comparison Phase B renders map selection badges and approved panel structure without metrics", async () => {
+  const [workspace, mapProps, maplibre] = await Promise.all([
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+  ]);
+  assert.match(mapProps, /comparisonSelectionIds\?: string\[\]/);
+  assert.match(workspace, /comparisonSelectionIds=\{compareMode \? selectedComparisonTownshipIds : \[\]\}/);
+  assert.match(workspace, /<ComparisonPanel selectedTownships=\{selectedComparisonTownships\}/);
+  assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
+  assert.match(workspace, /เลือกอีก 1 Township เพื่อเริ่มเปรียบเทียบ/);
+  assert.match(workspace, /ข้อมูลเปรียบเทียบจะถูกเพิ่มใน Phase C/);
+  assert.match(workspace, /Future Insights Placeholder/);
+  assert.match(workspace, /selectedTownships\.map\(\(township, index\)/);
+  assert.match(workspace, /aria-label=\{`Remove \$\{township\.township\} from comparison`\}/);
+  assert.match(maplibre, /COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline"/);
+  assert.match(maplibre, /comparisonSelectionFilter/);
+  assert.match(maplibre, /comparisonBadgeMarkersRef/);
+  assert.match(maplibre, /comparisonLabelPositionsRef/);
+  assert.match(maplibre, /kmm-comparison-selection-badge/);
+  assert.match(maplibre, /Comparison \$\{index \+ 1\}/);
+  assert.match(maplibre, /element\.style\.background = "#E86F00"/);
+  assert.match(maplibre, /map\.setFilter\(COMPARISON_OUTLINE_LAYER_ID, comparisonSelectionFilter\(comparisonSelectionIdsRef\.current\)\)/);
+  assert.doesNotMatch(maplibre, /source\.setData\(.*comparison/i);
+  assert.doesNotMatch(workspace, /Best/);
+  assert.doesNotMatch(workspace, /Worst/);
 });
 
 test("Localization foundation defaults to Thai and exposes English switching", async () => {

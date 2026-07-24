@@ -64,6 +64,7 @@ export type MyanmarMarketingMapProps = {
   mode?: "sales" | "population" | "activity";
   activeMetric?: "salesUnit" | "salesValue" | "gpValue" | "gpPercent";
   filterContext?: { year: string; month: string; product: string };
+  comparisonSelectionIds?: string[];
   onActiveMetricChange?: (metric: "salesUnit" | "salesValue" | "gpValue" | "gpPercent") => void;
   onSelectedTownshipChange?: (canonicalLocationId: string | null) => void;
   resetSignal?: number;

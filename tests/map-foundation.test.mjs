@@ -265,6 +265,35 @@ test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell
   assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
 });
 
+test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, and click routing only", async () => {
+  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  assert.match(workspace, /MAX_COMPARISON_TOWNSHIPS = 4/);
+  assert.match(workspace, /useState\(false\)/);
+  assert.match(workspace, /useState<CanonicalTownshipId\[\]>\(\[\]\)/);
+  assert.match(workspace, /ComparisonToolbarControl/);
+  assert.match(workspace, /aria-pressed=\{compareMode\}/);
+  assert.match(workspace, /เปรียบเทียบพื้นที่/);
+  assert.match(workspace, /enterCompareMode/);
+  assert.match(workspace, /isValidComparisonTownshipId\(selectedCanonicalId\) \? \[selectedCanonicalId\] : \[\]/);
+  assert.match(workspace, /exitCompareMode/);
+  assert.match(workspace, /const firstSelectedTownshipId = selectedComparisonTownshipIds\[0\] \?\? null/);
+  assert.match(workspace, /setSelectedCanonicalId\(firstSelectedTownshipId\)/);
+  assert.match(workspace, /addComparisonTownship/);
+  assert.match(workspace, /current\.includes\(id\)/);
+  assert.match(workspace, /current\.length >= MAX_COMPARISON_TOWNSHIPS/);
+  assert.match(workspace, /เลือกได้สูงสุด 4 Township/);
+  assert.match(workspace, /removeComparisonTownship/);
+  assert.match(workspace, /current\.filter\(\(item\) => item !== id\)/);
+  assert.match(workspace, /clearComparisonTownships/);
+  assert.match(workspace, /handleSelectedTownshipChange/);
+  assert.match(workspace, /if \(!compareMode\)/);
+  assert.match(workspace, /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/);
+  assert.match(workspace, /compareMode \? <PhaseAComparisonPanel/);
+  assert.match(workspace, /เลือกพื้นที่บนแผนที่เพื่อเริ่มต้น/);
+  assert.doesNotMatch(workspace, /ComparisonMatrix/);
+  assert.doesNotMatch(workspace, /selectComparisonInsights/);
+});
+
 test("Localization foundation defaults to Thai and exposes English switching", async () => {
   const [layout, context, hook, locales, thai, english, workspace, maplibre, panel] = await Promise.all([
     read("app/layout.tsx"),

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import townshipMaster from "../../data/master-townships.json";
-import { getBasemap } from "../../lib/maps/basemaps";
 import { getMapDataset } from "../../lib/maps/datasets";
 import { applyRequiredLayerOrder } from "../../lib/maps/layer-order";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
@@ -22,7 +21,6 @@ type LegendClass = { labelKey: LocaleKey; color: string; min: number; max: numbe
 type LabelCollection = { type: "FeatureCollection"; features: { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { name: string; metric_label?: string; has_showroom: boolean } }[] };
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
-const developmentBasemap = getBasemap("openfreemap-liberty-development");
 const NO_DATA_COLOR = "#F8FAFC";
 const ZERO_COLOR = "#F3F4F6";
 const CHOROPLETH_COLORS = ["#FFE6C7", "#FFC98B", "#FFA64D", "#F26B00", "#C84A00"];
@@ -36,7 +34,13 @@ const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
 const CLASS_LABEL_KEYS: LocaleKey[] = ["legend.veryLow", "legend.low", "legend.medium", "legend.high", "legend.veryHigh"];
 
 function initialMetricFromMode(mode: MyanmarMarketingMapProps["mode"]): ExecutiveMetricKey {
-  return "salesUnit";
+  switch (mode) {
+    case "activity":
+    case "population":
+    case "sales":
+    default:
+      return "salesUnit";
+  }
 }
 
 function metricLabel(metricKey: ExecutiveMetricKey, t: (key: LocaleKey) => string) {
@@ -168,10 +172,12 @@ function getLabelPositions(features: GeoFeature[], kind: "state" | "township") {
   return Array.from(groups.values(), ({ name, stateRegion, points }) => ({ name, stateRegion, coordinates: [points.reduce((sum, point) => sum + point[0], 0) / points.length, points.reduce((sum, point) => sum + point[1], 0) / points.length] as [number, number] }));
 }
 
-export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", activeMetric: sharedActiveMetric, comparisonSelectionIds = [], onActiveMetricChange, onSelectedTownshipChange, className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
+export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", activeMetric: sharedActiveMetric, comparisonSelectionIds = [], onActiveMetricChange: _onActiveMetricChange, onSelectedTownshipChange, className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
   const { t } = useLocale();
+  void _onActiveMetricChange;
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
+  const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
   const presentationMapRef = useRef<MapLibreMap | null>(null);
   const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
@@ -181,7 +187,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   const comparisonSelectionIdsRef = useRef(comparisonSelectionIds);
   const markerConstructorRef = useRef<null | (new (options?: { element?: HTMLElement; anchor?: "center" }) => Marker)>(null);
   const metricByIdRef = useRef<Map<string, TownshipMetric>>(new Map());
-  const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
+  const onSelectedTownshipChangeRef = useRef(onSelectedTownshipChange);
   const metricById = useMemo(() => {
     const result = new Map<string, TownshipMetric>();
     for (const record of master) {
@@ -193,6 +199,9 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   useEffect(() => {
     metricByIdRef.current = metricById;
   }, [metricById]);
+  useEffect(() => {
+    onSelectedTownshipChangeRef.current = onSelectedTownshipChange;
+  }, [onSelectedTownshipChange]);
   const choropleth = useMemo(() => {
     const rows = Array.from(metricById, ([id, metric]) => ({ id, metric, value: metricValue(metric, activeMetric) }));
     const values = rows.map((row) => row.value).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
@@ -204,7 +213,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   const selectedMetric = selectedCanonicalId ? metricById.get(selectedCanonicalId) ?? null : null;
   const selectTownship = (canonicalId: string | null) => {
     setSelectedCanonicalId(canonicalId);
-    onSelectedTownshipChange?.(canonicalId);
+    onSelectedTownshipChangeRef.current?.(canonicalId);
   };
 
   const buildTownshipLabelCollection = (features: GeoFeature[]): LabelCollection => {
@@ -343,8 +352,8 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     const labelLayout = (size: number, font: string[]) => ({ "text-field": ["get", "name"], "text-font": font, "text-size": size, "text-anchor": "center", "text-allow-overlap": false, "text-ignore-placement": false, "text-padding": 8, "text-max-width": 10, "text-radial-offset": ["case", ["boolean", ["get", "has_showroom"], false], 1.6, 0] });
     const labelPaint = (opacity: unknown) => ({ "text-color": "#4B5563", "text-halo-color": "#FFFFFF", "text-halo-width": 1, "text-halo-blur": 0.35, "text-opacity": opacity });
     if (!map.getLayer("marketing-state-boundaries")) map.addLayer({ id: "marketing-state-boundaries", type: "line", source: "marketing-state-boundaries", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#CBD5E1", "line-width": 1 } } as never);
-    if (!map.getLayer("marketing-state-labels")) map.addLayer({ id: "marketing-state-labels", type: "symbol", source: "marketing-state-labels", maxzoom: 7.2, layout: labelLayout(11, ["Open Sans Semibold"]), paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6.8, 1, 7.2, 0]) } as never);
-    if (!map.getLayer("marketing-township-labels")) map.addLayer({ id: "marketing-township-labels", type: "symbol", source: "marketing-township-labels", minzoom: 6, layout: { ...labelLayout(10, ["Open Sans Regular"]), "text-field": ["format", ["get", "name"], {}, "\n", {}, ["get", "metric_label"], { "font-scale": 0.86 }] }, paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6, 0, 6.4, 1]) } as never);
+    if (!map.getLayer("marketing-state-labels")) map.addLayer({ id: "marketing-state-labels", type: "symbol", source: "marketing-state-labels", maxzoom: 7.2, layout: labelLayout(11, ["Noto Sans Bold"]), paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6.8, 1, 7.2, 0]) } as never);
+    if (!map.getLayer("marketing-township-labels")) map.addLayer({ id: "marketing-township-labels", type: "symbol", source: "marketing-township-labels", minzoom: 6, layout: { ...labelLayout(10, ["Noto Sans Regular"]), "text-field": ["format", ["get", "name"], {}, "\n", {}, ["get", "metric_label"], { "font-scale": 0.86 }] }, paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6, 0, 6.4, 1]) } as never);
     updateTownshipLabels();
     applyRequiredLayerOrder(map);
     showrooms.forEach((showroom) => {
@@ -372,7 +381,6 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         dataset={dataset}
         className="absolute inset-0"
         ariaLabel="Interactive Myanmar township heatmap"
-        baseStyle={developmentBasemap?.url}
         overlayFillOpacity={0.5}
         overlayHoverOpacity={0.18}
         overlaySelectedOpacity={0.16}

@@ -127,24 +127,24 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
   assert.match(vectorMap, /"line-width": 0\.9/);
   assert.match(vectorMap, /"line-cap": "round"/);
   assert.match(maplibre, /"line-color": "#CBD5E1"/);
-  assert.match(maplibre, /Open Sans Semibold/);
-  assert.match(maplibre, /Open Sans Regular/);
+  assert.match(maplibre, /Noto Sans Bold/);
+  assert.match(maplibre, /Noto Sans Regular/);
   assert.match(maplibre, /fitPadding=\{\{ top: 24, right: 44, bottom: 24, left: 44 \}\}/);
 });
 
-test("Marketing uses a tokenless OpenStreetMap vector basemap beneath the PMTiles overlay", async () => {
-  const [basemaps, maplibre, vectorMap] = await Promise.all([
-    read("data/maps/basemaps.json"),
+test("Marketing uses the local KMM style beneath the PMTiles overlay", async () => {
+  const [style, maplibre, vectorMap] = await Promise.all([
+    read("data/maps/styles/kmm-light-style.json"),
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
   ]);
-  const basemap = JSON.parse(basemaps).find((item) => item.id === "openfreemap-liberty-development");
-  assert.equal(basemap.requires_token, false);
-  assert.equal(basemap.status, "development");
-  assert.match(basemap.url, /tiles\.openfreemap\.org\/styles\/liberty/);
-  assert.match(maplibre, /baseStyle=\{developmentBasemap\?\.url\}/);
+  assert.equal(JSON.parse(style).name, "KMM light boundary foundation");
+  assert.doesNotMatch(maplibre, /openfreemap|developmentBasemap|baseStyle=\{/i);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
-  assert.match(vectorMap, /style: baseStyle/);
+  assert.match(vectorMap, /style: baseStyle \?\? lightStyle/);
+  assert.match(vectorMap, /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/);
+  assert.match(vectorMap, /MapLibre recoverable resource error/);
+  assert.match(vectorMap, /failMap/);
 });
 
 test("Marketing visual polish keeps the basemap visible and markers prominent", async () => {

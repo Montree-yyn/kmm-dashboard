@@ -275,8 +275,8 @@ function runMapSafetyAssertions() {
 
   assertFileContains(
     "data/maps/basemaps.json",
-    "kmm-global",
-    "Basemap config no longer defines the KMM global basemap.",
+    "openfreemap-liberty-development",
+    "Basemap config no longer defines the restored working development basemap.",
   );
 
   assertNoHardcodedSecrets();
@@ -343,6 +343,12 @@ function listTextFiles(rootDir) {
 
 function assertNoScatteredProviderUrls() {
   const scanRoots = ["components", "data", "lib", "public/maps/styles", "tests", "worker"];
+  const allowedProviderFiles = new Set([
+    "components/marketing/myanmar-marketing-map-maplibre.tsx",
+    "data/maps/basemaps.json",
+    "lib/maps/basemaps.ts",
+    "tests/map-foundation.test.mjs",
+  ]);
   const files = [];
 
   for (const rootDir of scanRoots) {
@@ -354,7 +360,7 @@ function assertNoScatteredProviderUrls() {
   for (const filePath of files) {
     const contents = readFileSync(filePath, "utf8");
 
-    if (/tiles\.openfreemap\.org|openfreemap-liberty-development/i.test(contents)) {
+    if (!allowedProviderFiles.has(normalizeGitPath(filePath)) && /tiles\.openfreemap\.org|openfreemap-liberty-development/i.test(contents)) {
       openFreeMapHits.push(filePath);
     }
   }

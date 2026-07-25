@@ -38,14 +38,12 @@ type GlobalVectorMapProps = {
   viewportPaddingRight?: number;
   fitPadding?: { top: number; right: number; bottom: number; left: number };
   baseStyle?: StyleSpecification | string;
-  fallbackBaseStyle?: StyleSpecification | string;
   overlayFillOpacity?: number;
   overlayHoverOpacity?: number;
   overlaySelectedOpacity?: number;
   activeMetricLayer?: string;
   topCanonicalLocationIds?: string[];
   onMapStatus?: (status: MapDebugStatus) => void;
-  onBasemapFallback?: () => void;
 };
 
 const fillLayerId = MAP_LAYER_IDS.metricFill;
@@ -84,7 +82,7 @@ function getFitPadding(padding: { top: number; right: number; bottom: number; le
   return { ...padding, right: padding.right + viewportPaddingRight };
 }
 
-export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, fallbackBaseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus, onBasemapFallback }: GlobalVectorMapProps) {
+export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const layerStateRef = useRef(layerState);
@@ -103,11 +101,8 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const overlayHoverOpacityRef = useRef(overlayHoverOpacity);
   const overlaySelectedOpacityRef = useRef(overlaySelectedOpacity);
   const onMapStatusRef = useRef(onMapStatus);
-  const onBasemapFallbackRef = useRef(onBasemapFallback);
   const activeMetricLayerRef = useRef(activeMetricLayer);
   const topCanonicalLocationIdsRef = useRef(topCanonicalLocationIds);
-  const baseStyleRef = useRef(baseStyle);
-  const fallbackBaseStyleRef = useRef(fallbackBaseStyle);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
@@ -125,11 +120,8 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     overlayHoverOpacityRef.current = overlayHoverOpacity;
     overlaySelectedOpacityRef.current = overlaySelectedOpacity;
     onMapStatusRef.current = onMapStatus;
-    onBasemapFallbackRef.current = onBasemapFallback;
     activeMetricLayerRef.current = activeMetricLayer;
     topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
-    baseStyleRef.current = baseStyle;
-    fallbackBaseStyleRef.current = fallbackBaseStyle;
   });
 
   const emitMapStatus = (map: MapLibreMap) => {
@@ -206,7 +198,6 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     let observer: ResizeObserver | undefined;
     let hoveredId: string | number | undefined;
     let reordering = false;
-    let usedFallbackStyle = false;
 
     async function initialize() {
       try {
@@ -215,7 +206,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         if (disposed || !containerRef.current) return;
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: baseStyleRef.current ?? lightStyle as StyleSpecification,
+          style: baseStyle ?? lightStyle as StyleSpecification,
           center: dataset.center ?? [0, 0],
           zoom: dataset.default_zoom ?? 2,
           minZoom: dataset.min_zoom,
@@ -280,15 +271,8 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
           emitMapStatus(map);
           onMapReadyRef.current?.(map);
         });
-        map.on("error", (event) => {
+        map.on("error", () => {
           if (disposed) return;
-          if (!usedFallbackStyle && fallbackBaseStyleRef.current) {
-            usedFallbackStyle = true;
-            onBasemapFallbackRef.current?.();
-            map.setStyle(fallbackBaseStyleRef.current, { diff: false });
-            return;
-          }
-          if (process.env.NODE_ENV !== "production") console.error("MapLibre map error", event.error);
           setStatus("error");
           onErrorRef.current?.();
         });

@@ -1,71 +1,11 @@
 [
   {
-    "id": "kmm-global-development",
-    "name": "KMM Global Development Basemap",
-    "provider": "VersaTiles",
+    "id": "openfreemap-liberty-development",
+    "provider": "OpenFreeMap",
     "dataset_type": "vector_style",
-    "styleUrl": "https://tiles.versatiles.org/assets/styles/colorful/style.json",
-    "attribution": "© OpenStreetMap contributors © VersaTiles",
+    "url": "https://tiles.openfreemap.org/styles/liberty",
+    "attribution": "© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors",
     "status": "development",
-    "active": true,
-    "requiresNetwork": true,
-    "requiresToken": false,
-    "coverage": "global",
-    "glyphsUrl": "https://tiles.versatiles.org/assets/fonts/{fontstack}/{range}.pbf",
-    "spriteUrl": "https://tiles.versatiles.org/assets/sprites/versatiles/sprite",
-    "futureSelfHostedSourceId": "kmm-global-basemap",
-    "externalHostnames": ["tiles.versatiles.org"],
-    "riskNotes": "Free public development vector basemap. Availability and style updates are outside KMM control; migrate to self-hosted PMTiles before strict production SLA.",
-    "migrationNotes": "Replace styleUrl with /maps/styles/kmm-global-self-hosted.json and serve a global PMTiles archive at /maps/vector/kmm-global-basemap.pmtiles with source id kmm-global-basemap.",
-    "labelStrategy": {
-      "languageFallbackOrder": ["name", "name:en", "name:latin"],
-      "fontStack": ["Noto Sans", "Noto Sans Thai", "Noto Sans Myanmar", "system sans-serif"],
-      "futureSwitcher": "A future TH / EN / MM switcher can swap provider style language variants or rewrite text-field expressions centrally before passing the style to MapLibre."
-    },
-    "labelHierarchy": {
-      "country": { "fontWeight": "semibold", "zoomTextSize": [2, 13, 6, 18], "haloWidth": 2.25 },
-      "region": { "fontWeight": "semibold", "zoomTextSize": [4, 12, 8, 16], "haloWidth": 2 },
-      "settlement": { "fontWeight": "medium", "zoomTextSize": [5, 11, 11, 15], "haloWidth": 1.75 },
-      "village": { "fontWeight": "regular", "zoomTextSize": [10, 10, 13, 12], "haloWidth": 1.5 },
-      "road": { "fontWeight": "regular", "zoomTextSize": [8, 9, 14, 12], "haloWidth": 1.5 }
-    }
-  },
-  {
-    "id": "kmm-global-self-hosted",
-    "name": "KMM Global Self-hosted Basemap",
-    "provider": "KMM",
-    "dataset_type": "vector_style",
-    "styleUrl": "/maps/styles/kmm-global-self-hosted.json",
-    "attribution": "© KMM self-hosted basemap © OpenStreetMap contributors",
-    "status": "future",
-    "active": false,
-    "requiresNetwork": false,
-    "requiresToken": false,
-    "coverage": "global",
-    "glyphsUrl": "/maps/fonts/{fontstack}/{range}.pbf",
-    "spriteUrl": "/maps/sprites/kmm/sprite",
-    "futureSelfHostedSourceId": "kmm-global-basemap",
-    "externalHostnames": [],
-    "riskNotes": "Placeholder only. Do not activate until a global PMTiles archive and matching style layers are produced outside this repository.",
-    "migrationNotes": "Expected source contract: source id kmm-global-basemap, source type vector, URL pmtiles:///maps/vector/kmm-global-basemap.pmtiles, OSM-derived layers for earth/water/boundary/transportation/place/poi."
-  },
-  {
-    "id": "kmm-local-boundaries",
-    "name": "KMM Local Boundary Fallback",
-    "provider": "KMM",
-    "dataset_type": "vector_style",
-    "styleUrl": "/maps/styles/kmm-light-style.json",
-    "attribution": "© KMM internal map foundation © OpenStreetMap contributors",
-    "status": "fallback",
-    "active": false,
-    "requiresNetwork": false,
-    "requiresToken": false,
-    "coverage": "myanmar-business-overlay",
-    "glyphsUrl": "/maps/fonts/{fontstack}/{range}.pbf",
-    "spriteUrl": null,
-    "futureSelfHostedSourceId": null,
-    "externalHostnames": [],
-    "riskNotes": "Local non-network fallback used when the global basemap provider fails. Shows neutral background plus KMM Myanmar business layers.",
-    "migrationNotes": "Keep this lightweight fallback even after self-hosted global PMTiles is added."
+    "requires_token": false
   }
 ]

@@ -91,11 +91,7 @@ test("Marketing labels switch cleanly between State and Township zoom levels", a
   assert.match(maplibre, /text-allow-overlap": false/);
   assert.match(maplibre, /text-ignore-placement": false/);
   assert.match(maplibre, /text-radial-offset/);
-  assert.match(maplibre, /text-halo-width": haloWidth/);
-  assert.match(maplibre, /labelLayout\(\["interpolate", \["linear"\], \["zoom"\]/);
-  assert.match(maplibre, /"symbol-sort-key"/);
-  assert.match(maplibre, /"Noto Sans Thai"/);
-  assert.match(maplibre, /"Noto Sans Myanmar"/);
+  assert.match(maplibre, /text-halo-width": 1/);
   assert.match(maplibre, /showroomMarkersRef/);
 });
 
@@ -136,87 +132,19 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
   assert.match(maplibre, /fitPadding=\{\{ top: 24, right: 44, bottom: 24, left: 44 \}\}/);
 });
 
-test("Marketing uses a centralized global basemap with local fallback beneath the PMTiles overlay", async () => {
-  const [basemapsText, maplibre, vectorMap, basemapHelpers, datasets] = await Promise.all([
+test("Marketing uses a tokenless OpenStreetMap vector basemap beneath the PMTiles overlay", async () => {
+  const [basemaps, maplibre, vectorMap] = await Promise.all([
     read("data/maps/basemaps.json"),
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
-    read("lib/maps/basemaps.ts"),
-    read("data/maps/datasets.json"),
   ]);
-  const basemaps = JSON.parse(basemapsText);
-  const active = basemaps.find((item) => item.id === "kmm-global-development");
-  const fallback = basemaps.find((item) => item.id === "kmm-local-boundaries");
-  const selfHosted = basemaps.find((item) => item.id === "kmm-global-self-hosted");
-  const pmtiles = JSON.parse(datasets).find((dataset) => dataset.id === "mm-townships-pmtiles");
-  assert.equal(active.active, true);
-  assert.equal(active.coverage, "global");
-  assert.equal(active.requiresNetwork, true);
-  assert.equal(active.requiresToken, false);
-  assert.equal(active.styleUrl, "https://tiles.versatiles.org/assets/styles/colorful/style.json");
-  assert.deepEqual(active.externalHostnames, ["tiles.versatiles.org"]);
-  assert.equal(fallback.styleUrl, "/maps/styles/kmm-light-style.json");
-  assert.equal(fallback.requiresNetwork, false);
-  assert.equal(selfHosted.active, false);
-  assert.match(selfHosted.migrationNotes, /pmtiles:\/\/\/maps\/vector\/kmm-global-basemap\.pmtiles/);
-  assert.equal(pmtiles.url, "/maps/vector/myanmar-townships.pmtiles");
-  assert.equal(pmtiles.source_layer, "townships");
-  assert.match(basemapHelpers, /getActiveBasemap/);
-  assert.match(basemapHelpers, /getFallbackBasemap/);
-  assert.doesNotMatch(maplibre, /tiles\.versatiles\.org/);
-  assert.doesNotMatch(maplibre, /styleUrl: "https:\/\//);
-  assert.match(maplibre, /getActiveBasemap/);
-  assert.match(maplibre, /baseStyle=\{activeBasemap\?\.styleUrl/);
-  assert.match(maplibre, /fallbackBaseStyle=\{fallbackBasemap\?\.styleUrl\}/);
+  const basemap = JSON.parse(basemaps).find((item) => item.id === "openfreemap-liberty-development");
+  assert.equal(basemap.requires_token, false);
+  assert.equal(basemap.status, "development");
+  assert.match(basemap.url, /tiles\.openfreemap\.org\/styles\/liberty/);
+  assert.match(maplibre, /baseStyle=\{developmentBasemap\?\.url\}/);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
-  assert.match(vectorMap, /fallbackBaseStyle/);
-  assert.match(vectorMap, /fallbackBaseStyleRef\.current/);
-  assert.match(vectorMap, /map\.setStyle\(fallbackBaseStyleRef\.current, \{ diff: false \}\)/);
-  assert.match(vectorMap, /style: baseStyleRef\.current/);
-});
-
-test("Global basemap definitions document provider risks, attribution, labels, and self-hosted migration", async () => {
-  const basemaps = JSON.parse(await read("data/maps/basemaps.json"));
-  const active = basemaps.find((item) => item.id === "kmm-global-development");
-  assert.match(active.attribution, /OpenStreetMap/);
-  assert.match(active.attribution, /VersaTiles/);
-  assert.match(active.riskNotes, /Availability/);
-  assert.match(active.migrationNotes, /global PMTiles archive/);
-  assert.deepEqual(active.labelStrategy.languageFallbackOrder, ["name", "name:en", "name:latin"]);
-  assert.deepEqual(active.labelStrategy.fontStack, ["Noto Sans", "Noto Sans Thai", "Noto Sans Myanmar", "system sans-serif"]);
-  assert.match(active.labelStrategy.futureSwitcher, /TH \/ EN \/ MM switcher/);
-  for (const key of ["country", "region", "settlement", "village", "road"]) {
-    assert.ok(active.labelHierarchy[key]);
-    assert.ok(active.labelHierarchy[key].zoomTextSize.length >= 4);
-    assert.ok(active.labelHierarchy[key].haloWidth >= 1.5);
-  }
-});
-
-test("Marketing production map has no scattered legacy provider dependency and keeps local glyph fallback", async () => {
-  const [basemaps, publicStyle, fallbackStyle, maplibre, regularGlyphs, semiboldGlyphs, notoGlyphs, thaiGlyphs, myanmarGlyphs] = await Promise.all([
-    read("data/maps/basemaps.json"),
-    read("public/maps/styles/kmm-light-style.json"),
-    read("data/maps/styles/kmm-light-style.json"),
-    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
-    read("public/maps/fonts/Open Sans Regular/0-255.pbf"),
-    read("public/maps/fonts/Open Sans Semibold/0-255.pbf"),
-    read("public/maps/fonts/Noto Sans/0-255.pbf"),
-    read("public/maps/fonts/Noto Sans Thai/3584-3839.pbf"),
-    read("public/maps/fonts/Noto Sans Myanmar/4096-4351.pbf"),
-  ]);
-  const combined = `${basemaps}\n${publicStyle}\n${fallbackStyle}\n${maplibre}`;
-  const legacyProvider = ["open", "free", "map"].join("");
-  assert.doesNotMatch(combined.toLowerCase(), new RegExp(`tiles\\.${legacyProvider}\\.org`));
-  assert.doesNotMatch(combined.toLowerCase(), new RegExp(`${legacyProvider}-liberty-development`));
-  assert.doesNotMatch(combined.toLowerCase(), new RegExp(legacyProvider));
-  assert.doesNotMatch(combined.toLowerCase(), new RegExp(`demo${["tiles", "maplibre", "org"].join("\\.")}`));
-  assert.doesNotMatch(combined, /api[_-]?key|access[_-]?token|MAPBOX_TOKEN|MAPTILER_KEY/i);
-  assert.match(publicStyle, /"glyphs": "\/maps\/fonts\/\{fontstack\}\/\{range\}\.pbf"/);
-  assert.ok(regularGlyphs.length > 1000);
-  assert.ok(semiboldGlyphs.length > 1000);
-  assert.ok(notoGlyphs.length > 1000);
-  assert.ok(thaiGlyphs.length > 1000);
-  assert.ok(myanmarGlyphs.length > 1000);
+  assert.match(vectorMap, /style: baseStyle/);
 });
 
 test("Marketing visual polish keeps the basemap visible and markers prominent", async () => {

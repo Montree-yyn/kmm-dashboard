@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import townshipMaster from "../../data/master-townships.json";
-import { getActiveBasemap, getFallbackBasemap } from "../../lib/maps/basemaps";
+import { getBasemap } from "../../lib/maps/basemaps";
 import { getMapDataset } from "../../lib/maps/datasets";
 import { applyRequiredLayerOrder } from "../../lib/maps/layer-order";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
@@ -22,8 +22,7 @@ type LegendClass = { labelKey: LocaleKey; color: string; min: number; max: numbe
 type LabelCollection = { type: "FeatureCollection"; features: { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { name: string; metric_label?: string; has_showroom: boolean } }[] };
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
-const activeBasemap = getActiveBasemap();
-const fallbackBasemap = getFallbackBasemap();
+const developmentBasemap = getBasemap("openfreemap-liberty-development");
 const NO_DATA_COLOR = "#F8FAFC";
 const ZERO_COLOR = "#F3F4F6";
 const CHOROPLETH_COLORS = ["#FFE6C7", "#FFC98B", "#FFA64D", "#F26B00", "#C84A00"];
@@ -173,7 +172,6 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   const { t } = useLocale();
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
-  const [basemapWarning, setBasemapWarning] = useState("");
   const presentationMapRef = useRef<MapLibreMap | null>(null);
   const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
@@ -342,12 +340,11 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     if (!map.getSource("marketing-state-boundaries")) map.addSource("marketing-state-boundaries", { type: "geojson", data: { type: "FeatureCollection", features: states.features } } as never);
     if (!map.getSource("marketing-state-labels")) map.addSource("marketing-state-labels", { type: "geojson", data: labelCollection(getLabelPositions(states.features, "state")) });
     if (!map.getSource("marketing-township-labels")) map.addSource("marketing-township-labels", { type: "geojson", data: buildTownshipLabelCollection(townships.features) });
-    const labelFontStack = ["Noto Sans", "Noto Sans Thai", "Noto Sans Myanmar", "Open Sans Regular"];
-    const labelLayout = (size: unknown, font = labelFontStack) => ({ "text-field": ["coalesce", ["get", "name"], ["get", "name:en"], ["get", "name:latin"]], "text-font": font, "text-size": size, "text-anchor": "center", "text-allow-overlap": false, "text-ignore-placement": false, "text-padding": 8, "text-max-width": 10, "symbol-sort-key": ["case", ["boolean", ["get", "has_showroom"], false], 2, 1], "text-radial-offset": ["case", ["boolean", ["get", "has_showroom"], false], 1.6, 0] });
-    const labelPaint = (opacity: unknown, haloWidth = 1.75) => ({ "text-color": "#263342", "text-halo-color": "#FFFFFF", "text-halo-width": haloWidth, "text-halo-blur": 0.45, "text-opacity": opacity });
+    const labelLayout = (size: number, font: string[]) => ({ "text-field": ["get", "name"], "text-font": font, "text-size": size, "text-anchor": "center", "text-allow-overlap": false, "text-ignore-placement": false, "text-padding": 8, "text-max-width": 10, "text-radial-offset": ["case", ["boolean", ["get", "has_showroom"], false], 1.6, 0] });
+    const labelPaint = (opacity: unknown) => ({ "text-color": "#4B5563", "text-halo-color": "#FFFFFF", "text-halo-width": 1, "text-halo-blur": 0.35, "text-opacity": opacity });
     if (!map.getLayer("marketing-state-boundaries")) map.addLayer({ id: "marketing-state-boundaries", type: "line", source: "marketing-state-boundaries", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#CBD5E1", "line-width": 1 } } as never);
-    if (!map.getLayer("marketing-state-labels")) map.addLayer({ id: "marketing-state-labels", type: "symbol", source: "marketing-state-labels", maxzoom: 7.2, layout: labelLayout(["interpolate", ["linear"], ["zoom"], 4, 12, 7.2, 16], ["Noto Sans", "Noto Sans Thai", "Noto Sans Myanmar", "Open Sans Semibold"]), paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6.8, 1, 7.2, 0], 2.1) } as never);
-    if (!map.getLayer("marketing-township-labels")) map.addLayer({ id: "marketing-township-labels", type: "symbol", source: "marketing-township-labels", minzoom: 6, layout: { ...labelLayout(["interpolate", ["linear"], ["zoom"], 6, 10.5, 10, 13.5]), "text-field": ["format", ["coalesce", ["get", "name"], ["get", "name:en"], ["get", "name:latin"]], {}, "\n", {}, ["get", "metric_label"], { "font-scale": 0.86 }] }, paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6, 0, 6.4, 1], 1.8) } as never);
+    if (!map.getLayer("marketing-state-labels")) map.addLayer({ id: "marketing-state-labels", type: "symbol", source: "marketing-state-labels", maxzoom: 7.2, layout: labelLayout(11, ["Open Sans Semibold"]), paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6.8, 1, 7.2, 0]) } as never);
+    if (!map.getLayer("marketing-township-labels")) map.addLayer({ id: "marketing-township-labels", type: "symbol", source: "marketing-township-labels", minzoom: 6, layout: { ...labelLayout(10, ["Open Sans Regular"]), "text-field": ["format", ["get", "name"], {}, "\n", {}, ["get", "metric_label"], { "font-scale": 0.86 }] }, paint: labelPaint(["interpolate", ["linear"], ["zoom"], 6, 0, 6.4, 1]) } as never);
     updateTownshipLabels();
     applyRequiredLayerOrder(map);
     showrooms.forEach((showroom) => {
@@ -375,8 +372,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         dataset={dataset}
         className="absolute inset-0"
         ariaLabel="Interactive Myanmar township heatmap"
-        baseStyle={activeBasemap?.styleUrl ?? fallbackBasemap?.styleUrl}
-        fallbackBaseStyle={fallbackBasemap?.styleUrl}
+        baseStyle={developmentBasemap?.url}
         overlayFillOpacity={0.5}
         overlayHoverOpacity={0.18}
         overlaySelectedOpacity={0.16}
@@ -391,17 +387,12 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
           void installLegacyPresentationOverlays(map);
         }}
         onMapStatus={setMapStatus}
-        onBasemapFallback={() => {
-          if (process.env.NODE_ENV !== "production") console.error(`Global basemap failed; using ${fallbackBasemap?.id ?? "local fallback"} instead.`);
-          setBasemapWarning("Global basemap unavailable. Showing local boundary fallback.");
-        }}
         onError={onLoadError}
         onFeatureClick={(feature) => {
           const id = String(feature.properties.canonical_location_id ?? "");
           if (id && metricById.has(id)) selectTownship(id);
         }}
       />
-      {basemapWarning && <div role="status" className="pointer-events-none absolute left-4 top-4 z-[6] max-w-xs rounded-xl border border-[#FED7AA] bg-white/95 px-3 py-2 text-xs font-semibold text-[#9A3412] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">{basemapWarning}</div>}
       <div className="pointer-events-none absolute bottom-4 left-4 z-[6] min-w-[168px] rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-xs text-[#4B5563] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">
         <p className="font-semibold text-[#1F2937]">{metricLabel(activeMetric, t)}</p>
         <p className="mt-0.5 text-[10px] text-[#9CA3AF]">{choropleth.method}</p>

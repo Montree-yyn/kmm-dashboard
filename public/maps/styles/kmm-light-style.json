@@ -1,0 +1,13 @@
+{
+  "version": 8,
+  "name": "KMM light boundary foundation",
+  "glyphs": "/maps/fonts/{fontstack}/{range}.pbf",
+  "sources": {},
+  "layers": [
+    {
+      "id": "kmm-light-background",
+      "type": "background",
+      "paint": { "background-color": "#f8fafc" }
+    }
+  ]
+}

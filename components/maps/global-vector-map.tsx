@@ -53,6 +53,8 @@ const selectedFillLayerId = MAP_LAYER_IDS.townshipSelectedFill;
 const outlineLayerId = MAP_LAYER_IDS.townshipBoundary;
 const topTownshipLayerId = MAP_LAYER_IDS.topTownships;
 const selectedLayerId = MAP_LAYER_IDS.townshipSelectedOutline;
+const interactionLayerId = fillLayerId;
+const clickableLayerIds = [fillLayerId, baseFillLayerId];
 const townshipMapLayerIds = [fillLayerId, baseFillLayerId, hoverFillLayerId, selectedFillLayerId, outlineLayerId, topTownshipLayerId, selectedLayerId];
 
 function getFillColorExpression(fillColorsByCanonicalId: Record<string, string>) {
@@ -259,7 +261,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
             if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
             applyRequiredLayerOrder(map);
             if (dataset.bounds) map.fitBounds([[dataset.bounds[0], dataset.bounds[1]], [dataset.bounds[2], dataset.bounds[3]]], { padding: getFitPadding(fitPaddingRef.current, viewportPaddingRightRef.current), duration: 0 });
-            map.on("mousemove", baseFillLayerId, (event) => {
+            map.on("mousemove", interactionLayerId, (event) => {
               const feature = event.features?.[0];
               if (!feature) return;
               map.getCanvas().style.cursor = "pointer";
@@ -269,14 +271,20 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
               if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: true });
               onFeatureHoverRef.current?.(feature, event.point);
             });
-            map.on("mouseleave", baseFillLayerId, () => {
+            map.on("mouseleave", interactionLayerId, () => {
               map.getCanvas().style.cursor = "";
               if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: false });
               hoveredId = undefined;
               hoveredFeatureIdRef.current = null;
               onFeatureHoverRef.current?.(null);
             });
-            map.on("click", baseFillLayerId, (event) => { const feature = event.features?.[0]; if (feature) { selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null); onFeatureClickRef.current?.(feature); } });
+            map.on("click", (event) => {
+              const feature = map.queryRenderedFeatures(event.point, { layers: clickableLayerIds }).find(Boolean);
+              if (feature) {
+                selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null);
+                onFeatureClickRef.current?.(feature);
+              }
+            });
             map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });
             map.on("styledata", () => {
               if (disposed || reordering || !map.isStyleLoaded()) return;

@@ -482,8 +482,11 @@ test("Township selected and hover layers retain priority and stable order", asyn
   assert.match(vectorMap, /selectedCanonicalLocationId.*0/);
   assert.match(vectorMap, /\[baseFillLayerId, hoverFillLayerId, selectedFillLayerId, selectedLayerId\]/);
   assert.match(vectorMap, /setFeatureState.*hover: false/);
-  assert.match(vectorMap, /map\.on\("mousemove", baseFillLayerId/);
-  assert.match(vectorMap, /map\.on\("mouseleave", baseFillLayerId/);
+  assert.match(vectorMap, /interactionLayerId = fillLayerId/);
+  assert.match(vectorMap, /clickableLayerIds = \[fillLayerId, baseFillLayerId\]/);
+  assert.match(vectorMap, /map\.on\("mousemove", interactionLayerId/);
+  assert.match(vectorMap, /map\.on\("mouseleave", interactionLayerId/);
+  assert.match(vectorMap, /queryRenderedFeatures\(event\.point, \{ layers: clickableLayerIds \}\)/);
   assert.match(vectorMap, /map\.on\("moveend".*applyRequiredLayerOrder/);
   assert.match(vectorMap, /if \(!map\.getSource\(dataset\.source_id\)\)/);
   assert.match(vectorMap, /if \(!map\.getLayer\(baseFillLayerId\)\)/);

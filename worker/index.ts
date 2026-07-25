@@ -22,7 +22,8 @@ interface ExecutionContext {
 const PMTILES_PATH = "/maps/vector/myanmar-townships.pmtiles";
 
 async function serveRangeAsset(request: Request, env: Env) {
-  const assetResponse = await env.ASSETS.fetch(request);
+  const assetRequest = new Request(new URL(PMTILES_PATH, request.url), { method: "GET" });
+  const assetResponse = await env.ASSETS.fetch(assetRequest);
   if (!assetResponse.ok) return assetResponse;
 
   const body = await assetResponse.arrayBuffer();

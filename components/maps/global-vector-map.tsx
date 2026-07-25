@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
-import lightStyle from "../../data/maps/styles/kmm-light-style.json";
 import { createMapSource } from "../../lib/maps/create-map-source";
 import { registerPmtilesProtocol } from "../../lib/maps/register-pmtiles-protocol";
 import { getMapLayers, isLayerGroupEnabled, type MapLayerState } from "../../lib/maps/layers";
 import { applyRequiredLayerOrder, getActualManagedLayerOrder, isRequiredLayerOrder, MAP_LAYER_IDS } from "../../lib/maps/layer-order";
 import type { MapDatasetConfig } from "../../lib/maps/types";
+import { createMarketingBasemapStyle } from "../../src/kme/apps/kmm-dashboard/marketing/basemap";
 
 export type MapDebugStatus = {
   selectedFeatureId: string | number | null;
@@ -232,11 +232,12 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     async function initialize() {
       try {
         const { default: maplibregl } = await import("maplibre-gl");
-        if (dataset.dataset_type === "pmtiles") await registerPmtilesProtocol(maplibregl);
+        await registerPmtilesProtocol(maplibregl);
         if (disposed || !containerRef.current) return;
+        const style = baseStyle ?? createMarketingBasemapStyle();
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: baseStyle ?? lightStyle as StyleSpecification,
+          style,
           center: dataset.center ?? [0, 0],
           zoom: dataset.default_zoom ?? 2,
           minZoom: dataset.min_zoom,

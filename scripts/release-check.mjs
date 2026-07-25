@@ -247,6 +247,7 @@ function runMapSafetyAssertions() {
     "components/marketing/myanmar-marketing-map-maplibre.tsx",
     "data/maps/basemaps.json",
     "lib/maps/basemaps.ts",
+    "src/kme/core/basemap/protomaps.ts",
   ];
 
   const missingFiles = requiredFiles.filter((filePath) => !existsSync(filePath));
@@ -275,8 +276,20 @@ function runMapSafetyAssertions() {
 
   assertFileContains(
     "data/maps/basemaps.json",
-    "openfreemap-liberty-development",
-    "Basemap config no longer defines the restored working development basemap.",
+    "kme-protomaps-osm-light",
+    "Basemap config no longer defines the KME Protomaps OSM basemap.",
+  );
+
+  assertFileContains(
+    "src/kme/core/basemap/protomaps.ts",
+    "@protomaps/basemaps",
+    "KME basemap no longer uses the Protomaps MapLibre style package.",
+  );
+
+  assertFileContains(
+    "src/kme/core/basemap/protomaps.ts",
+    "data.source.coop/protomaps/openstreetmap/v4.pmtiles",
+    "KME basemap no longer points at the Protomaps v4 PMTiles source.",
   );
 
   assertNoHardcodedSecrets();
@@ -342,11 +355,11 @@ function listTextFiles(rootDir) {
 }
 
 function assertNoScatteredProviderUrls() {
-  const scanRoots = ["components", "data", "lib", "public/maps/styles", "tests", "worker"];
+  const scanRoots = ["components", "data", "lib", "public/maps/styles", "src/kme", "tests", "worker"];
   const allowedProviderFiles = new Set([
-    "components/marketing/myanmar-marketing-map-maplibre.tsx",
     "data/maps/basemaps.json",
     "lib/maps/basemaps.ts",
+    "src/kme/core/basemap/protomaps.ts",
     "tests/map-foundation.test.mjs",
   ]);
   const files = [];

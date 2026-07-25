@@ -127,21 +127,26 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
   assert.match(vectorMap, /"line-width": 0\.9/);
   assert.match(vectorMap, /"line-cap": "round"/);
   assert.match(maplibre, /"line-color": "#CBD5E1"/);
-  assert.match(maplibre, /Noto Sans Bold/);
+  assert.match(maplibre, /Noto Sans Medium/);
   assert.match(maplibre, /Noto Sans Regular/);
   assert.match(maplibre, /fitPadding=\{\{ top: 24, right: 44, bottom: 24, left: 44 \}\}/);
 });
 
-test("Marketing uses the local KMM style beneath the PMTiles overlay", async () => {
-  const [style, maplibre, vectorMap] = await Promise.all([
-    read("data/maps/styles/kmm-light-style.json"),
+test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", async () => {
+  const [basemaps, kmeBasemap, maplibre, vectorMap] = await Promise.all([
+    read("data/maps/basemaps.json"),
+    read("src/kme/core/basemap/protomaps.ts"),
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
   ]);
-  assert.equal(JSON.parse(style).name, "KMM light boundary foundation");
+  assert.equal(JSON.parse(basemaps)[0].id, "kme-protomaps-osm-light");
+  assert.match(kmeBasemap, /@protomaps\/basemaps/);
+  assert.match(kmeBasemap, /protomaps\.github\.io\/basemaps-assets/);
+  assert.match(kmeBasemap, /\/fonts\/\{fontstack\}\/\{range\}\.pbf/);
+  assert.match(kmeBasemap, /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/);
   assert.doesNotMatch(maplibre, /openfreemap|developmentBasemap|baseStyle=\{/i);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
-  assert.match(vectorMap, /style: baseStyle \?\? lightStyle/);
+  assert.match(vectorMap, /createMarketingBasemapStyle/);
   assert.match(vectorMap, /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/);
   assert.match(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /failMap/);

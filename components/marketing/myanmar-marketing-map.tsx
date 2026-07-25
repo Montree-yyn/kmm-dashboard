@@ -248,7 +248,9 @@ export type TownshipDebugStatus = {
   layerOrderWarning: boolean;
   pmtilesSourceLoaded: boolean;
   renderedTownshipFeatureCount: number;
+  renderedTownshipUniqueFeatureCount: number;
   renderedChoroplethLayerCount: number;
+  viewportBounds: [number, number, number, number] | null;
 };
 
 function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; mapStatus: TownshipDebugStatus | null }) {

@@ -23,7 +23,9 @@ export type MapDebugStatus = {
   layerOrderWarning: boolean;
   pmtilesSourceLoaded: boolean;
   renderedTownshipFeatureCount: number;
+  renderedTownshipUniqueFeatureCount: number;
   renderedChoroplethLayerCount: number;
+  viewportBounds: [number, number, number, number] | null;
 };
 
 type GlobalVectorMapProps = {
@@ -145,8 +147,11 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const emitMapStatus = (map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     const actualMapLayerOrder = getActualManagedLayerOrder(map);
-    const renderedTownshipFeatureCount = map.getLayer(fillLayerId) ? map.queryRenderedFeatures(undefined, { layers: [fillLayerId] }).length : 0;
+    const renderedTownshipFeatures = map.getLayer(fillLayerId) ? map.queryRenderedFeatures(undefined, { layers: [fillLayerId] }) : [];
+    const renderedTownshipFeatureCount = renderedTownshipFeatures.length;
+    const renderedTownshipUniqueFeatureCount = new Set(renderedTownshipFeatures.map((feature) => String(feature.properties.canonical_location_id ?? feature.id ?? ""))).size;
     const renderedChoroplethLayerCount = map.getLayer(fillLayerId) && map.getLayoutProperty(fillLayerId, "visibility") !== "none" ? 1 : 0;
+    const bounds = map.getBounds();
     onMapStatusRef.current?.({
       selectedFeatureId: selectedFeatureIdRef.current ?? selectedCanonicalLocationIdRef.current,
       hoveredFeatureId: hoveredFeatureIdRef.current,
@@ -161,7 +166,9 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
       layerOrderWarning: !isRequiredLayerOrder(actualMapLayerOrder),
       pmtilesSourceLoaded: Boolean(map.getSource(dataset.source_id)),
       renderedTownshipFeatureCount,
+      renderedTownshipUniqueFeatureCount,
       renderedChoroplethLayerCount,
+      viewportBounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
     });
   };
 

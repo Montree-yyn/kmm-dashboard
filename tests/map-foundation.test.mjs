@@ -144,6 +144,9 @@ test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", asy
   assert.match(kmeBasemap, /protomaps\.github\.io\/basemaps-assets/);
   assert.match(kmeBasemap, /\/fonts\/\{fontstack\}\/\{range\}\.pbf/);
   assert.match(kmeBasemap, /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/);
+  assert.match(kmeBasemap, /tuneMarketingBasemapLayers/);
+  assert.match(kmeBasemap, /roads_labels_major/);
+  assert.match(kmeBasemap, /water_river/);
   assert.doesNotMatch(maplibre, /openfreemap|developmentBasemap|baseStyle=\{/i);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
   assert.match(vectorMap, /createMarketingBasemapStyle/);
@@ -160,7 +163,9 @@ test("Marketing visual polish keeps the basemap visible and markers prominent", 
   ]);
   assert.match(maplibre, /overlayHoverOpacity=\{0\.18\}/);
   assert.match(maplibre, /overlaySelectedOpacity=\{0\.16\}/);
+  assert.match(maplibre, /unique visible townships/);
   assert.match(vectorMap, /getFillOpacityExpression/);
+  assert.match(vectorMap, /viewportBounds/);
   assert.match(vectorMap, /"line-opacity": 0\.5/);
   assert.match(css, /background: #ffffff/);
   assert.match(css, /border: 2px solid #ff7a00/);

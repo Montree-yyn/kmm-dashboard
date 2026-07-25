@@ -226,7 +226,9 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     ["map engine", "maplibre"],
     ["PMTiles URL", dataset?.url ?? "unavailable"],
     ["PMTiles source loaded", String(mapStatus?.pmtilesSourceLoaded ?? false)],
-    ["rendered township feature count", String(mapStatus?.renderedTownshipFeatureCount ?? 0)],
+    ["visible township features", String(mapStatus?.renderedTownshipFeatureCount ?? 0)],
+    ["unique visible townships", String(mapStatus?.renderedTownshipUniqueFeatureCount ?? 0)],
+    ["zoom", mapStatus?.zoom ? mapStatus.zoom.toFixed(2) : "0"],
     ["rendered choropleth layer count", String(mapStatus?.renderedChoroplethLayerCount ?? 0)],
   ];
   const selectTownship = (canonicalId: string | null) => {

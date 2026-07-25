@@ -145,7 +145,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const emitMapStatus = (map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     const actualMapLayerOrder = getActualManagedLayerOrder(map);
-    const renderedTownshipFeatureCount = map.getLayer(fillLayerId) ? map.queryRenderedFeatures({ layers: [fillLayerId] }).length : 0;
+    const renderedTownshipFeatureCount = map.getLayer(fillLayerId) ? map.queryRenderedFeatures(undefined, { layers: [fillLayerId] }).length : 0;
     const renderedChoroplethLayerCount = map.getLayer(fillLayerId) && map.getLayoutProperty(fillLayerId, "visibility") !== "none" ? 1 : 0;
     onMapStatusRef.current?.({
       selectedFeatureId: selectedFeatureIdRef.current ?? selectedCanonicalLocationIdRef.current,
@@ -294,6 +294,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
               }
             });
             map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });
+            map.on("idle", () => emitMapStatus(map));
             map.on("styledata", () => {
               if (disposed || reordering || !map.isStyleLoaded()) return;
               const actual = getActualManagedLayerOrder(map);

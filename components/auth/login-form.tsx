@@ -40,16 +40,38 @@ export function LoginForm() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.replace("/dashboard");
-        return;
+    let settled = false;
+    const fallback = window.setTimeout(() => {
+      if (!settled) {
+        setCheckingSession(false);
       }
+    }, 5000);
 
-      setCheckingSession(false);
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        settled = true;
+        window.clearTimeout(fallback);
 
-    return unsubscribe;
+        if (user) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        setCheckingSession(false);
+      },
+      () => {
+        settled = true;
+        window.clearTimeout(fallback);
+        setCheckingSession(false);
+      },
+    );
+
+    return () => {
+      settled = true;
+      window.clearTimeout(fallback);
+      unsubscribe();
+    };
   }, [router]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

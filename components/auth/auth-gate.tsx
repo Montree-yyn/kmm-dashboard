@@ -10,16 +10,38 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
+    let settled = false;
+    const fallback = window.setTimeout(() => {
+      if (!settled) {
         router.replace("/login");
-        return;
       }
+    }, 5000);
 
-      setAllowed(true);
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        settled = true;
+        window.clearTimeout(fallback);
 
-    return unsubscribe;
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+
+        setAllowed(true);
+      },
+      () => {
+        settled = true;
+        window.clearTimeout(fallback);
+        router.replace("/login");
+      },
+    );
+
+    return () => {
+      settled = true;
+      window.clearTimeout(fallback);
+      unsubscribe();
+    };
   }, [router]);
 
   if (!allowed) {

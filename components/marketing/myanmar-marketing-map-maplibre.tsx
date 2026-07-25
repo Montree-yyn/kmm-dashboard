@@ -6,6 +6,7 @@ import townshipMaster from "../../data/master-townships.json";
 import { getMapDataset } from "../../lib/maps/datasets";
 import { applyRequiredLayerOrder } from "../../lib/maps/layer-order";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
+import { resolveSalesGeography } from "../../lib/marketing/township-geography";
 import { cn } from "../../lib/utils";
 import { useLocale } from "../../src/hooks/useLocale";
 import type { LocaleKey } from "../../src/locales";
@@ -32,6 +33,7 @@ const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
   { key: "gpPercent", labelKey: "metric.gpPercent" },
 ];
 const CLASS_LABEL_KEYS: LocaleKey[] = ["legend.veryLow", "legend.low", "legend.medium", "legend.high", "legend.veryHigh"];
+const masterCanonicalIds = new Set(master.map((record) => record.township_id));
 
 function initialMetricFromMode(mode: MyanmarMarketingMapProps["mode"]): ExecutiveMetricKey {
   switch (mode) {
@@ -148,6 +150,11 @@ function legendRange(item: LegendClass, index: number, total: number) {
 
 function comparisonSelectionFilter(ids: string[]) {
   return ["in", ["get", "canonical_location_id"], ["literal", ids]] as never;
+}
+
+function resolveShowroomCanonicalId(showroom: Showroom, canonicalByLocation: ReadonlyMap<string, string>) {
+  return canonicalByLocation.get(`${normalizeLocation(showroom.township)}|${normalizeLocation(showroom.stateRegion)}`)
+    ?? resolveSalesGeography(showroom.stateRegion, showroom.township, masterCanonicalIds).canonicalLocationId;
 }
 
 function collectPoints(input: unknown, points: [number, number][] = []) {
@@ -365,8 +372,8 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
       element.style.display = !visibleShowroomIds?.length || visibleShowroomIds.includes(showroom.id) ? "block" : "none";
       element.addEventListener("click", (event) => {
         event.stopPropagation();
-        const canonicalId = canonicalByLocation.get(`${normalizeLocation(showroom.township)}|${normalizeLocation(showroom.stateRegion)}`);
-        if (canonicalId && metricByIdRef.current.has(canonicalId)) selectTownship(canonicalId);
+        const canonicalId = resolveShowroomCanonicalId(showroom, canonicalByLocation);
+        if (canonicalId) selectTownship(canonicalId);
         map.flyTo({ center: showroom.coordinates, zoom: Math.max(map.getZoom(), 7), duration: 500, essential: true });
       });
       showroomMarkersRef.current.set(showroom.id, new Marker({ element, anchor: "center" }).setLngLat(showroom.coordinates).addTo(map));
@@ -398,7 +405,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         onError={onLoadError}
         onFeatureClick={(feature) => {
           const id = String(feature.properties.canonical_location_id ?? "");
-          if (id && metricById.has(id)) selectTownship(id);
+          if (id) selectTownship(id);
         }}
       />
       <div className="pointer-events-none absolute bottom-4 left-4 z-[6] min-w-[168px] rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-xs text-[#4B5563] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">
@@ -413,7 +420,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
           <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm border border-[#E5E7EB]" style={{ backgroundColor: NO_DATA_COLOR }} />{t("common.noData")}</span><b>{t("common.notAvailable")}</b></div>
         </div>
       </div>
-      {selectedMetric && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
+      {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
     </div>
   );
 }

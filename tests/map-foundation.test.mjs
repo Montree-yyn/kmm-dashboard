@@ -286,7 +286,8 @@ test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, 
   assert.match(workspace, /current\.filter\(\(item\) => item !== id\)/);
   assert.match(workspace, /clearComparisonTownships/);
   assert.match(workspace, /handleSelectedTownshipChange/);
-  assert.match(workspace, /if \(!compareMode\)/);
+  assert.match(workspace, /compareModeRef\.current/);
+  assert.match(workspace, /addComparisonTownshipRef\.current\(canonicalId\)/);
   assert.match(workspace, /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/);
   assert.match(workspace, /compareMode \? <ComparisonPanel/);
   assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);

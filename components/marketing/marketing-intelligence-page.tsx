@@ -470,6 +470,12 @@ export function MarketingIntelligencePage() {
             return [...current, id];
         });
     }, [isValidComparisonTownshipId]);
+    const compareModeRef = useRef(compareMode);
+    const addComparisonTownshipRef = useRef(addComparisonTownship);
+    useEffect(() => {
+        compareModeRef.current = compareMode;
+        addComparisonTownshipRef.current = addComparisonTownship;
+    }, [addComparisonTownship, compareMode]);
     const removeComparisonTownship = useCallback((id: CanonicalTownshipId) => {
         setSelectedComparisonTownshipIds((current) => current.filter((item) => item !== id));
         setComparisonMessage("");
@@ -483,12 +489,12 @@ export function MarketingIntelligencePage() {
         else exitCompareMode();
     }, [enterCompareMode, exitCompareMode]);
     const handleSelectedTownshipChange = useCallback((canonicalId: string | null) => {
-        if (!compareMode) {
+        if (!compareModeRef.current) {
             setSelectedCanonicalId(canonicalId);
             return;
         }
-        addComparisonTownship(canonicalId);
-    }, [addComparisonTownship, compareMode]);
+        addComparisonTownshipRef.current(canonicalId);
+    }, []);
     const selectedComparisonTownships = selectedComparisonTownshipIds.map((id) => {
         const metric = mapped.metrics[id];
         const township = townshipByCanonicalId.get(id);

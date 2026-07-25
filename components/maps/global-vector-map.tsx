@@ -21,6 +21,9 @@ export type MapDebugStatus = {
   selectedOutlineVisibility: boolean;
   hoverFillVisibility: boolean;
   layerOrderWarning: boolean;
+  pmtilesSourceLoaded: boolean;
+  renderedTownshipFeatureCount: number;
+  renderedChoroplethLayerCount: number;
 };
 
 type GlobalVectorMapProps = {
@@ -142,6 +145,8 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const emitMapStatus = (map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     const actualMapLayerOrder = getActualManagedLayerOrder(map);
+    const renderedTownshipFeatureCount = map.getLayer(fillLayerId) ? map.queryRenderedFeatures({ layers: [fillLayerId] }).length : 0;
+    const renderedChoroplethLayerCount = map.getLayer(fillLayerId) && map.getLayoutProperty(fillLayerId, "visibility") !== "none" ? 1 : 0;
     onMapStatusRef.current?.({
       selectedFeatureId: selectedFeatureIdRef.current ?? selectedCanonicalLocationIdRef.current,
       hoveredFeatureId: hoveredFeatureIdRef.current,
@@ -154,6 +159,9 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
       selectedOutlineVisibility: Boolean(map.getLayer(selectedLayerId) && map.getLayoutProperty(selectedLayerId, "visibility") !== "none"),
       hoverFillVisibility: Boolean(map.getLayer(hoverFillLayerId) && map.getLayoutProperty(hoverFillLayerId, "visibility") !== "none"),
       layerOrderWarning: !isRequiredLayerOrder(actualMapLayerOrder),
+      pmtilesSourceLoaded: Boolean(map.getSource(dataset.source_id)),
+      renderedTownshipFeatureCount,
+      renderedChoroplethLayerCount,
     });
   };
 

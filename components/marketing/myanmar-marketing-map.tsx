@@ -246,6 +246,9 @@ export type TownshipDebugStatus = {
   selectedOutlineVisibility: boolean;
   hoverFillVisibility: boolean;
   layerOrderWarning: boolean;
+  pmtilesSourceLoaded: boolean;
+  renderedTownshipFeatureCount: number;
+  renderedChoroplethLayerCount: number;
 };
 
 function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; mapStatus: TownshipDebugStatus | null }) {

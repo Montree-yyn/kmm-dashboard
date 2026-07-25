@@ -20,6 +20,8 @@ type MyanmarMarketingMapMapLibreProps = MyanmarMarketingMapProps & { onLoadError
 type ExecutiveMetricKey = "salesUnit" | "salesValue" | "gpValue" | "gpPercent";
 type LegendClass = { labelKey: LocaleKey; color: string; min: number; max: number };
 type LabelCollection = { type: "FeatureCollection"; features: { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { name: string; metric_label?: string; has_showroom: boolean } }[] };
+declare const __KMM_BUILD_COMMIT__: string;
+declare const __KMM_BUILD_TIMESTAMP__: string;
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
 const NO_DATA_COLOR = "#F8FAFC";
@@ -218,6 +220,15 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     return { ...classification, fillColors, topCanonicalLocationIds, legend: legendClasses(classification.breaks) };
   }, [metricById, activeMetric]);
   const selectedMetric = selectedCanonicalId ? metricById.get(selectedCanonicalId) ?? null : null;
+  const diagnosticRows = [
+    ["commit", __KMM_BUILD_COMMIT__],
+    ["build timestamp", __KMM_BUILD_TIMESTAMP__],
+    ["map engine", "maplibre"],
+    ["PMTiles URL", dataset?.url ?? "unavailable"],
+    ["PMTiles source loaded", String(mapStatus?.pmtilesSourceLoaded ?? false)],
+    ["rendered township feature count", String(mapStatus?.renderedTownshipFeatureCount ?? 0)],
+    ["rendered choropleth layer count", String(mapStatus?.renderedChoroplethLayerCount ?? 0)],
+  ];
   const selectTownship = (canonicalId: string | null) => {
     setSelectedCanonicalId(canonicalId);
     onSelectedTownshipChangeRef.current?.(canonicalId);
@@ -419,6 +430,12 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
           <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm" style={{ backgroundColor: ZERO_COLOR }} />0</span><b>0</b></div>
           <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm border border-[#E5E7EB]" style={{ backgroundColor: NO_DATA_COLOR }} />{t("common.noData")}</span><b>{t("common.notAvailable")}</b></div>
         </div>
+      </div>
+      <div className="pointer-events-auto absolute right-3 top-14 z-[8] max-w-[min(360px,calc(100%-24px))] rounded-lg border border-[#111827] bg-white/95 p-3 text-[11px] font-semibold leading-4 text-[#111827] shadow-[0_10px_28px_rgba(17,24,39,0.18)]" data-testid="marketing-production-map-diagnostic">
+        <p className="mb-2 text-xs font-black uppercase tracking-[0.12em]">Production Map Diagnostic</p>
+        <dl className="grid grid-cols-[132px_minmax(0,1fr)] gap-x-2 gap-y-1">
+          {diagnosticRows.map(([label, value]) => <div key={label} className="contents"><dt className="text-[#6B7280]">{label}</dt><dd className="break-words font-black">{value}</dd></div>)}
+        </dl>
       </div>
       {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
     </div>

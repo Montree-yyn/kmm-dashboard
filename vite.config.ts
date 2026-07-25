@@ -1,5 +1,6 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
+import { execSync } from "node:child_process";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
@@ -42,8 +43,14 @@ export default defineConfig(async () => {
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
+  const buildCommit = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  const buildTimestamp = new Date().toISOString();
 
   return {
+    define: {
+      __KMM_BUILD_COMMIT__: JSON.stringify(buildCommit),
+      __KMM_BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
+    },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,

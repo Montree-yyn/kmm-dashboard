@@ -22,36 +22,40 @@ interface ExecutionContext {
 const PMTILES_PATH = "/maps/vector/myanmar-townships.pmtiles";
 
 async function serveRangeAsset(request: Request, env: Env) {
-  const assetRequest = new Request(new URL(PMTILES_PATH, request.url), { method: "GET" });
-  const assetResponse = await env.ASSETS.fetch(assetRequest);
-  if (!assetResponse.ok) return assetResponse;
+  try {
+    const assetRequest = new Request(new URL(PMTILES_PATH, request.url), { method: "GET" });
+    const assetResponse = await env.ASSETS.fetch(assetRequest);
+    if (!assetResponse.ok) return assetResponse;
 
-  const body = await assetResponse.arrayBuffer();
-  const total = body.byteLength;
-  const range = request.headers.get("range");
-  const headers = new Headers(assetResponse.headers);
-  headers.set("accept-ranges", "bytes");
-  headers.set("content-type", "application/octet-stream");
+    const body = await assetResponse.arrayBuffer();
+    const total = body.byteLength;
+    const range = request.headers.get("range");
+    const headers = new Headers(assetResponse.headers);
+    headers.set("accept-ranges", "bytes");
+    headers.set("content-type", "application/octet-stream");
 
-  if (!range) {
-    headers.set("content-length", String(total));
-    return new Response(body, { status: assetResponse.status, headers });
+    if (!range) {
+      headers.set("content-length", String(total));
+      return new Response(body, { status: assetResponse.status, headers });
+    }
+
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match) return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } });
+
+    const start = match[1] ? Number(match[1]) : 0;
+    const end = match[2] ? Number(match[2]) : total - 1;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= total) {
+      return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } });
+    }
+
+    const cappedEnd = Math.min(end, total - 1);
+    const chunk = body.slice(start, cappedEnd + 1);
+    headers.set("content-length", String(chunk.byteLength));
+    headers.set("content-range", `bytes ${start}-${cappedEnd}/${total}`);
+    return new Response(chunk, { status: 206, headers });
+  } catch (error) {
+    return new Response(error instanceof Error ? error.message : String(error), { status: 500 });
   }
-
-  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-  if (!match) return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } });
-
-  const start = match[1] ? Number(match[1]) : 0;
-  const end = match[2] ? Number(match[2]) : total - 1;
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= total) {
-    return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } });
-  }
-
-  const cappedEnd = Math.min(end, total - 1);
-  const chunk = body.slice(start, cappedEnd + 1);
-  headers.set("content-length", String(chunk.byteLength));
-  headers.set("content-range", `bytes ${start}-${cappedEnd}/${total}`);
-  return new Response(chunk, { status: 206, headers });
 }
 
 // Image security config. SVG sources with .svg extension auto-skip the

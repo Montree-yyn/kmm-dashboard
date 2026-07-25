@@ -16,6 +16,7 @@ const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   assets: {
+    binding: "ASSETS",
     run_worker_first: ["/maps/vector/myanmar-townships.pmtiles"],
   },
   d1_databases: d1

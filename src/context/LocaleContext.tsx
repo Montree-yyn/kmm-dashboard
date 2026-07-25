@@ -21,8 +21,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(defaultLanguage);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (isLanguage(saved)) setLanguageState(saved);
+    queueMicrotask(() => {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (isLanguage(saved)) setLanguageState(saved);
+    });
   }, []);
 
   const setLanguage = useCallback((nextLanguage: Language) => {

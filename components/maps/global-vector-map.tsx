@@ -106,25 +106,31 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const onBasemapFallbackRef = useRef(onBasemapFallback);
   const activeMetricLayerRef = useRef(activeMetricLayer);
   const topCanonicalLocationIdsRef = useRef(topCanonicalLocationIds);
+  const baseStyleRef = useRef(baseStyle);
+  const fallbackBaseStyleRef = useRef(fallbackBaseStyle);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  layerStateRef.current = layerState;
-  fillColorsRef.current = fillColorsByCanonicalId;
-  selectedCanonicalLocationIdRef.current = selectedCanonicalLocationId;
-  onFeatureClickRef.current = onFeatureClick;
-  onFeatureHoverRef.current = onFeatureHover;
-  onMapReadyRef.current = onMapReady;
-  onViewportChangeRef.current = onViewportChange;
-  onErrorRef.current = onError;
-  viewportPaddingRightRef.current = viewportPaddingRight;
-  fitPaddingRef.current = fitPadding;
-  overlayFillOpacityRef.current = overlayFillOpacity;
-  overlayHoverOpacityRef.current = overlayHoverOpacity;
-  overlaySelectedOpacityRef.current = overlaySelectedOpacity;
-  onMapStatusRef.current = onMapStatus;
-  onBasemapFallbackRef.current = onBasemapFallback;
-  activeMetricLayerRef.current = activeMetricLayer;
-  topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
+  useEffect(() => {
+    layerStateRef.current = layerState;
+    fillColorsRef.current = fillColorsByCanonicalId;
+    selectedCanonicalLocationIdRef.current = selectedCanonicalLocationId;
+    onFeatureClickRef.current = onFeatureClick;
+    onFeatureHoverRef.current = onFeatureHover;
+    onMapReadyRef.current = onMapReady;
+    onViewportChangeRef.current = onViewportChange;
+    onErrorRef.current = onError;
+    viewportPaddingRightRef.current = viewportPaddingRight;
+    fitPaddingRef.current = fitPadding;
+    overlayFillOpacityRef.current = overlayFillOpacity;
+    overlayHoverOpacityRef.current = overlayHoverOpacity;
+    overlaySelectedOpacityRef.current = overlaySelectedOpacity;
+    onMapStatusRef.current = onMapStatus;
+    onBasemapFallbackRef.current = onBasemapFallback;
+    activeMetricLayerRef.current = activeMetricLayer;
+    topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
+    baseStyleRef.current = baseStyle;
+    fallbackBaseStyleRef.current = fallbackBaseStyle;
+  });
 
   const emitMapStatus = (map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
@@ -209,7 +215,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         if (disposed || !containerRef.current) return;
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: baseStyle ?? lightStyle as StyleSpecification,
+          style: baseStyleRef.current ?? lightStyle as StyleSpecification,
           center: dataset.center ?? [0, 0],
           zoom: dataset.default_zoom ?? 2,
           minZoom: dataset.min_zoom,
@@ -276,10 +282,10 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         });
         map.on("error", (event) => {
           if (disposed) return;
-          if (!usedFallbackStyle && fallbackBaseStyle) {
+          if (!usedFallbackStyle && fallbackBaseStyleRef.current) {
             usedFallbackStyle = true;
             onBasemapFallbackRef.current?.();
-            map.setStyle(fallbackBaseStyle, { diff: false });
+            map.setStyle(fallbackBaseStyleRef.current, { diff: false });
             return;
           }
           if (process.env.NODE_ENV !== "production") console.error("MapLibre map error", event.error);

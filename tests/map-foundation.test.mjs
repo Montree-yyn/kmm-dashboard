@@ -170,8 +170,9 @@ test("Marketing uses a centralized global basemap with local fallback beneath th
   assert.match(maplibre, /fallbackBaseStyle=\{fallbackBasemap\?\.styleUrl\}/);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
   assert.match(vectorMap, /fallbackBaseStyle/);
-  assert.match(vectorMap, /map\.setStyle\(fallbackBaseStyle, \{ diff: false \}\)/);
-  assert.match(vectorMap, /style: baseStyle/);
+  assert.match(vectorMap, /fallbackBaseStyleRef\.current/);
+  assert.match(vectorMap, /map\.setStyle\(fallbackBaseStyleRef\.current, \{ diff: false \}\)/);
+  assert.match(vectorMap, /style: baseStyleRef\.current/);
 });
 
 test("Global basemap definitions document provider risks, attribution, labels, and self-hosted migration", async () => {

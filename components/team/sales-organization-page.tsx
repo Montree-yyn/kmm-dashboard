@@ -103,7 +103,7 @@ function exportPeople(people: Person[]) { const headings = ["Rank", "Name", "Sho
 export function SalesOrganizationPage() {
   const [mobileOpen, setMobileOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [notificationsOpen, setNotificationsOpen] = useState(false); const [filters, setFilters] = useState<FilterState>(defaultFilters); const [data, setData] = useState<DashboardData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [selectedName, setSelectedName] = useState<string | null>(null);
   async function loadData() { setLoading(true); setError(""); try { const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }); if (!response.ok) throw new Error(`Unable to load dashboard-data.json (${response.status})`); setData(await response.json()); } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Unable to load team data"); } finally { setLoading(false); } }
-  useEffect(() => { void loadData(); }, []);
+  useEffect(() => { queueMicrotask(() => { void loadData(); }); }, []);
   const inactiveNames = useMemo(() => new Set((data?.sales ?? []).filter((row) => isInactiveEmployeeName(row.salesperson)).map((row) => normalizeEmployeeBaseName(row.salesperson))), [data]);
   const filteredSales = useMemo(() => (data?.sales ?? []).filter((row) => matchesFilters(row, filters)), [data, filters]);
   const activeSales = useMemo(() => filteredSales.filter((row) => isCurrentEmployee(row.salesperson, inactiveNames)), [filteredSales, inactiveNames]);

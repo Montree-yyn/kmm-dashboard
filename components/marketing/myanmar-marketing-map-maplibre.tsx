@@ -174,7 +174,6 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
   const [basemapWarning, setBasemapWarning] = useState("");
-  const [activeMetric, setActiveMetric] = useState<ExecutiveMetricKey>(() => sharedActiveMetric ?? initialMetricFromMode(mode));
   const presentationMapRef = useRef<MapLibreMap | null>(null);
   const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
@@ -184,6 +183,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   const comparisonSelectionIdsRef = useRef(comparisonSelectionIds);
   const markerConstructorRef = useRef<null | (new (options?: { element?: HTMLElement; anchor?: "center" }) => Marker)>(null);
   const metricByIdRef = useRef<Map<string, TownshipMetric>>(new Map());
+  const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
   const metricById = useMemo(() => {
     const result = new Map<string, TownshipMetric>();
     for (const record of master) {
@@ -192,7 +192,9 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     }
     return result;
   }, [townshipMetrics]);
-  metricByIdRef.current = metricById;
+  useEffect(() => {
+    metricByIdRef.current = metricById;
+  }, [metricById]);
   const choropleth = useMemo(() => {
     const rows = Array.from(metricById, ([id, metric]) => ({ id, metric, value: metricValue(metric, activeMetric) }));
     const values = rows.map((row) => row.value).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
@@ -299,10 +301,6 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     comparisonSelectionIdsRef.current = comparisonSelectionIds;
     updateComparisonSelectionOverlays();
   }, [comparisonSelectionIds]);
-
-  useEffect(() => {
-    setActiveMetric(sharedActiveMetric ?? initialMetricFromMode(mode));
-  }, [mode, sharedActiveMetric]);
 
   useEffect(() => {
     showroomMarkersRef.current.forEach((marker, id) => {

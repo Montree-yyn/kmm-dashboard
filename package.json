@@ -17,11 +17,14 @@
     "maps:validate:mm": "python3 scripts/maps/validate_myanmar_pmtiles.py",
     "maps:pipeline:mm": "npm run maps:audit:mm && npm run maps:prepare:mm && npm run maps:build:mm && npm run maps:validate:mm",
     "validate-data": "python3 scripts/validate_data.py",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/map-foundation.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/map-foundation.test.mjs tests/release-workflow.test.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "release": "node scripts/release.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@protomaps/basemaps": "^5.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "0.45.2",

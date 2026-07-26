@@ -3,10 +3,13 @@ import basemaps from "../../data/maps/basemaps.json";
 export type BasemapConfig = {
   id: string;
   provider: string;
-  dataset_type: "vector_style";
+  dataset_type: "pmtiles";
   url: string;
+  source_id: string;
+  glyphs: string;
+  sprite: string;
   attribution: string;
-  status: "development";
+  status: "production";
   requires_token: boolean;
 };
 

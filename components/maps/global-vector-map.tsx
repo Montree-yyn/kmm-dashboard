@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
-import lightStyle from "../../data/maps/styles/kmm-light-style.json";
 import { createMapSource } from "../../lib/maps/create-map-source";
 import { registerPmtilesProtocol } from "../../lib/maps/register-pmtiles-protocol";
 import { getMapLayers, isLayerGroupEnabled, type MapLayerState } from "../../lib/maps/layers";
 import { applyRequiredLayerOrder, getActualManagedLayerOrder, isRequiredLayerOrder, MAP_LAYER_IDS } from "../../lib/maps/layer-order";
 import type { MapDatasetConfig } from "../../lib/maps/types";
+import { createMarketingBasemapStyle } from "../../src/kme/apps/kmm-dashboard/marketing/basemap";
 
 export type MapDebugStatus = {
   selectedFeatureId: string | number | null;
@@ -21,6 +21,11 @@ export type MapDebugStatus = {
   selectedOutlineVisibility: boolean;
   hoverFillVisibility: boolean;
   layerOrderWarning: boolean;
+  pmtilesSourceLoaded: boolean;
+  renderedTownshipFeatureCount: number;
+  renderedTownshipUniqueFeatureCount: number;
+  renderedChoroplethLayerCount: number;
+  viewportBounds: [number, number, number, number] | null;
 };
 
 type GlobalVectorMapProps = {
@@ -53,9 +58,12 @@ const selectedFillLayerId = MAP_LAYER_IDS.townshipSelectedFill;
 const outlineLayerId = MAP_LAYER_IDS.townshipBoundary;
 const topTownshipLayerId = MAP_LAYER_IDS.topTownships;
 const selectedLayerId = MAP_LAYER_IDS.townshipSelectedOutline;
+const interactionLayerId = fillLayerId;
+const clickableLayerIds = [fillLayerId, baseFillLayerId];
 const townshipMapLayerIds = [fillLayerId, baseFillLayerId, hoverFillLayerId, selectedFillLayerId, outlineLayerId, topTownshipLayerId, selectedLayerId];
 
 function getFillColorExpression(fillColorsByCanonicalId: Record<string, string>) {
+  if (!Object.keys(fillColorsByCanonicalId).length) return "#F8FAFC";
   const colorPairs: (string | unknown)[] = ["match", ["get", "canonical_location_id"]];
   Object.entries(fillColorsByCanonicalId).forEach(([id, color]) => colorPairs.push(id, color));
   colorPairs.push("#F8FAFC");
@@ -82,6 +90,18 @@ function getFitPadding(padding: { top: number; right: number; bottom: number; le
   return { ...padding, right: padding.right + viewportPaddingRight };
 }
 
+function getMapErrorMessage(event: unknown) {
+  if (typeof event !== "object" || !event || !("error" in event)) return "";
+  const error = (event as { error?: unknown }).error;
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error) return String((error as { message?: unknown }).message ?? "");
+  return String(error ?? "");
+}
+
+function isFatalStyleLoadError(message: string) {
+  return /not a valid style|unexpected end/i.test(message);
+}
+
 export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -105,26 +125,33 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const topCanonicalLocationIdsRef = useRef(topCanonicalLocationIds);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  layerStateRef.current = layerState;
-  fillColorsRef.current = fillColorsByCanonicalId;
-  selectedCanonicalLocationIdRef.current = selectedCanonicalLocationId;
-  onFeatureClickRef.current = onFeatureClick;
-  onFeatureHoverRef.current = onFeatureHover;
-  onMapReadyRef.current = onMapReady;
-  onViewportChangeRef.current = onViewportChange;
-  onErrorRef.current = onError;
-  viewportPaddingRightRef.current = viewportPaddingRight;
-  fitPaddingRef.current = fitPadding;
-  overlayFillOpacityRef.current = overlayFillOpacity;
-  overlayHoverOpacityRef.current = overlayHoverOpacity;
-  overlaySelectedOpacityRef.current = overlaySelectedOpacity;
-  onMapStatusRef.current = onMapStatus;
-  activeMetricLayerRef.current = activeMetricLayer;
-  topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
+  useEffect(() => {
+    layerStateRef.current = layerState;
+    fillColorsRef.current = fillColorsByCanonicalId;
+    selectedCanonicalLocationIdRef.current = selectedCanonicalLocationId;
+    onFeatureClickRef.current = onFeatureClick;
+    onFeatureHoverRef.current = onFeatureHover;
+    onMapReadyRef.current = onMapReady;
+    onViewportChangeRef.current = onViewportChange;
+    onErrorRef.current = onError;
+    viewportPaddingRightRef.current = viewportPaddingRight;
+    fitPaddingRef.current = fitPadding;
+    overlayFillOpacityRef.current = overlayFillOpacity;
+    overlayHoverOpacityRef.current = overlayHoverOpacity;
+    overlaySelectedOpacityRef.current = overlaySelectedOpacity;
+    onMapStatusRef.current = onMapStatus;
+    activeMetricLayerRef.current = activeMetricLayer;
+    topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
+  });
 
   const emitMapStatus = (map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     const actualMapLayerOrder = getActualManagedLayerOrder(map);
+    const renderedTownshipFeatures = map.getLayer(fillLayerId) ? map.queryRenderedFeatures(undefined, { layers: [fillLayerId] }) : [];
+    const renderedTownshipFeatureCount = renderedTownshipFeatures.length;
+    const renderedTownshipUniqueFeatureCount = new Set(renderedTownshipFeatures.map((feature) => String(feature.properties.canonical_location_id ?? feature.id ?? ""))).size;
+    const renderedChoroplethLayerCount = map.getLayer(fillLayerId) && map.getLayoutProperty(fillLayerId, "visibility") !== "none" ? 1 : 0;
+    const bounds = map.getBounds();
     onMapStatusRef.current?.({
       selectedFeatureId: selectedFeatureIdRef.current ?? selectedCanonicalLocationIdRef.current,
       hoveredFeatureId: hoveredFeatureIdRef.current,
@@ -137,6 +164,11 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
       selectedOutlineVisibility: Boolean(map.getLayer(selectedLayerId) && map.getLayoutProperty(selectedLayerId, "visibility") !== "none"),
       hoverFillVisibility: Boolean(map.getLayer(hoverFillLayerId) && map.getLayoutProperty(hoverFillLayerId, "visibility") !== "none"),
       layerOrderWarning: !isRequiredLayerOrder(actualMapLayerOrder),
+      pmtilesSourceLoaded: Boolean(map.getSource(dataset.source_id)),
+      renderedTownshipFeatureCount,
+      renderedTownshipUniqueFeatureCount,
+      renderedChoroplethLayerCount,
+      viewportBounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
     });
   };
 
@@ -196,20 +228,28 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     let observer: ResizeObserver | undefined;
     let hoveredId: string | number | undefined;
     let reordering = false;
+    let mapInitialized = false;
+
+    const failMap = () => {
+      if (disposed) return;
+      setStatus("error");
+      onErrorRef.current?.();
+    };
 
     async function initialize() {
       try {
         const { default: maplibregl } = await import("maplibre-gl");
-        if (dataset.dataset_type === "pmtiles") await registerPmtilesProtocol(maplibregl);
+        await registerPmtilesProtocol(maplibregl);
         if (disposed || !containerRef.current) return;
+        const style = baseStyle ?? createMarketingBasemapStyle();
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: baseStyle ?? lightStyle as StyleSpecification,
+          style,
           center: dataset.center ?? [0, 0],
           zoom: dataset.default_zoom ?? 2,
           minZoom: dataset.min_zoom,
           maxZoom: dataset.max_zoom,
-          attributionControl: Boolean(dataset.attribution),
+          attributionControl: dataset.attribution ? {} : false,
           scrollZoom: true,
           dragPan: true,
           doubleClickZoom: true,
@@ -221,66 +261,77 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         observer.observe(containerRef.current);
 
         map.on("load", () => {
-          if (disposed) return;
-          if (!map.getSource(dataset.source_id)) map.addSource(dataset.source_id, createMapSource(dataset));
-          const sourceLayer = dataset.dataset_type === "geojson" ? undefined : dataset.source_layer ?? undefined;
-          const layers = new Set(getMapLayers().filter((layer) => layer.enabled).map((layer) => layer.id));
-          const metricVisibility = isLayerGroupEnabled("heatmap", layerStateRef.current) ? "visible" : "none";
-          const boundaryVisibility = isLayerGroupEnabled("township-boundary", layerStateRef.current) ? "visible" : "none";
-          if (layers.has("township-fill") && !map.getLayer(fillLayerId)) map.addLayer({ id: fillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: metricVisibility }, paint: { "fill-color": getFillColorExpression(fillColorsRef.current), "fill-opacity": getFillOpacityExpression(overlayFillOpacityRef.current) } });
-          if (!map.getLayer(baseFillLayerId)) map.addLayer({ id: baseFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": 0.001 } });
-          if (layers.has("township-hover") && !map.getLayer(hoverFillLayerId)) map.addLayer({ id: hoverFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getHoverOpacityExpression(selectedCanonicalLocationIdRef.current, overlayHoverOpacityRef.current) } });
-          if (layers.has("township-selected") && !map.getLayer(selectedFillLayerId)) map.addLayer({ id: selectedFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current, overlaySelectedOpacityRef.current) } });
-          if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": "#F5F1EC", "line-width": 0.9, "line-opacity": 0.5 } });
-          if (!map.getLayer(topTownshipLayerId)) map.addLayer({ id: topTownshipLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, filter: getTopTownshipFilter(topCanonicalLocationIdsRef.current), layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 1.55, "line-opacity": 0.72, "line-blur": 0.6 } });
-          if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
-          applyRequiredLayerOrder(map);
-          if (dataset.bounds) map.fitBounds([[dataset.bounds[0], dataset.bounds[1]], [dataset.bounds[2], dataset.bounds[3]]], { padding: getFitPadding(fitPaddingRef.current, viewportPaddingRightRef.current), duration: 0 });
-          map.on("mousemove", baseFillLayerId, (event) => {
-            const feature = event.features?.[0];
-            if (!feature) return;
-            map.getCanvas().style.cursor = "pointer";
-            if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: false });
-            hoveredId = feature.id;
-            hoveredFeatureIdRef.current = hoveredId ?? null;
-            if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: true });
-            onFeatureHoverRef.current?.(feature, event.point);
+          try {
+            if (disposed) return;
+            if (!map.getSource(dataset.source_id)) map.addSource(dataset.source_id, createMapSource(dataset));
+            const sourceLayer = dataset.dataset_type === "geojson" ? undefined : dataset.source_layer ?? undefined;
+            const layers = new Set(getMapLayers().filter((layer) => layer.enabled).map((layer) => layer.id));
+            const metricVisibility = isLayerGroupEnabled("heatmap", layerStateRef.current) ? "visible" : "none";
+            const boundaryVisibility = isLayerGroupEnabled("township-boundary", layerStateRef.current) ? "visible" : "none";
+            if (layers.has("township-fill") && !map.getLayer(fillLayerId)) map.addLayer({ id: fillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: metricVisibility }, paint: { "fill-color": getFillColorExpression(fillColorsRef.current), "fill-opacity": getFillOpacityExpression(overlayFillOpacityRef.current) } });
+            if (!map.getLayer(baseFillLayerId)) map.addLayer({ id: baseFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": 0.001 } });
+            if (layers.has("township-hover") && !map.getLayer(hoverFillLayerId)) map.addLayer({ id: hoverFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getHoverOpacityExpression(selectedCanonicalLocationIdRef.current, overlayHoverOpacityRef.current) } });
+            if (layers.has("township-selected") && !map.getLayer(selectedFillLayerId)) map.addLayer({ id: selectedFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current, overlaySelectedOpacityRef.current) } });
+            if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": "#F5F1EC", "line-width": 0.9, "line-opacity": 0.5 } });
+            if (!map.getLayer(topTownshipLayerId)) map.addLayer({ id: topTownshipLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, filter: getTopTownshipFilter(topCanonicalLocationIdsRef.current), layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 1.55, "line-opacity": 0.72, "line-blur": 0.6 } });
+            if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
+            applyRequiredLayerOrder(map);
+            if (dataset.bounds) map.fitBounds([[dataset.bounds[0], dataset.bounds[1]], [dataset.bounds[2], dataset.bounds[3]]], { padding: getFitPadding(fitPaddingRef.current, viewportPaddingRightRef.current), duration: 0 });
+            map.on("mousemove", interactionLayerId, (event) => {
+              const feature = event.features?.[0];
+              if (!feature) return;
+              map.getCanvas().style.cursor = "pointer";
+              if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: false });
+              hoveredId = feature.id;
+              hoveredFeatureIdRef.current = hoveredId ?? null;
+              if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: true });
+              onFeatureHoverRef.current?.(feature, event.point);
+            });
+            map.on("mouseleave", interactionLayerId, () => {
+              map.getCanvas().style.cursor = "";
+              if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: false });
+              hoveredId = undefined;
+              hoveredFeatureIdRef.current = null;
+              onFeatureHoverRef.current?.(null);
+            });
+            map.on("click", (event) => {
+              const feature = map.queryRenderedFeatures(event.point, { layers: clickableLayerIds }).find(Boolean);
+              if (feature) {
+                selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null);
+                onFeatureClickRef.current?.(feature);
+              }
+            });
+            map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });
+            map.on("idle", () => emitMapStatus(map));
+            map.on("styledata", () => {
+              if (disposed || reordering || !map.isStyleLoaded()) return;
+              const actual = getActualManagedLayerOrder(map);
+              if (!isRequiredLayerOrder(actual)) {
+                reordering = true;
+                applyRequiredLayerOrder(map);
+                reordering = false;
+              }
+              emitMapStatus(map);
+            });
+            mapInitialized = true;
+            setStatus("ready");
             emitMapStatus(map);
-          });
-          map.on("mouseleave", baseFillLayerId, () => {
-            map.getCanvas().style.cursor = "";
-            if (hoveredId !== undefined) map.setFeatureState({ source: dataset.source_id, sourceLayer, id: hoveredId }, { hover: false });
-            hoveredId = undefined;
-            hoveredFeatureIdRef.current = null;
-            onFeatureHoverRef.current?.(null);
-            emitMapStatus(map);
-          });
-          map.on("click", baseFillLayerId, (event) => { const feature = event.features?.[0]; if (feature) { selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null); onFeatureClickRef.current?.(feature); } });
-          map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });
-          map.on("styledata", () => {
-            if (disposed || reordering || !map.isStyleLoaded()) return;
-            const actual = getActualManagedLayerOrder(map);
-            if (!isRequiredLayerOrder(actual)) {
-              reordering = true;
-              applyRequiredLayerOrder(map);
-              reordering = false;
-            }
-            emitMapStatus(map);
-          });
-          setStatus("ready");
-          emitMapStatus(map);
-          onMapReadyRef.current?.(map);
+            onMapReadyRef.current?.(map);
+          } catch (error) {
+            if (process.env.NODE_ENV !== "production") console.error("MapLibre initialization error", error);
+            failMap();
+          }
         });
-        map.on("error", () => {
+        map.on("error", (event) => {
           if (disposed) return;
-          setStatus("error");
-          onErrorRef.current?.();
+          const message = getMapErrorMessage(event);
+          if (!mapInitialized && isFatalStyleLoadError(message)) {
+            failMap();
+            return;
+          }
         });
       } catch {
-        if (!disposed) {
-          setStatus("error");
-          onErrorRef.current?.();
-        }
+        failMap();
       }
     }
     void initialize();

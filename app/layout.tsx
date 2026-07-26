@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { PresentationLayout } from "../components/layout/PresentationLayout";
+import { LocaleProvider } from "../src/context/LocaleContext";
 
 export const metadata: Metadata = {
   title: "KMM Executive Dashboard | H1 2026",
@@ -18,8 +19,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body style={{ "--font-kmm": "Inter" } as React.CSSProperties}><PresentationLayout>{children}</PresentationLayout></body>
+    <html lang="th">
+      <body style={{ "--font-kmm": "Inter" } as React.CSSProperties}><LocaleProvider><PresentationLayout>{children}</PresentationLayout></LocaleProvider></body>
     </html>
   );
 }

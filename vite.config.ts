@@ -47,7 +47,15 @@ export default defineConfig(async () => {
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
-  const buildCommit = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  const buildCommit =
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    (() => {
+      try {
+        return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+      } catch {
+        return "development";
+      }
+    })();
   const buildTimestamp = new Date().toISOString();
 
   return {

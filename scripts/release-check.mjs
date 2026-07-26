@@ -228,6 +228,7 @@ function isLargeBinary(filePath) {
 function runRequiredDeploymentFileChecks() {
   const requiredFiles = [
     "package.json",
+    "wrangler.json",
     "worker/index.ts",
     "public/maps/vector/myanmar-townships.pmtiles",
     "tests/map-foundation.test.mjs",
@@ -298,8 +299,33 @@ function runMapSafetyAssertions() {
     "Worker no longer centralizes the Protomaps v4 PMTiles upstream.",
   );
 
+  assertFileContains(
+    "wrangler.json",
+    "\"main\": \"dist/server/index.js\"",
+    "Wrangler config no longer deploys the Vinext server Worker output.",
+  );
+
+  assertFileContains(
+    "wrangler.json",
+    "\"directory\": \"dist/client\"",
+    "Wrangler config no longer serves the Vinext client asset output.",
+  );
+
+  assertFileContains(
+    "wrangler.json",
+    "/maps/vector/myanmar-townships.pmtiles",
+    "Wrangler config no longer routes Myanmar PMTiles through the Worker.",
+  );
+
+  assertFileContains(
+    "wrangler.json",
+    "/maps/vector/protomaps-osm-v4.pmtiles",
+    "Wrangler config no longer routes Protomaps PMTiles through the Worker.",
+  );
+
   assertNoHardcodedSecrets();
   assertNoScatteredProviderUrls();
+  assertNoLegacyDeploymentConfig();
 }
 
 function assertFileContains(filePath, needle, message) {
@@ -386,5 +412,24 @@ function assertNoScatteredProviderUrls() {
 
   if (openFreeMapHits.length > 0) {
     throw new Error(`OpenFreeMap runtime dependency was reintroduced:\n- ${openFreeMapHits.join("\n- ")}`);
+  }
+}
+
+function assertNoLegacyDeploymentConfig() {
+  const forbiddenFiles = [
+    "vercel.json",
+    "next.config.ts",
+    "next.config.js",
+    "next.config.mjs",
+  ];
+  const present = forbiddenFiles.filter((filePath) => existsSync(filePath));
+
+  if (present.length > 0) {
+    throw new Error(`Legacy deployment configuration found:\n- ${present.join("\n- ")}`);
+  }
+
+  const forbiddenDirectory = ".vercel";
+  if (existsSync(forbiddenDirectory)) {
+    throw new Error("Legacy Vercel project metadata found: .vercel");
   }
 }

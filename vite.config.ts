@@ -14,10 +14,8 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
   assets: {
     binding: "ASSETS",
-    run_worker_first: ["/maps/vector/myanmar-townships.pmtiles"],
   },
   d1_databases: d1
     ? [
@@ -48,7 +46,8 @@ export default defineConfig(async () => {
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
   const buildCommit =
-    process.env.VERCEL_GIT_COMMIT_SHA ??
+    process.env.GITHUB_SHA ??
+    process.env.CF_PAGES_COMMIT_SHA ??
     (() => {
       try {
         return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();

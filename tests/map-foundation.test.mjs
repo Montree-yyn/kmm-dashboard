@@ -133,17 +133,19 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
 });
 
 test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", async () => {
-  const [basemaps, kmeBasemap, maplibre, vectorMap] = await Promise.all([
+  const [basemaps, kmeBasemap, maplibre, vectorMap, worker] = await Promise.all([
     read("data/maps/basemaps.json"),
     read("src/kme/core/basemap/protomaps.ts"),
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
+    read("worker/index.ts"),
   ]);
   assert.equal(JSON.parse(basemaps)[0].id, "kme-protomaps-osm-light");
   assert.match(kmeBasemap, /@protomaps\/basemaps/);
   assert.match(kmeBasemap, /protomaps\.github\.io\/basemaps-assets/);
   assert.match(kmeBasemap, /\/fonts\/\{fontstack\}\/\{range\}\.pbf/);
-  assert.match(kmeBasemap, /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/);
+  assert.match(kmeBasemap, /\/maps\/vector\/protomaps-osm-v4\.pmtiles/);
+  assert.match(worker, /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/);
   assert.match(kmeBasemap, /tuneMarketingBasemapLayers/);
   assert.match(kmeBasemap, /roads_labels_major/);
   assert.match(kmeBasemap, /water_river/);
@@ -151,7 +153,7 @@ test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", asy
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
   assert.match(vectorMap, /createMarketingBasemapStyle/);
   assert.match(vectorMap, /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/);
-  assert.match(vectorMap, /MapLibre recoverable resource error/);
+  assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /failMap/);
 });
 
@@ -164,6 +166,12 @@ test("Marketing visual polish keeps the basemap visible and markers prominent", 
   assert.match(maplibre, /overlayHoverOpacity=\{0\.18\}/);
   assert.match(maplibre, /overlaySelectedOpacity=\{0\.16\}/);
   assert.match(maplibre, /unique visible townships/);
+  assert.match(maplibre, /new URLSearchParams\(window\.location\.search\)\.get\("debug"\) === "map"/);
+  assert.match(maplibre, /showMapDiagnostic &&/);
+  assert.match(maplibre, /fetchOverlayJson/);
+  assert.match(maplibre, /installLegacyPresentationOverlays\(map\)\.catch\(reportOverlayLoadError\)/);
+  assert.doesNotMatch(vectorMap, /return \/failed to fetch\|networkerror/);
+  assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /getFillOpacityExpression/);
   assert.match(vectorMap, /viewportBounds/);
   assert.match(vectorMap, /"line-opacity": 0\.5/);

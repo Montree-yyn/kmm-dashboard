@@ -3,7 +3,7 @@
     "id": "kme-protomaps-osm-light",
     "provider": "Protomaps",
     "dataset_type": "pmtiles",
-    "url": "https://data.source.coop/protomaps/openstreetmap/v4.pmtiles",
+    "url": "/maps/vector/protomaps-osm-v4.pmtiles",
     "source_id": "kme-global-basemap",
     "glyphs": "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
     "sprite": "https://protomaps.github.io/basemaps-assets/sprites/v4/light",

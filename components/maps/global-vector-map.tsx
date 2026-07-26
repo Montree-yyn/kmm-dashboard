@@ -99,7 +99,7 @@ function getMapErrorMessage(event: unknown) {
 }
 
 function isFatalStyleLoadError(message: string) {
-  return /failed to fetch|networkerror|style is not done loading|not a valid style|unexpected end/i.test(message);
+  return /not a valid style|unexpected end/i.test(message);
 }
 
 export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
@@ -328,9 +328,6 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
           if (!mapInitialized && isFatalStyleLoadError(message)) {
             failMap();
             return;
-          }
-          if (process.env.NODE_ENV !== "production" && message) {
-            console.warn("MapLibre recoverable resource error", message);
           }
         });
       } catch {

@@ -20,6 +20,8 @@ interface ExecutionContext {
 }
 
 const PMTILES_PATH = "/maps/vector/myanmar-townships.pmtiles";
+const BASEMAP_PMTILES_PATH = "/maps/vector/protomaps-osm-v4.pmtiles";
+const BASEMAP_PMTILES_UPSTREAM = "https://data.source.coop/protomaps/openstreetmap/v4.pmtiles";
 
 function servePmtilesBytes(body: ArrayBuffer, request: Request, inputHeaders?: Headers) {
   const total = body.byteLength;
@@ -73,6 +75,42 @@ async function serveRangeAsset(request: Request, env?: Env) {
   }
 }
 
+async function serveRemoteBasemapPmtiles(request: Request) {
+  const upstreamHeaders = new Headers();
+  const range = request.headers.get("range");
+  const ifRange = request.headers.get("if-range");
+  if (range) upstreamHeaders.set("range", range);
+  if (ifRange) upstreamHeaders.set("if-range", ifRange);
+
+  let upstreamResponse: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    upstreamResponse = await fetch(BASEMAP_PMTILES_UPSTREAM, { headers: upstreamHeaders });
+    if (upstreamResponse.status < 500) break;
+  }
+
+  if (!upstreamResponse) return new Response("Basemap PMTiles upstream unavailable", { status: 502 });
+
+  const headers = new Headers();
+  [
+    "accept-ranges",
+    "cache-control",
+    "content-length",
+    "content-range",
+    "content-type",
+    "etag",
+    "last-modified",
+  ].forEach((name) => {
+    const value = upstreamResponse?.headers.get(name);
+    if (value) headers.set(name, value);
+  });
+  headers.set("access-control-allow-origin", new URL(request.url).origin);
+  headers.set("vary", "Origin, Range");
+  if (!headers.has("content-type")) headers.set("content-type", "application/octet-stream");
+  if (!headers.has("accept-ranges")) headers.set("accept-ranges", "bytes");
+
+  return new Response(upstreamResponse.body, { status: upstreamResponse.status, statusText: upstreamResponse.statusText, headers });
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -85,6 +123,10 @@ const worker = {
 
     if (url.pathname === PMTILES_PATH) {
       return serveRangeAsset(request, env);
+    }
+
+    if (url.pathname === BASEMAP_PMTILES_PATH) {
+      return serveRemoteBasemapPmtiles(request);
     }
 
     if (url.pathname === "/_vinext/image") {

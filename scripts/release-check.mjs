@@ -288,8 +288,14 @@ function runMapSafetyAssertions() {
 
   assertFileContains(
     "src/kme/core/basemap/protomaps.ts",
+    "/maps/vector/protomaps-osm-v4.pmtiles",
+    "KME basemap no longer points at the same-origin Protomaps PMTiles provider.",
+  );
+
+  assertFileContains(
+    "worker/index.ts",
     "data.source.coop/protomaps/openstreetmap/v4.pmtiles",
-    "KME basemap no longer points at the Protomaps v4 PMTiles source.",
+    "Worker no longer centralizes the Protomaps v4 PMTiles upstream.",
   );
 
   assertNoHardcodedSecrets();

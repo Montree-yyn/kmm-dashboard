@@ -2,7 +2,7 @@ import { layers, namedFlavor, type Flavor } from "@protomaps/basemaps";
 import type { StyleSpecification } from "maplibre-gl";
 import type { KmeBasemapConfig, KmeBasemapStyle } from "./types";
 
-const DEFAULT_BASEMAP_PMTILES_URL = "https://data.source.coop/protomaps/openstreetmap/v4.pmtiles";
+const DEFAULT_BASEMAP_PMTILES_URL = "/maps/vector/protomaps-osm-v4.pmtiles";
 const PROTOMAPS_ASSET_BASE = "https://protomaps.github.io/basemaps-assets";
 type KmeLayer = StyleSpecification["layers"][number] & { layout?: Record<string, unknown>; paint?: Record<string, unknown>; minzoom?: number };
 

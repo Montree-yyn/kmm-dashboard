@@ -37,6 +37,55 @@ const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
 const CLASS_LABEL_KEYS: LocaleKey[] = ["legend.veryLow", "legend.low", "legend.medium", "legend.high", "legend.veryHigh"];
 const masterCanonicalIds = new Set(master.map((record) => record.township_id));
 
+class MarketingOverlayLoadError extends Error {
+  constructor(
+    message: string,
+    readonly requestUrl: string,
+    readonly status: number | null,
+    readonly responseHeaders: Record<string, string>,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = "MarketingOverlayLoadError";
+    this.cause = cause;
+  }
+}
+
+function responseHeaders(response: Response) {
+  return Object.fromEntries(Array.from(response.headers.entries()).filter(([name]) => {
+    const key = name.toLowerCase();
+    return key === "content-type" || key === "content-length" || key === "cache-control" || key === "access-control-allow-origin" || key === "etag" || key === "last-modified";
+  }));
+}
+
+async function fetchOverlayJson<T>(requestUrl: string) {
+  let response: Response;
+  try {
+    response = await fetch(requestUrl, { cache: "no-store" });
+  } catch (error) {
+    throw new MarketingOverlayLoadError(`Failed to fetch Marketing overlay resource: ${requestUrl}`, requestUrl, null, {}, error);
+  }
+
+  if (!response.ok) {
+    throw new MarketingOverlayLoadError(`Marketing overlay resource returned HTTP ${response.status}: ${requestUrl}`, requestUrl, response.status, responseHeaders(response));
+  }
+
+  return response.json() as Promise<T>;
+}
+
+function reportOverlayLoadError(error: unknown) {
+  if (error instanceof MarketingOverlayLoadError) {
+    console.warn("[Marketing map] Optional presentation overlay failed to load", {
+      requestUrl: error.requestUrl,
+      status: error.status,
+      responseHeaders: error.responseHeaders,
+      cause: error.cause instanceof Error ? error.cause.message : String(error.cause ?? ""),
+    });
+    return;
+  }
+  console.warn("[Marketing map] Optional presentation overlay failed to load", error);
+}
+
 function initialMetricFromMode(mode: MyanmarMarketingMapProps["mode"]): ExecutiveMetricKey {
   switch (mode) {
     case "activity":
@@ -186,6 +235,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   void _onActiveMetricChange;
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
+  const [showMapDiagnostic, setShowMapDiagnostic] = useState(false);
   const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
   const presentationMapRef = useRef<MapLibreMap | null>(null);
   const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
@@ -211,6 +261,14 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   useEffect(() => {
     onSelectedTownshipChangeRef.current = onSelectedTownshipChange;
   }, [onSelectedTownshipChange]);
+  useEffect(() => {
+    const updateDiagnosticVisibility = () => {
+      setShowMapDiagnostic(new URLSearchParams(window.location.search).get("debug") === "map");
+    };
+    updateDiagnosticVisibility();
+    window.addEventListener("popstate", updateDiagnosticVisibility);
+    return () => window.removeEventListener("popstate", updateDiagnosticVisibility);
+  }, []);
   const choropleth = useMemo(() => {
     const rows = Array.from(metricById, ([id, metric]) => ({ id, metric, value: metricValue(metric, activeMetric) }));
     const values = rows.map((row) => row.value).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
@@ -343,19 +401,14 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
   }, []);
 
   async function installLegacyPresentationOverlays(map: MapLibreMap) {
-    const [{ Marker }, stateResponse, townshipResponse, showroomResponse] = await Promise.all([
+    const [{ Marker }, states, townships, showrooms] = await Promise.all([
       import("maplibre-gl"),
-      fetch("/maps/myanmar-states.geojson", { cache: "no-store" }),
-      fetch("/maps/myanmar-townships.geojson", { cache: "no-store" }),
-      fetch("/maps/kmm-showrooms.json", { cache: "no-store" }),
+      fetchOverlayJson<{ features: GeoFeature[] }>("/maps/myanmar-states.geojson"),
+      fetchOverlayJson<{ features: GeoFeature[] }>("/maps/myanmar-townships.geojson"),
+      fetchOverlayJson<Showroom[]>("/maps/kmm-showrooms.json"),
     ]);
-    if (!stateResponse.ok || !townshipResponse.ok || !showroomResponse.ok || map.getContainer().isConnected === false) return;
+    if (map.getContainer().isConnected === false) return;
     markerConstructorRef.current = Marker;
-    const [states, townships, showrooms] = await Promise.all([
-      stateResponse.json() as Promise<{ features: GeoFeature[] }>,
-      townshipResponse.json() as Promise<{ features: GeoFeature[] }>,
-      showroomResponse.json() as Promise<Showroom[]>,
-    ]);
     if (showroomMarkersRef.current.size) return;
     const showroomTownships = new Set(showrooms.map((showroom) => normalizeLocation(showroom.township)));
     showroomTownshipsRef.current = showroomTownships;
@@ -412,7 +465,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         fitPadding={{ top: 24, right: 44, bottom: 24, left: 44 }}
         onMapReady={(map) => {
           presentationMapRef.current = map;
-          void installLegacyPresentationOverlays(map);
+          void installLegacyPresentationOverlays(map).catch(reportOverlayLoadError);
         }}
         onMapStatus={setMapStatus}
         onError={onLoadError}
@@ -433,12 +486,12 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
           <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><i className="size-2.5 rounded-sm border border-[#E5E7EB]" style={{ backgroundColor: NO_DATA_COLOR }} />{t("common.noData")}</span><b>{t("common.notAvailable")}</b></div>
         </div>
       </div>
-      <div className="pointer-events-auto absolute right-3 top-14 z-[8] max-w-[min(360px,calc(100%-24px))] rounded-lg border border-[#111827] bg-white/95 p-3 text-[11px] font-semibold leading-4 text-[#111827] shadow-[0_10px_28px_rgba(17,24,39,0.18)]" data-testid="marketing-production-map-diagnostic">
-        <p className="mb-2 text-xs font-black uppercase tracking-[0.12em]">Production Map Diagnostic</p>
-        <dl className="grid grid-cols-[132px_minmax(0,1fr)] gap-x-2 gap-y-1">
-          {diagnosticRows.map(([label, value]) => <div key={label} className="contents"><dt className="text-[#6B7280]">{label}</dt><dd className="break-words font-black">{value}</dd></div>)}
-        </dl>
-      </div>
+      {showMapDiagnostic && <div className="pointer-events-auto absolute right-3 top-14 z-[8] max-w-[min(360px,calc(100%-24px))] rounded-lg border border-[#111827] bg-white/95 p-3 text-[11px] font-semibold leading-4 text-[#111827] shadow-[0_10px_28px_rgba(17,24,39,0.18)]" data-testid="marketing-production-map-diagnostic">
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.12em]">Production Map Diagnostic</p>
+          <dl className="grid grid-cols-[132px_minmax(0,1fr)] gap-x-2 gap-y-1">
+            {diagnosticRows.map(([label, value]) => <div key={label} className="contents"><dt className="text-[#6B7280]">{label}</dt><dd className="break-words font-black">{value}</dd></div>)}
+          </dl>
+        </div>}
       {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
     </div>
   );

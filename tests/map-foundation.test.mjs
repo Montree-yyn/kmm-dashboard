@@ -531,6 +531,9 @@ test("Marketing Smart Click and Layer Manager reuse the live MapLibre business l
   assert.match(maplibre, /MarketingLayerManager/);
   assert.match(maplibre, /layerState=\{layerState\}/);
   assert.match(maplibre, /presentationMapRef\.current\?\.fitBounds/);
+  assert.match(maplibre, /if \(id === selectedCanonicalId\) return/);
+  assert.match(maplibre, /duration: 400/);
+  assert.match(maplibre, /maxZoom: 7\.8/);
   assert.match(maplibre, /layerState\.showroom/);
   assert.match(maplibre, /kmm-township-detail-overlay/);
   assert.match(panel, /Smart Click details/);

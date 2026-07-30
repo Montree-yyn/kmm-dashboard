@@ -499,9 +499,10 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
         onFeatureClick={(feature) => {
           const id = String(feature.properties.canonical_location_id ?? "");
           if (!id) return;
+          if (id === selectedCanonicalId) return;
           selectTownship(id);
           const bounds = featureBounds(feature);
-          if (bounds) presentationMapRef.current?.fitBounds(bounds, { padding: { top: 36, right: isFullscreen ? 440 : 44, bottom: 36, left: 36 }, duration: 650, essential: true, maxZoom: 8.4 });
+          if (bounds) presentationMapRef.current?.fitBounds(bounds, { padding: { top: 36, right: isFullscreen ? 440 : 44, bottom: 36, left: 36 }, duration: 400, essential: true, maxZoom: 7.8 });
         }}
         onMapBackgroundClick={() => selectTownship(null)}
       />
@@ -524,7 +525,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
             {diagnosticRows.map(([label, value]) => <div key={label} className="contents"><dt className="text-[#6B7280]">{label}</dt><dd className="break-words font-black">{value}</dd></div>)}
           </dl>
       </div>}
-      {isFullscreen && selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-[10] hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">{fullscreenPanelCollapsed ? <button type="button" onClick={() => setFullscreenPanelCollapsed(false)} className="m-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-bold text-[#4B5563] shadow-sm">เปิด Panel</button> : <MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} onCollapse={() => setFullscreenPanelCollapsed(true)} />}</div>}
+      {isFullscreen && selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-township-detail-overlay absolute bottom-20 right-0 top-20 z-[10] hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">{fullscreenPanelCollapsed ? <button type="button" onClick={() => setFullscreenPanelCollapsed(false)} className="m-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-bold text-[#4B5563] shadow-sm">เปิด Panel</button> : <MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} onCollapse={() => setFullscreenPanelCollapsed(true)} />}</div>}
       {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
     </div>
   );

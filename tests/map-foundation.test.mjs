@@ -518,3 +518,25 @@ test("Township selected and hover layers retain priority and stable order", asyn
   assert.match(panel, /layerOrderWarning/);
   assert.equal(JSON.parse(registry).find((layer) => layer.id === "township-fill").group, "heatmap");
 });
+
+test("Marketing Smart Click and Layer Manager reuse the live MapLibre business layers", async () => {
+  const [vectorMap, maplibre, panel, controls] = await Promise.all([
+    read("components/maps/global-vector-map.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+    read("lib/marketing/map-layer-controls.ts"),
+  ]);
+  assert.match(vectorMap, /onMapBackgroundClick/);
+  assert.match(vectorMap, /onMapBackgroundClickRef\.current\?\.\(\)/);
+  assert.match(maplibre, /MarketingLayerManager/);
+  assert.match(maplibre, /layerState=\{layerState\}/);
+  assert.match(maplibre, /presentationMapRef\.current\?\.fitBounds/);
+  assert.match(maplibre, /layerState\.showroom/);
+  assert.match(maplibre, /kmm-township-detail-overlay/);
+  assert.match(panel, /Smart Click details/);
+  assert.match(panel, /รอข้อมูล/);
+  assert.match(controls, /Sales Heatmap/);
+  assert.match(controls, /Booking Heatmap/);
+  assert.match(controls, /available: false/);
+  assert.match(controls, /mapLayerGroup: "heatmap"/);
+});

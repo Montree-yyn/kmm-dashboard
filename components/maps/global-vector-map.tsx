@@ -34,6 +34,7 @@ type GlobalVectorMapProps = {
   className?: string;
   onMapReady?: (map: MapLibreMap) => void;
   onFeatureClick?: (feature: MapGeoJSONFeature) => void;
+  onMapBackgroundClick?: () => void;
   onFeatureHover?: (feature: MapGeoJSONFeature | null, point?: { x: number; y: number }) => void;
   onViewportChange?: (bounds: [number, number, number, number]) => void;
   onError?: () => void;
@@ -102,7 +103,7 @@ function isFatalStyleLoadError(message: string) {
   return /not a valid style|unexpected end/i.test(message);
 }
 
-export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
+export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onMapBackgroundClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const layerStateRef = useRef(layerState);
@@ -111,6 +112,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const selectedFeatureIdRef = useRef<string | number | null>(null);
   const hoveredFeatureIdRef = useRef<string | number | null>(null);
   const onFeatureClickRef = useRef(onFeatureClick);
+  const onMapBackgroundClickRef = useRef(onMapBackgroundClick);
   const onFeatureHoverRef = useRef(onFeatureHover);
   const onMapReadyRef = useRef(onMapReady);
   const onViewportChangeRef = useRef(onViewportChange);
@@ -130,6 +132,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     fillColorsRef.current = fillColorsByCanonicalId;
     selectedCanonicalLocationIdRef.current = selectedCanonicalLocationId;
     onFeatureClickRef.current = onFeatureClick;
+    onMapBackgroundClickRef.current = onMapBackgroundClick;
     onFeatureHoverRef.current = onFeatureHover;
     onMapReadyRef.current = onMapReady;
     onViewportChangeRef.current = onViewportChange;
@@ -299,6 +302,9 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
               if (feature) {
                 selectedFeatureIdRef.current = feature.id ?? (String(feature.properties.canonical_location_id ?? "") || null);
                 onFeatureClickRef.current?.(feature);
+              } else {
+                selectedFeatureIdRef.current = null;
+                onMapBackgroundClickRef.current?.();
               }
             });
             map.on("moveend", () => { const bounds = map.getBounds(); onViewportChangeRef.current?.([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]); applyRequiredLayerOrder(map); emitMapStatus(map); });

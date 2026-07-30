@@ -305,6 +305,13 @@ function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; map
 
 export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
   const { t } = useLocale();
+  const waiting = "รอข้อมูล";
+  const sales = metric.hasFilteredSalesData ? `${format(metric.salesUnit)} Units · ${formatMoney(metric.salesValue)} MMK` : waiting;
+  const salesperson = metric.topSalesperson?.trim() || waiting;
+  const salesUnit = metric.hasFilteredSalesData ? format(metric.salesUnit) : waiting;
+  const salesValue = metric.hasFilteredSalesData ? `${formatMoney(metric.salesValue)} MMK` : waiting;
+  const gpValue = metric.hasFilteredSalesData ? `${formatMoney(metric.gpValue)} MMK` : waiting;
+  const gpPercent = metric.gpPercent === null ? waiting : `${metric.gpPercent.toFixed(1)}%`;
 
   return (
     <aside className={cn("kmm-township-detail-panel", mobile && "kmm-township-detail-panel-mobile")}>
@@ -331,12 +338,25 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, ma
       <section className="kmm-township-detail-section">
         <h4>{t("panel.salesPerformance")}</h4>
         <dl className="kmm-township-metric-list">
-          <div><dt>{t("metric.salesUnit")}</dt><dd>{format(metric.salesUnit)}</dd></div>
-          <div><dt>{t("metric.salesValue")}</dt><dd>{formatMoney(metric.salesValue)} MMK</dd></div>
-          <div><dt>{t("metric.gpValue")}</dt><dd>{formatMoney(metric.gpValue)} MMK</dd></div>
-          <div><dt>{t("metric.gpPercent")}</dt><dd>{metric.gpPercent === null ? t("common.notAvailable") : `${metric.gpPercent.toFixed(1)}%`}</dd></div>
+          <div><dt>{t("metric.salesUnit")}</dt><dd>{salesUnit}</dd></div>
+          <div><dt>{t("metric.salesValue")}</dt><dd>{salesValue}</dd></div>
+          <div><dt>{t("metric.gpValue")}</dt><dd>{gpValue}</dd></div>
+          <div><dt>{t("metric.gpPercent")}</dt><dd>{gpPercent}</dd></div>
         </dl>
         {metric.comparison && <p className="mt-3 text-xs text-[#6B7280]">{t("comparison.title")} · {metric.comparisonLabel}: {t("metric.salesUnit")} {format(metric.comparison.salesUnit)} · {t("metric.salesValue")} {formatMoney(metric.comparison.salesValue)} MMK</p>}
+      </section>
+      <section className="kmm-township-detail-section" aria-label="Smart Click details">
+        <h4>Township Intelligence</h4>
+        <dl className="kmm-township-metric-list">
+          <div><dt>Sales</dt><dd>{sales}</dd></div>
+          <div><dt>Booking</dt><dd>{waiting}</dd></div>
+          <div><dt>Customer</dt><dd>{waiting}</dd></div>
+          <div><dt>Assigned Salesperson</dt><dd>{salesperson}</dd></div>
+          <div><dt>Campaign</dt><dd>{waiting}</dd></div>
+          <div><dt>Competitor</dt><dd>{waiting}</dd></div>
+          <div><dt>Last Sales Visit</dt><dd>{waiting}</dd></div>
+          <div><dt>Remark</dt><dd>{waiting}</dd></div>
+        </dl>
       </section>
 
     </aside>

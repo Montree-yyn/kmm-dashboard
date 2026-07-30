@@ -241,13 +241,15 @@ function featureBounds(feature: MapGeoJSONFeature) {
   return [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]] as [[number, number], [number, number]];
 }
 
-export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", activeMetric: sharedActiveMetric, comparisonSelectionIds = [], onActiveMetricChange: _onActiveMetricChange, onSelectedTownshipChange, className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
+export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetrics = {}, mode = "population", activeMetric: sharedActiveMetric, comparisonSelectionIds = [], onActiveMetricChange: _onActiveMetricChange, onSelectedTownshipChange, onFullscreenChange, className, onLoadError }: MyanmarMarketingMapMapLibreProps) {
   const { t } = useLocale();
   void _onActiveMetricChange;
   const [selectedCanonicalId, setSelectedCanonicalId] = useState<string | null>(null);
   const [mapStatus, setMapStatus] = useState<TownshipDebugStatus | null>(null);
   const [showMapDiagnostic, setShowMapDiagnostic] = useState(false);
   const [layerManagerOpen, setLayerManagerOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenPanelCollapsed, setFullscreenPanelCollapsed] = useState(false);
   const [layerState, setLayerState] = useState<MapLayerState>(createMarketingLayerState);
   const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
   const presentationMapRef = useRef<MapLibreMap | null>(null);
@@ -282,6 +284,16 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
     window.addEventListener("popstate", updateDiagnosticVisibility);
     return () => window.removeEventListener("popstate", updateDiagnosticVisibility);
   }, []);
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (!active) setFullscreenPanelCollapsed(false);
+      onFullscreenChange?.(active);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, [onFullscreenChange]);
   const choropleth = useMemo(() => {
     const rows = Array.from(metricById, ([id, metric]) => ({ id, metric, value: metricValue(metric, activeMetric) }));
     const values = rows.map((row) => row.value).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
@@ -489,7 +501,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
           if (!id) return;
           selectTownship(id);
           const bounds = featureBounds(feature);
-          if (bounds) presentationMapRef.current?.fitBounds(bounds, { padding: { top: 36, right: 440, bottom: 36, left: 36 }, duration: 650, essential: true, maxZoom: 8.4 });
+          if (bounds) presentationMapRef.current?.fitBounds(bounds, { padding: { top: 36, right: isFullscreen ? 440 : 44, bottom: 36, left: 36 }, duration: 650, essential: true, maxZoom: 8.4 });
         }}
         onMapBackgroundClick={() => selectTownship(null)}
       />
@@ -512,7 +524,7 @@ export function MyanmarMarketingMapMapLibre({ visibleShowroomIds, townshipMetric
             {diagnosticRows.map(([label, value]) => <div key={label} className="contents"><dt className="text-[#6B7280]">{label}</dt><dd className="break-words font-black">{value}</dd></div>)}
           </dl>
       </div>}
-      {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-[6] hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block"><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} /></div>}
+      {isFullscreen && selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-[10] hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">{fullscreenPanelCollapsed ? <button type="button" onClick={() => setFullscreenPanelCollapsed(false)} className="m-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-bold text-[#4B5563] shadow-sm">เปิด Panel</button> : <MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} onCollapse={() => setFullscreenPanelCollapsed(true)} />}</div>}
       {selectedMetric && comparisonSelectionIds.length === 0 && <div className="kmm-map-sheet-backdrop md:hidden" onClick={() => selectTownship(null)}><div className="kmm-map-sheet" onClick={(event) => event.stopPropagation()}><div className="kmm-map-sheet-handle" /><MyanmarTownshipDetailPanel metric={selectedMetric} mapStatus={mapStatus} onClose={() => selectTownship(null)} mobile /></div></div>}
     </div>
   );

@@ -275,7 +275,7 @@ test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell
   assert.doesNotMatch(workspace, /onProductChange/);
   assert.doesNotMatch(workspace, /เทียบช่วงเดียวกันปีก่อน/);
   assert.doesNotMatch(workspace, /onGeographyChange/);
-  assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]/);
+  assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
   assert.match(workspace, /ไม่พบข้อมูลตามตัวกรองที่เลือก/);
   assert.match(workspace, /ยังไม่ได้กำหนด Showroom รับผิดชอบ/);
   assert.match(workspace, /Strategic Focus/);
@@ -539,4 +539,21 @@ test("Marketing Smart Click and Layer Manager reuse the live MapLibre business l
   assert.match(controls, /Booking Heatmap/);
   assert.match(controls, /available: false/);
   assert.match(controls, /mapLayerGroup: "heatmap"/);
+});
+
+test("Marketing keeps one desktop detail panel and preserves a fullscreen/mobile panel path", async () => {
+  const [maplibre, workspace, panel] = await Promise.all([
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+  ]);
+  assert.doesNotMatch(maplibre, /!isFullscreen && selectedMetric/);
+  assert.match(maplibre, /isFullscreen && selectedMetric/);
+  assert.match(maplibre, /fullscreenPanelCollapsed/);
+  assert.match(maplibre, /kmm-map-sheet-backdrop md:hidden/);
+  assert.match(workspace, /!mapFullscreen && <Phase1TownshipPanel/);
+  assert.match(workspace, /onFullscreenChange=\{setMapFullscreen\}/);
+  assert.match(workspace, /Salesman/);
+  assert.match(panel, /onCollapse\?:/);
+  assert.match(workspace, /Last Visit/);
 });

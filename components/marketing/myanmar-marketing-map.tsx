@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Minus, X } from "lucide-react";
 import townshipMaster from "../../data/master-townships.json";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
@@ -67,6 +67,7 @@ export type MyanmarMarketingMapProps = {
   comparisonSelectionIds?: string[];
   onActiveMetricChange?: (metric: "salesUnit" | "salesValue" | "gpValue" | "gpPercent") => void;
   onSelectedTownshipChange?: (canonicalLocationId: string | null) => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   resetSignal?: number;
   className?: string;
 };
@@ -303,7 +304,7 @@ function TownshipDebugPanel({ metric, mapStatus }: { metric: TownshipMetric; map
   return <details className="kmm-township-detail-section kmm-township-debug"><summary>{t("debug.title")}</summary><div className="mt-3 flex gap-2"><button type="button" onClick={copy}>{t("common.copy")}</button><button type="button" onClick={exportJson}>{t("common.exportDebugJson")}</button></div><pre>{json}</pre></details>;
 }
 
-export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
+export function MyanmarTownshipDetailPanel({ metric, onClose, onCollapse, mobile = false, mapStatus = null }: { metric: TownshipMetric; onClose: () => void; onCollapse?: () => void; mobile?: boolean; mapStatus?: TownshipDebugStatus | null }) {
   const { t } = useLocale();
   const waiting = "รอข้อมูล";
   const sales = metric.hasFilteredSalesData ? `${format(metric.salesUnit)} Units · ${formatMoney(metric.salesValue)} MMK` : waiting;
@@ -322,9 +323,7 @@ export function MyanmarTownshipDetailPanel({ metric, onClose, mobile = false, ma
           {metric.responsibleShowroom && <p>{t("metric.showroom")} · {metric.responsibleShowroom}</p>}
           {metric.salesTerritory && <p>{t("panel.territory")} · {metric.salesTerritory}</p>}
         </div>
-        <button type="button" onClick={onClose} aria-label={t("common.clearTownshipSelection")}>
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-2"><button type="button" onClick={onCollapse} aria-label="Collapse panel" className={cn(!onCollapse && "hidden")}><Minus size={16} /></button><button type="button" onClick={onClose} aria-label={t("common.clearTownshipSelection")}><X size={16} /></button></div>
       </div>
 
       <section className="kmm-township-detail-section">
@@ -591,11 +590,6 @@ function LegacyMyanmarMarketingMap({ visibleShowroomIds, townshipMetrics = {}, m
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Interactive Myanmar township heatmap" />
       </div>
-      {selectedMetric && (
-        <div className="kmm-township-detail-overlay absolute inset-y-0 right-0 z-10 hidden w-[420px] max-w-[calc(100%-24px)] border-l border-[#EEF0F3] bg-white shadow-[-12px_0_30px_rgba(31,41,55,0.12)] md:block">
-          <MyanmarTownshipDetailPanel metric={selectedMetric} onClose={closeSelection} />
-        </div>
-      )}
       {selectedMetric && (
         <div className="kmm-map-sheet-backdrop md:hidden" onClick={closeSelection}>
           <div

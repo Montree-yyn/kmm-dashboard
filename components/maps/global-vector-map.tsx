@@ -259,7 +259,8 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         });
         mapRef.current = map;
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-        map.addControl(new maplibregl.FullscreenControl(), "top-right");
+        const fullscreenContainer = document.querySelector<HTMLElement>("[data-marketing-workspace]") ?? map.getContainer();
+        map.addControl(new maplibregl.FullscreenControl({ container: fullscreenContainer }), "top-right");
         observer = new ResizeObserver(() => map.resize());
         observer.observe(containerRef.current);
 

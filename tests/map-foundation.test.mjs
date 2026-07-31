@@ -7,8 +7,12 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("registers current Myanmar and inactive PMTiles datasets", async () => {
   const datasets = JSON.parse(await read("data/maps/datasets.json"));
-  const myanmar = datasets.find((dataset) => dataset.id === "mm-townships-geojson");
-  const pmtiles = datasets.find((dataset) => dataset.id === "mm-townships-pmtiles");
+  const myanmar = datasets.find(
+    (dataset) => dataset.id === "mm-townships-geojson",
+  );
+  const pmtiles = datasets.find(
+    (dataset) => dataset.id === "mm-townships-pmtiles",
+  );
   assert.equal(myanmar.dataset_type, "geojson");
   assert.equal(myanmar.enabled, true);
   assert.equal(pmtiles.dataset_type, "pmtiles");
@@ -16,7 +20,9 @@ test("registers current Myanmar and inactive PMTiles datasets", async () => {
 });
 
 test("pipeline preparation preserves features and reports missing canonical IDs", async () => {
-  const preparation = await read("scripts/maps/prepare_myanmar_vector_source.py");
+  const preparation = await read(
+    "scripts/maps/prepare_myanmar_vector_source.py",
+  );
   assert.match(preparation, /skipped_invalid_geometries/);
   assert.match(preparation, /missing_canonical_ids/);
   assert.match(preparation, /output.sort/);
@@ -24,8 +30,14 @@ test("pipeline preparation preserves features and reports missing canonical IDs"
 
 test("layer registry keeps only township foundation layers active", async () => {
   const layers = JSON.parse(await read("data/maps/layers.json"));
-  assert.equal(layers.find((layer) => layer.id === "township-fill").enabled, true);
-  assert.equal(layers.find((layer) => layer.id === "sales-heatmap").enabled, false);
+  assert.equal(
+    layers.find((layer) => layer.id === "township-fill").enabled,
+    true,
+  );
+  assert.equal(
+    layers.find((layer) => layer.id === "sales-heatmap").enabled,
+    false,
+  );
 });
 
 test("layer manager exposes independent metric and boundary controls", async () => {
@@ -39,7 +51,10 @@ test("layer manager exposes independent metric and boundary controls", async () 
   assert.match(manager, /useMapLayerManager/);
   assert.match(preview, /layerManager\.toggle/);
   assert.match(vectorMap, /isLayerGroupEnabled\("heatmap", layerState\)/);
-  assert.match(vectorMap, /isLayerGroupEnabled\("township-boundary", layerState/);
+  assert.match(
+    vectorMap,
+    /isLayerGroupEnabled\("township-boundary", layerState/,
+  );
   assert.match(vectorMap, /setLayoutProperty\(id, "visibility", "visible"\)/);
 });
 
@@ -51,14 +66,23 @@ test("source adapter supports GeoJSON and PMTiles with validation", async () => 
 });
 
 test("MapLibre is the feature-flag default, legacy is an explicit rollback, and PMTiles registration is guarded", async () => {
-  const [datasets, protocol] = await Promise.all([read("lib/maps/datasets.ts"), read("lib/maps/register-pmtiles-protocol.ts")]);
-  assert.match(datasets, /NEXT_PUBLIC_MAP_ENGINE === "legacy" \? "legacy" : "maplibre"/);
+  const [datasets, protocol] = await Promise.all([
+    read("lib/maps/datasets.ts"),
+    read("lib/maps/register-pmtiles-protocol.ts"),
+  ]);
+  assert.match(
+    datasets,
+    /NEXT_PUBLIC_MAP_ENGINE === "legacy" \? "legacy" : "maplibre"/,
+  );
   assert.match(protocol, /typeof window === "undefined" \|\| registered/);
   assert.match(protocol, /maplibre.addProtocol\("pmtiles"/);
 });
 
 test("Marketing map defaults to PMTiles and falls back to legacy on a load failure", async () => {
-  const [legacy, maplibre] = await Promise.all([read("components/marketing/myanmar-marketing-map.tsx"), read("components/marketing/myanmar-marketing-map-maplibre.tsx")]);
+  const [legacy, maplibre] = await Promise.all([
+    read("components/marketing/myanmar-marketing-map.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+  ]);
   assert.match(legacy, /getMapEngine\(\) === "maplibre"/);
   assert.match(legacy, /LegacyMyanmarMarketingMap/);
   assert.match(legacy, /t\("map\.unableToLoad"\)/);
@@ -69,7 +93,10 @@ test("Marketing map defaults to PMTiles and falls back to legacy on a load failu
 });
 
 test("MapLibre Marketing restores legacy map interactions and presentation overlays", async () => {
-  const [maplibre, vectorMap] = await Promise.all([read("components/marketing/myanmar-marketing-map-maplibre.tsx"), read("components/maps/global-vector-map.tsx")]);
+  const [maplibre, vectorMap] = await Promise.all([
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/maps/global-vector-map.tsx"),
+  ]);
   assert.match(maplibre, /myanmar-states\.geojson/);
   assert.match(maplibre, /myanmar-townships\.geojson/);
   assert.match(maplibre, /kmm-showrooms\.json/);
@@ -80,10 +107,13 @@ test("MapLibre Marketing restores legacy map interactions and presentation overl
   assert.match(vectorMap, /dragPan: true/);
   assert.match(vectorMap, /doubleClickZoom: true/);
   assert.match(vectorMap, /FullscreenControl/);
+  assert.match(vectorMap, /data-marketing-workspace/);
 });
 
 test("Marketing labels switch cleanly between State and Township zoom levels", async () => {
-  const maplibre = await read("components/marketing/myanmar-marketing-map-maplibre.tsx");
+  const maplibre = await read(
+    "components/marketing/myanmar-marketing-map-maplibre.tsx",
+  );
   assert.match(maplibre, /maxzoom: 7\.2/);
   assert.match(maplibre, /minzoom: 6/);
   assert.match(maplibre, /metric_label/);
@@ -96,13 +126,18 @@ test("Marketing labels switch cleanly between State and Township zoom levels", a
 });
 
 test("Marketing route renders the map-first territory workspace", async () => {
-  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  const workspace = await read(
+    "components/marketing/marketing-intelligence-page.tsx",
+  );
   assert.match(workspace, /aria-label="Marketing territory map"/);
-  assert.match(workspace, /h-\[calc\(100vh-56px\)\]/);
+  assert.match(workspace, /h-\[calc\(100vh-72px\)\]/);
   assert.match(workspace, /aria-label="Right Intelligence Panel"/);
   assert.match(workspace, /Phase1TownshipPanel/);
   assert.match(workspace, /aria-label="Strategic Focus placeholder"/);
-  assert.match(workspace, /<MyanmarMarketingMap visibleShowroomIds=\{visibleShowroomIds\} townshipMetrics=\{mapped\.metrics\}/);
+  assert.match(
+    workspace,
+    /<MyanmarMarketingMap[\s\S]*?visibleShowroomIds=\{visibleShowroomIds\}[\s\S]*?townshipMetrics=\{mapped\.metrics\}/,
+  );
 });
 
 test("Marketing markers and the detail panel preserve a correct navigable viewport", async () => {
@@ -117,11 +152,17 @@ test("Marketing markers and the detail panel preserve a correct navigable viewpo
   assert.match(maplibre, /viewportPaddingRight=\{0\}/);
   assert.match(maplibre, /onSelectedTownshipChange/);
   assert.match(vectorMap, /map\.resize\(\)/);
-  assert.match(vectorMap, /getFitPadding\(fitPaddingRef\.current, viewportPaddingRight\)/);
+  assert.match(
+    vectorMap,
+    /getFitPadding\(fitPaddingRef\.current, viewportPaddingRight\)/,
+  );
 });
 
 test("MapLibre visual styling matches the legacy Marketing map", async () => {
-  const [maplibre, vectorMap] = await Promise.all([read("components/marketing/myanmar-marketing-map-maplibre.tsx"), read("components/maps/global-vector-map.tsx")]);
+  const [maplibre, vectorMap] = await Promise.all([
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/maps/global-vector-map.tsx"),
+  ]);
   assert.match(vectorMap, /overlayFillOpacity = 0\.98/);
   assert.match(vectorMap, /"line-color": "#F5F1EC"/);
   assert.match(vectorMap, /"line-width": 0\.9/);
@@ -129,30 +170,41 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
   assert.match(maplibre, /"line-color": "#CBD5E1"/);
   assert.match(maplibre, /Noto Sans Medium/);
   assert.match(maplibre, /Noto Sans Regular/);
-  assert.match(maplibre, /fitPadding=\{\{ top: 24, right: 44, bottom: 24, left: 44 \}\}/);
+  assert.match(
+    maplibre,
+    /fitPadding=\{\{ top: 24, right: 44, bottom: 24, left: 44 \}\}/,
+  );
 });
 
 test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", async () => {
-  const [basemaps, kmeBasemap, maplibre, vectorMap, worker] = await Promise.all([
-    read("data/maps/basemaps.json"),
-    read("src/kme/core/basemap/protomaps.ts"),
-    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
-    read("components/maps/global-vector-map.tsx"),
-    read("worker/index.ts"),
-  ]);
+  const [basemaps, kmeBasemap, maplibre, vectorMap, worker] = await Promise.all(
+    [
+      read("data/maps/basemaps.json"),
+      read("src/kme/core/basemap/protomaps.ts"),
+      read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+      read("components/maps/global-vector-map.tsx"),
+      read("worker/index.ts"),
+    ],
+  );
   assert.equal(JSON.parse(basemaps)[0].id, "kme-protomaps-osm-light");
   assert.match(kmeBasemap, /@protomaps\/basemaps/);
   assert.match(kmeBasemap, /protomaps\.github\.io\/basemaps-assets/);
   assert.match(kmeBasemap, /\/fonts\/\{fontstack\}\/\{range\}\.pbf/);
   assert.match(kmeBasemap, /\/maps\/vector\/protomaps-osm-v4\.pmtiles/);
-  assert.match(worker, /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/);
+  assert.match(
+    worker,
+    /data\.source\.coop\/protomaps\/openstreetmap\/v4\.pmtiles/,
+  );
   assert.match(kmeBasemap, /tuneMarketingBasemapLayers/);
   assert.match(kmeBasemap, /roads_labels_major/);
   assert.match(kmeBasemap, /water_river/);
   assert.doesNotMatch(maplibre, /openfreemap|developmentBasemap|baseStyle=\{/i);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
   assert.match(vectorMap, /createMarketingBasemapStyle/);
-  assert.match(vectorMap, /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/);
+  assert.match(
+    vectorMap,
+    /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/,
+  );
   assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /failMap/);
 });
@@ -166,10 +218,16 @@ test("Marketing visual polish keeps the basemap visible and markers prominent", 
   assert.match(maplibre, /overlayHoverOpacity=\{0\.18\}/);
   assert.match(maplibre, /overlaySelectedOpacity=\{0\.16\}/);
   assert.match(maplibre, /unique visible townships/);
-  assert.match(maplibre, /new URLSearchParams\(window\.location\.search\)\.get\("debug"\) === "map"/);
+  assert.match(
+    maplibre,
+    /new URLSearchParams\(window\.location\.search\)\.get\("debug"\) === "map"/,
+  );
   assert.match(maplibre, /showMapDiagnostic &&/);
   assert.match(maplibre, /fetchOverlayJson/);
-  assert.match(maplibre, /installLegacyPresentationOverlays\(map\)\.catch\(reportOverlayLoadError\)/);
+  assert.match(
+    maplibre,
+    /installLegacyPresentationOverlays\(map\)\.catch\(\s*reportOverlayLoadError/,
+  );
   assert.doesNotMatch(vectorMap, /return \/failed to fetch\|networkerror/);
   assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /getFillOpacityExpression/);
@@ -190,8 +248,14 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(workspace, /useState<Mode>\("sales"\)/);
   assert.match(workspace, /ZERO_SALES_COLOR = "#F3F4F6"/);
   assert.match(workspace, /NO_DATA_COLOR = "#F8FAFC"/);
-  assert.match(workspace, /metricValue.*mode === "sales" \? item\.salesUnit/);
-  assert.match(workspace, /heatColor\(metricValue\(item\), visible, mode === "sales" \? ZERO_SALES_COLOR : NO_DATA_COLOR\)/);
+  assert.match(
+    workspace,
+    /metricValue[\s\S]*?mode === "sales"\s*\?\s*item\.salesUnit/,
+  );
+  assert.match(
+    workspace,
+    /heatColor\([\s\S]*?metricValue\(item\)[\s\S]*?mode === "sales"\s*\?\s*ZERO_SALES_COLOR\s*:\s*NO_DATA_COLOR/,
+  );
   assert.match(workspace, /canonicalLocationId: item\.key/);
   assert.match(maplibre, /initialMetricFromMode/);
   assert.match(maplibre, /return "salesUnit"/);
@@ -258,7 +322,9 @@ test("Executive GIS V2.1 centralizes time filters, comparisons, decision toolbar
 });
 
 test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell", async () => {
-  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  const workspace = await read(
+    "components/marketing/marketing-intelligence-page.tsx",
+  );
   assert.match(workspace, /aria-label="Decision Toolbar"/);
   assert.match(workspace, /ปี/);
   assert.match(workspace, /เดือน/);
@@ -277,14 +343,16 @@ test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell
   assert.doesNotMatch(workspace, /onGeographyChange/);
   assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
   assert.match(workspace, /ไม่พบข้อมูลตามตัวกรองที่เลือก/);
-  assert.match(workspace, /ยังไม่ได้กำหนด Showroom รับผิดชอบ/);
+  assert.match(workspace, /metric\.responsibleShowroom \?\? waiting/);
   assert.match(workspace, /Strategic Focus/);
   assert.match(workspace, /Coming in Phase 2/);
   assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
 });
 
 test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, and click routing only", async () => {
-  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  const workspace = await read(
+    "components/marketing/marketing-intelligence-page.tsx",
+  );
   assert.match(workspace, /MAX_COMPARISON_TOWNSHIPS = 4/);
   assert.match(workspace, /useState\(false\)/);
   assert.match(workspace, /useState<CanonicalTownshipId\[\]>\(\[\]\)/);
@@ -292,9 +360,15 @@ test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, 
   assert.match(workspace, /aria-pressed=\{compareMode\}/);
   assert.match(workspace, /เปรียบเทียบพื้นที่/);
   assert.match(workspace, /enterCompareMode/);
-  assert.match(workspace, /isValidComparisonTownshipId\(selectedCanonicalId\) \? \[selectedCanonicalId\] : \[\]/);
+  assert.match(
+    workspace,
+    /isValidComparisonTownshipId\(selectedCanonicalId\)\s*\?\s*\[selectedCanonicalId\]\s*:\s*\[\]/,
+  );
   assert.match(workspace, /exitCompareMode/);
-  assert.match(workspace, /const firstSelectedTownshipId = selectedComparisonTownshipIds\[0\] \?\? null/);
+  assert.match(
+    workspace,
+    /const firstSelectedTownshipId = selectedComparisonTownshipIds\[0\] \?\? null/,
+  );
   assert.match(workspace, /setSelectedCanonicalId\(firstSelectedTownshipId\)/);
   assert.match(workspace, /addComparisonTownship/);
   assert.match(workspace, /current\.includes\(id\)/);
@@ -306,8 +380,11 @@ test("Area Comparison Phase A adds compare mode store, toggle, temporary panel, 
   assert.match(workspace, /handleSelectedTownshipChange/);
   assert.match(workspace, /compareModeRef\.current/);
   assert.match(workspace, /addComparisonTownshipRef\.current\(canonicalId\)/);
-  assert.match(workspace, /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/);
-  assert.match(workspace, /compareMode \? <ComparisonPanel/);
+  assert.match(
+    workspace,
+    /onSelectedTownshipChange=\{handleSelectedTownshipChange\}/,
+  );
+  assert.match(workspace, /compareMode\s*\?[\s\S]*?<ComparisonPanel/);
   assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
   assert.doesNotMatch(workspace, /selectComparisonInsights/);
 });
@@ -319,33 +396,56 @@ test("Area Comparison Phase B renders map selection badges and approved panel st
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
   ]);
   assert.match(mapProps, /comparisonSelectionIds\?: string\[\]/);
-  assert.match(workspace, /comparisonSelectionIds=\{compareMode \? selectedComparisonTownshipIds : \[\]\}/);
-  assert.match(workspace, /<ComparisonPanel selectedTownships=\{selectedComparisonTownships\}/);
+  assert.match(
+    workspace,
+    /comparisonSelectionIds=\{\s*compareMode\s*\?\s*selectedComparisonTownshipIds\s*:\s*\[\]\s*\}/,
+  );
+  assert.match(
+    workspace,
+    /<ComparisonPanel[\s\S]*?selectedTownships=\{selectedComparisonTownships\}/,
+  );
   assert.match(workspace, /เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ/);
   assert.match(workspace, /เลือกอีก 1 Township เพื่อเริ่มเปรียบเทียบ/);
-  assert.match(workspace, /<ComparisonMatrix selectedTownships=\{selectedTownships\}/);
+  assert.match(
+    workspace,
+    /<ComparisonMatrix\s+selectedTownships=\{selectedTownships\}/,
+  );
   assert.match(workspace, /ข้อมูลเชิงวิเคราะห์จะถูกเพิ่มใน Phase C3/);
   assert.match(workspace, /selectedTownships\.map\(\(township, index\)/);
-  assert.match(workspace, /aria-label=\{`Remove \$\{township\.township\} from comparison`\}/);
-  assert.match(maplibre, /COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline"/);
+  assert.match(
+    workspace,
+    /aria-label=\{`Remove \$\{township\.township\} from comparison`\}/,
+  );
+  assert.match(
+    maplibre,
+    /COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline"/,
+  );
   assert.match(maplibre, /comparisonSelectionFilter/);
   assert.match(maplibre, /comparisonBadgeMarkersRef/);
   assert.match(maplibre, /comparisonLabelPositionsRef/);
   assert.match(maplibre, /kmm-comparison-selection-badge/);
   assert.match(maplibre, /Comparison \$\{index \+ 1\}/);
   assert.match(maplibre, /element\.style\.background = "#E86F00"/);
-  assert.match(maplibre, /map\.setFilter\(COMPARISON_OUTLINE_LAYER_ID, comparisonSelectionFilter\(comparisonSelectionIdsRef\.current\)\)/);
+  assert.match(
+    maplibre,
+    /map\.setFilter\(\s*COMPARISON_OUTLINE_LAYER_ID,\s*comparisonSelectionFilter\(comparisonSelectionIdsRef\.current\)/,
+  );
   assert.doesNotMatch(maplibre, /source\.setData\(.*comparison/i);
   assert.doesNotMatch(workspace, /Best/);
   assert.doesNotMatch(workspace, /Worst/);
 });
 
 test("Area Comparison Phase C1 renders executive metric matrix from shared Township aggregates", async () => {
-  const workspace = await read("components/marketing/marketing-intelligence-page.tsx");
+  const workspace = await read(
+    "components/marketing/marketing-intelligence-page.tsx",
+  );
   assert.match(workspace, /function ComparisonMatrix/);
   assert.match(workspace, /aria-label="Comparison Matrix"/);
-  assert.match(workspace, /<table className=/);
-  assert.match(workspace, /<caption className="sr-only">Executive metric comparison for selected Townships<\/caption>/);
+  assert.match(workspace, /<table\s+className(?:=|=\{cn\()/);
+  assert.match(
+    workspace,
+    /<caption className="sr-only">\s*Executive metric comparison for selected Townships\s*<\/caption>/,
+  );
   assert.match(workspace, /scope="col"/);
   assert.match(workspace, /scope="row"/);
   assert.match(workspace, /scope="rowgroup"/);
@@ -364,21 +464,31 @@ test("Area Comparison Phase C1 renders executive metric matrix from shared Towns
   assert.match(workspace, /changeArrow\(delta\)/);
   assert.match(workspace, /Math\.abs\(delta\)\.toFixed\(1\)} pp/);
   assert.match(workspace, /priorSalesByTownship\.get\(id\) \?\? null/);
-  assert.match(workspace, /metric\?\.hasFilteredSalesData \?/);
-  assert.match(workspace, /value === null \? "—"/);
+  assert.match(workspace, /metric\?\.hasFilteredSalesData\s*\?/);
+  assert.match(workspace, /value === null\s*\?\s*"—"/);
   assert.doesNotMatch(workspace, /Product Share/);
   assert.doesNotMatch(workspace, /Lowest/);
 });
 
 test("Localization foundation defaults to Thai and exposes English switching", async () => {
-  const [layout, context, hook, locales, thai, english, workspace, maplibre, panel] = await Promise.all([
+  const [
+    layout,
+    context,
+    hook,
+    locales,
+    thai,
+    english,
+    header,
+    maplibre,
+    panel,
+  ] = await Promise.all([
     read("app/layout.tsx"),
     read("src/context/LocaleContext.tsx"),
     read("src/hooks/useLocale.ts"),
     read("src/locales/index.ts"),
     read("src/locales/th.ts"),
     read("src/locales/en.ts"),
-    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/layout/global-header.tsx"),
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/marketing/myanmar-marketing-map.tsx"),
   ]);
@@ -386,16 +496,25 @@ test("Localization foundation defaults to Thai and exposes English switching", a
   assert.match(layout, /<LocaleProvider>/);
   assert.match(context, /STORAGE_KEY = "kmm-language"/);
   assert.match(context, /useState<Language>\(defaultLanguage\)/);
-  assert.match(context, /window\.localStorage\.setItem\(STORAGE_KEY, nextLanguage\)/);
+  assert.match(
+    context,
+    /window\.localStorage\.setItem\(STORAGE_KEY, nextLanguage\)/,
+  );
   assert.match(hook, /useLocale/);
   assert.match(locales, /defaultLanguage: Language = "th"/);
   assert.match(thai, /"metric\.salesUnit": "ยอดขาย \(คัน\)"/);
-  assert.match(thai, /"comparison\.samePeriodLastYear": "ช่วงเดียวกันของปีก่อน"/);
+  assert.match(
+    thai,
+    /"comparison\.samePeriodLastYear": "ช่วงเดียวกันของปีก่อน"/,
+  );
   assert.match(english, /"metric\.salesUnit": "Sales Unit"/);
-  assert.match(workspace, /setLanguage\("th"\)/);
-  assert.match(workspace, /setLanguage\("en"\)/);
-  assert.match(workspace, /วิเคราะห์การตลาด/);
-  assert.match(workspace, /t\("period\.rolling12Months"\)/);
+  assert.match(header, /setLanguage\("th"\)/);
+  assert.match(header, /setLanguage\("en"\)/);
+  assert.match(header, /Marketing Intelligence/);
+  assert.match(
+    await read("components/marketing/marketing-intelligence-page.tsx"),
+    /t\("period\.rolling12Months"\)/,
+  );
   assert.match(maplibre, /metricLabel\(activeMetric, t\)/);
   assert.match(panel, /t\("panel\.salesPerformance"\)/);
 });
@@ -408,11 +527,14 @@ test("Township Intelligence uses canonical IDs and explicit no-data safeguards",
     read("components/marketing/myanmar-marketing-map.tsx"),
   ]);
   assert.match(maplibre, /townshipMetrics\[record\.township_id\]/);
-  assert.match(workspace, /selectedTownshipMetric = selectedCanonicalId \? \(\(\) =>/);
+  assert.match(
+    workspace,
+    /selectedTownshipMetric = selectedCanonicalId\s*\?\s*\(\(\) =>/,
+  );
   assert.match(workspace, /priorSalesByTownship/);
   assert.match(workspace, /benchmarkByTownship/);
   assert.doesNotMatch(workspace, /townshipIntelligenceMetrics/);
-  assert.match(workspace, /bookingUnit: null, bookingValue: null/);
+  assert.match(workspace, /bookingUnit:\s*null,\s*bookingValue:\s*null/);
   assert.match(panel, /metric\.gpPercent/);
   assert.match(workspace, /canonicalLocationId: item\.key/);
   assert.match(legacy, /metricForLegacyFeature/);
@@ -438,17 +560,26 @@ test("Developer Debug Panel is production-hidden and exports canonical map diagn
 });
 
 test("Sales geography reconciliation is state-aware, canonical, and lossless", async () => {
-  const [resolver, aliases, stateAliases, report, workspace, panel] = await Promise.all([
-    read("lib/marketing/township-geography.ts"),
-    read("data/geography/township-approved-aliases.json"),
-    read("data/geography/state-region-approved-aliases.json"),
-    read("reports/sales-geography-reconciliation.json"),
-    read("components/marketing/marketing-intelligence-page.tsx"),
-    read("components/marketing/myanmar-marketing-map.tsx"),
-  ]);
+  const [resolver, aliases, stateAliases, report, workspace, panel] =
+    await Promise.all([
+      read("lib/marketing/township-geography.ts"),
+      read("data/geography/township-approved-aliases.json"),
+      read("data/geography/state-region-approved-aliases.json"),
+      read("reports/sales-geography-reconciliation.json"),
+      read("components/marketing/marketing-intelligence-page.tsx"),
+      read("components/marketing/myanmar-marketing-map.tsx"),
+    ]);
   const reconciliation = JSON.parse(report);
-  assert.equal(reconciliation.source_sales_unit, reconciliation.mapped_township_sales_unit + reconciliation.unresolved_sales_unit);
-  assert.equal(reconciliation.source_sales_value, reconciliation.mapped_township_sales_value + reconciliation.unresolved_sales_value);
+  assert.equal(
+    reconciliation.source_sales_unit,
+    reconciliation.mapped_township_sales_unit +
+      reconciliation.unresolved_sales_unit,
+  );
+  assert.equal(
+    reconciliation.source_sales_value,
+    reconciliation.mapped_township_sales_value +
+      reconciliation.unresolved_sales_value,
+  );
   assert.equal(reconciliation.sales_unit_difference, 0);
   assert.equal(reconciliation.sales_value_difference, 0);
   assert.equal(reconciliation.unmapped_canonical_rows, 0);
@@ -499,24 +630,39 @@ test("Township selected and hover layers retain priority and stable order", asyn
   assert.match(vectorMap, /townshipSelectedFill/);
   assert.match(vectorMap, /getHoverOpacityExpression/);
   assert.match(vectorMap, /selectedCanonicalLocationId.*0/);
-  assert.match(vectorMap, /\[baseFillLayerId, hoverFillLayerId, selectedFillLayerId, selectedLayerId\]/);
+  assert.match(
+    vectorMap,
+    /\[baseFillLayerId, hoverFillLayerId, selectedFillLayerId, selectedLayerId\]/,
+  );
   assert.match(vectorMap, /setFeatureState.*hover: false/);
   assert.match(vectorMap, /interactionLayerId = fillLayerId/);
-  assert.match(vectorMap, /clickableLayerIds = \[fillLayerId, baseFillLayerId\]/);
+  assert.match(
+    vectorMap,
+    /clickableLayerIds = \[fillLayerId, baseFillLayerId\]/,
+  );
   assert.match(vectorMap, /map\.on\("mousemove", interactionLayerId/);
   assert.match(vectorMap, /map\.on\("mouseleave", interactionLayerId/);
-  assert.match(vectorMap, /queryRenderedFeatures\(event\.point, \{ layers: clickableLayerIds \}\)/);
+  assert.match(
+    vectorMap,
+    /queryRenderedFeatures\(event\.point, \{ layers: clickableLayerIds \}\)/,
+  );
   assert.match(vectorMap, /map\.on\("moveend".*applyRequiredLayerOrder/);
   assert.match(vectorMap, /if \(!map\.getSource\(dataset\.source_id\)\)/);
   assert.match(vectorMap, /if \(!map\.getLayer\(baseFillLayerId\)\)/);
   assert.match(maplibre, /applyRequiredLayerOrder\(map\)/);
-  assert.match(await read("components/maps/vector-map-preview.tsx"), /selectedCanonicalLocationId=\{selectedCanonicalId\}/);
+  assert.match(
+    await read("components/maps/vector-map-preview.tsx"),
+    /selectedCanonicalLocationId=\{selectedCanonicalId\}/,
+  );
   assert.match(panel, /actualMapLayerOrder/);
   assert.match(panel, /selectedFillVisibility/);
   assert.match(panel, /selectedOutlineVisibility/);
   assert.match(panel, /hoverFillVisibility/);
   assert.match(panel, /layerOrderWarning/);
-  assert.equal(JSON.parse(registry).find((layer) => layer.id === "township-fill").group, "heatmap");
+  assert.equal(
+    JSON.parse(registry).find((layer) => layer.id === "township-fill").group,
+    "heatmap",
+  );
 });
 
 test("Marketing Smart Click and Layer Manager reuse the live MapLibre business layers", async () => {
@@ -551,11 +697,16 @@ test("Marketing keeps one desktop detail panel and preserves a fullscreen/mobile
     read("components/marketing/myanmar-marketing-map.tsx"),
   ]);
   assert.doesNotMatch(maplibre, /!isFullscreen && selectedMetric/);
-  assert.match(maplibre, /isFullscreen && selectedMetric/);
+  assert.match(maplibre, /isFullscreen\s*&&\s*selectedMetric/);
   assert.match(maplibre, /fullscreenPanelCollapsed/);
+  assert.match(maplibre, /fullscreenSearchOpen/);
+  assert.match(maplibre, /Search Township/);
+  assert.match(maplibre, /Reset map view/);
+  assert.match(maplibre, /Exit fullscreen/);
   assert.match(maplibre, /kmm-map-sheet-backdrop md:hidden/);
-  assert.match(workspace, /!mapFullscreen && <Phase1TownshipPanel/);
+  assert.match(workspace, /!mapFullscreen\s*&&[\s\S]*?\(compareMode\s*\?/);
   assert.match(workspace, /onFullscreenChange=\{setMapFullscreen\}/);
+  assert.match(workspace, /data-marketing-workspace/);
   assert.match(workspace, /Salesman/);
   assert.match(panel, /onCollapse\?:/);
   assert.match(workspace, /Last Visit/);

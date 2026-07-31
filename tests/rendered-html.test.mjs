@@ -63,3 +63,21 @@ test("keeps starter preview scaffolding removed from the KMM app", async () => {
     access(new URL("public/_sites-preview", templateRoot)),
   );
 });
+
+test("keeps the KMM Design System v2 foundation semantic and system-font based", async () => {
+  const [globalStyles, layout, designSystem] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/KMM_DESIGN_SYSTEM_V2.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(globalStyles, /--brand-500:\s*#f56600/i);
+  assert.match(globalStyles, /--surface-canvas:\s*#f5f5f7/i);
+  assert.match(globalStyles, /--text-primary:\s*#1d1d1f/i);
+  assert.match(globalStyles, /--radius-card:\s*16px/i);
+  assert.match(globalStyles, /--motion-standard:\s*200ms/i);
+  assert.match(globalStyles, /--font-kmm:\s*-apple-system/i);
+  assert.match(globalStyles, /\.kmm-tabular/);
+  assert.doesNotMatch(layout, /"--font-kmm":\s*"Inter"/);
+  assert.match(designSystem, /KMM Design System v2\.0/);
+});

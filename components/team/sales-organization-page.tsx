@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, ChevronDown, Menu, RefreshCw, RotateCcw, Search } from "lucide-react";
-import { AppSidebar } from "../navigation/app-sidebar";
+import { ChevronDown, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -18,7 +17,6 @@ import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { SectionHeader } from "../design-system/section-header";
 import { TableCard } from "../design-system/table-card";
-import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BRANCHES = [
@@ -66,42 +64,250 @@ function getShowroomAchievementRanking({ salesRows, targetRows, filters }: { sal
     return { showroomCode: showroom.code, showroomName: showroom.name, salesUnit, targetUnit, achievementPercent: targetUnit === null ? null : (salesUnit / targetUnit) * 100 };
   }).sort((left, right) => (right.achievementPercent ?? -1) - (left.achievementPercent ?? -1) || right.salesUnit - left.salesUnit || left.showroomCode.localeCompare(right.showroomCode));
 }
-function Avatar({ name, large = false }: { name: string; large?: boolean }) { return <span className={cn("grid shrink-0 place-items-center rounded-xl bg-[#F3F4F6] font-bold text-[#4B5563]", large ? "size-14 text-sm" : "size-9 text-[11px]")} aria-label={`${name} photo placeholder`}>{initials(name)}</span>; }
+function Avatar({ name, large = false }: { name: string; large?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center rounded-[var(--radius-control-lg)] bg-[var(--surface-muted)] font-semibold text-[var(--text-secondary)]",
+        large ? "size-14 text-sm" : "size-9 text-[11px]",
+      )}
+      aria-label={`${name} photo placeholder`}
+    >
+      {initials(name)}
+    </span>
+  );
+}
 
 function MultiSelectFilter({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (next: string[]) => void }) {
-  const [open, setOpen] = useState(false); const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const visible = options.filter((option) => option.toLowerCase().includes(query.trim().toLowerCase()));
   const labelValue = values.length === 0 ? "All" : values.length === 1 ? values[0] : `${values.length} selected`;
-  return <div className="relative min-w-0"><label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.12em] text-[#8A8E96]">{label}</label><button type="button" onClick={() => setOpen((value) => !value)} className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 text-left text-sm font-semibold text-[#1F2937] shadow-[0_1px_2px_rgba(31,41,55,0.04)]"><span className="truncate">{labelValue}</span><ChevronDown size={16} className={cn("shrink-0 text-[#9CA3AF] transition-transform", open && "rotate-180")} /></button>{open && <Card className="absolute left-0 right-0 top-[72px] z-50 p-2 shadow-xl"><div className="relative mb-2"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] pl-9 pr-3 text-sm outline-none" placeholder={`Search ${label.toLowerCase()}`} /></div><div className="max-h-52 space-y-1 overflow-y-auto">{visible.map((option) => <label key={option} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-[#55565A] hover:bg-[#FFF7EF]"><input type="checkbox" checked={values.includes(option)} onChange={() => onChange(values.includes(option) ? values.filter((item) => item !== option) : [...values, option])} className="size-4 accent-[#FF8615]" /><span className="truncate">{option}</span></label>)}{!visible.length && <p className="px-2 py-4 text-center text-sm text-[#9CA3AF]">No options found</p>}</div></Card>}</div>;
+  const controlId = `team-${label.toLowerCase().replaceAll(" ", "-")}`;
+
+  return (
+    <div className="relative min-w-0">
+      <label
+        htmlFor={controlId}
+        className="mb-1.5 block text-xs font-medium leading-4 text-[var(--text-secondary)]"
+      >
+        {label}
+      </label>
+      <button
+        id={controlId}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+        className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+        aria-label={`${label} filter`}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{labelValue}</span>
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-[var(--text-tertiary)] transition-transform duration-200 motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <Card
+          className="absolute left-0 right-0 top-[68px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)]"
+          role="listbox"
+          aria-label={`${label} options`}
+          aria-multiselectable="true"
+        >
+          <div className="relative mb-2">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
+              aria-hidden="true"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setOpen(false);
+              }}
+              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              placeholder={`Search ${label.toLowerCase()}`}
+              aria-label={`Search ${label.toLowerCase()}`}
+            />
+          </div>
+          <div className="max-h-52 space-y-1 overflow-y-auto">
+            {visible.map((option) => (
+              <label
+                key={option}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-50)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={values.includes(option)}
+                  onChange={() =>
+                    onChange(
+                      values.includes(option)
+                        ? values.filter((item) => item !== option)
+                        : [...values, option],
+                    )
+                  }
+                  className="size-4 accent-[var(--brand-500)]"
+                />
+                <span className="truncate">{option}</span>
+              </label>
+            ))}
+            {!visible.length && (
+              <p className="px-2 py-4 text-center text-sm text-[var(--text-tertiary)]">
+                No options found
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
 }
 
 function TeamFilters({ filters, options, onChange, onRefresh, onReset, onExport }: { filters: FilterState; options: FilterState; onChange: (key: FilterKey, values: string[]) => void; onRefresh: () => void; onReset: () => void; onExport: () => void }) {
-  return <FilterBar actions={<><Button className="h-11" variant="outline" onClick={onReset}><RotateCcw size={16} />Reset</Button><Button className="h-11" variant="outline" onClick={onRefresh}><RefreshCw size={16} />Refresh</Button><ExportButton onClick={onExport} /></>}><MultiSelectFilter label="Year" options={options.year} values={filters.year} onChange={(values) => onChange("year", values)} /><MultiSelectFilter label="Month" options={options.month} values={filters.month} onChange={(values) => onChange("month", values)} /><MultiSelectFilter label="Showroom" options={options.branch} values={filters.branch} onChange={(values) => onChange("branch", values)} /><MultiSelectFilter label="Salesperson" options={options.salesperson} values={filters.salesperson} onChange={(values) => onChange("salesperson", values)} /></FilterBar>;
+  const actionClass =
+    "h-11 min-w-11 rounded-[var(--radius-control-lg)] border-[var(--border-default)] px-4 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]";
+
+  return (
+    <FilterBar
+      actions={
+        <>
+          <Button className={actionClass} variant="outline" onClick={onReset}>
+            <RotateCcw size={16} aria-hidden="true" />
+            Reset
+          </Button>
+          <Button className={actionClass} variant="outline" onClick={onRefresh}>
+            <RefreshCw size={16} aria-hidden="true" />
+            Refresh
+          </Button>
+          <ExportButton onClick={onExport} />
+        </>
+      }
+    >
+      <MultiSelectFilter
+        label="Year"
+        options={options.year}
+        values={filters.year}
+        onChange={(values) => onChange("year", values)}
+      />
+      <MultiSelectFilter
+        label="Month"
+        options={options.month}
+        values={filters.month}
+        onChange={(values) => onChange("month", values)}
+      />
+      <MultiSelectFilter
+        label="Showroom"
+        options={options.branch}
+        values={filters.branch}
+        onChange={(values) => onChange("branch", values)}
+      />
+      <MultiSelectFilter
+        label="Salesperson"
+        options={options.salesperson}
+        values={filters.salesperson}
+        onChange={(values) => onChange("salesperson", values)}
+      />
+    </FilterBar>
+  );
 }
 
 function ShowroomPerformance({ items }: { items: BranchMetric[] }) {
-  return <Card className="h-full min-h-[420px] rounded-2xl border-[#E8EAED] p-5 shadow-[0_8px_24px_rgba(31,41,55,0.035)] sm:p-6"><h2 className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[#1F2937]">Showroom Performance</h2><p className="mt-1 text-sm text-[#6B7280]">Active salespeople only. Sales, GP and bookings reflect the selected period.</p><div className="mt-6 overflow-x-auto rounded-xl border border-[#EEF0F3]">{items.some((item) => item.salesUnit) ? <table className="min-w-[900px] w-full text-left text-xs"><thead className="bg-[#FAFBFC] text-[#6B7280]"><tr>{["#", "Showroom", "Target", "Sales", "Achievement", "GP", "GP%", "Booking", "Active Sales", "Health"].map((label) => <th key={label} className="whitespace-nowrap px-2.5 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-[#F1F2F4] text-[#4B5563]">{items.map((item, index) => <tr key={item.code} className="hover:bg-[#FFFAF5]"><td className="px-2.5 py-3 text-[#9CA3AF]">{index + 1}</td><td className="px-2.5 py-3"><p className="font-semibold text-[#1F2937]">{item.code}</p><p className="mt-0.5 text-[#9CA3AF]">{item.name}</p></td><td className="px-2.5 py-3 font-semibold">{item.target ? formatNumber(item.target) : "N/A"}</td><td className="px-2.5 py-3 font-semibold">{formatNumber(item.salesUnit)}</td><td className="px-2.5 py-3">{item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`}</td><td className="px-2.5 py-3 font-semibold">{formatCompact(item.gp)}</td><td className="px-2.5 py-3">{item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`}</td><td className="px-2.5 py-3">{formatNumber(item.booking)}</td><td className="px-2.5 py-3"><Badge variant="outline">{item.people.length}</Badge></td><td className="px-2.5 py-3 font-semibold text-[#E86F00]">{item.health === null ? "N/A" : `${item.health.toFixed(0)}/100`}</td></tr>)}</tbody></table> : <EmptyState />}</div></Card>;
+  return <Card className="h-full min-h-[420px] rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6"><h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">Showroom Performance</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">Active salespeople only. Sales, GP and bookings reflect the selected period.</p><div className="mt-6 overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]">{items.some((item) => item.salesUnit) ? <table className="kmm-tabular min-w-[900px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr>{["#", "Showroom", "Target", "Sales", "Achievement", "GP", "GP%", "Booking", "Active Sales", "Health"].map((label) => <th key={label} className="h-11 whitespace-nowrap px-3 py-2 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">{items.map((item, index) => <tr key={item.code} className="h-12 transition-colors hover:bg-[var(--brand-50)]"><td className="px-3 py-2 text-[var(--text-tertiary)]">{index + 1}</td><td className="px-3 py-2"><p className="font-semibold text-[var(--text-primary)]">{item.code}</p><p className="mt-0.5 text-[var(--text-tertiary)]">{item.name}</p></td><td className="px-3 py-2 text-right font-semibold">{item.target ? formatNumber(item.target) : "N/A"}</td><td className="px-3 py-2 text-right font-semibold">{formatNumber(item.salesUnit)}</td><td className="px-3 py-2 text-right">{item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`}</td><td className="px-3 py-2 text-right font-semibold">{formatCompact(item.gp)}</td><td className="px-3 py-2 text-right">{item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`}</td><td className="px-3 py-2 text-right">{formatNumber(item.booking)}</td><td className="px-3 py-2 text-right"><Badge variant="outline">{item.people.length}</Badge></td><td className="px-3 py-2 text-right font-semibold text-[var(--brand-600)]">{item.health === null ? "N/A" : `${item.health.toFixed(0)}/100`}</td></tr>)}</tbody></table> : <EmptyState />}</div></Card>;
 }
 
-function ShowroomRanking({ items }: { items: ShowroomAchievementRankingEntry[] }) { const targetsAvailable = items.some((item) => item.targetUnit !== null); const peakSalesUnit = Math.max(...items.map((item) => item.salesUnit), 1); return <ChartCard title="Showroom Ranking" subtitle={targetsAvailable ? "Ranked by showroom achievement" : "Ranked by sales unit"} minHeight={420} className="h-full">{items.length ? <div className="flex min-h-[278px] flex-col justify-evenly">{items.map((item, index) => { const achievement = item.achievementPercent; const width = targetsAvailable ? Math.min(achievement ?? 0, 100) : (item.salesUnit / peakSalesUnit) * 100; const color = targetsAvailable ? achievement !== null && achievement >= 100 ? "bg-[#16A34A]" : achievement !== null && achievement >= 80 ? "bg-[#FF7A00]" : "bg-[#E86F00]" : "bg-[#9CA3AF]"; const metric = targetsAvailable ? `${achievement?.toFixed(1)}%` : `${formatNumber(item.salesUnit)} Units`; return <div key={item.showroomCode} className="grid grid-cols-[24px_minmax(120px,1fr)_minmax(120px,2fr)_76px] items-center gap-3"><span className="text-sm font-bold text-[#9CA3AF]">{index + 1}</span><span className="text-sm font-semibold text-[#4B5563]">{item.showroomCode} <span className="font-medium text-[#9CA3AF]">{item.showroomName}</span></span><div className="h-2 rounded-full bg-[#F3F4F6]"><div className={cn("h-2 rounded-full", color)} style={{ width: `${width}%` }} /></div><span className="text-right text-sm font-bold text-[#1F2937]">{metric}</span></div>; })}</div> : <EmptyState />}</ChartCard>; }
+function ShowroomRanking({ items }: { items: ShowroomAchievementRankingEntry[] }) {
+  const targetsAvailable = items.some((item) => item.targetUnit !== null);
+  const peakSalesUnit = Math.max(...items.map((item) => item.salesUnit), 1);
 
-function TeamSummary({ items, onSelect }: { items: BranchMetric[]; onSelect: (person: Person) => void }) { return <section className="space-y-5"><SectionHeader title="Team Summary" description="Showroom view for current employees." /><div className="grid gap-4 lg:grid-cols-3">{items.map((item) => { const ordered = [...item.people].sort((a, b) => b.achievement - a.achievement || b.salesUnit - a.salesUnit); const top = ordered[0]; const bottom = ordered.at(-1); return <Card key={item.code} className="min-h-[290px] rounded-2xl border-[#E8EAED] p-5 shadow-[0_8px_24px_rgba(31,41,55,0.035)]"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[#1F2937]">{item.code}</h3><p className="mt-1 text-sm text-[#6B7280]">{item.name}</p></div><Badge variant="outline">{item.people.length} active</Badge></div><div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 text-sm"><Metric label="Showroom Manager" value="N/A" /><Metric label="Achievement" value={item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`} /><Metric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><Metric label="Conversion" value={item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`} /><Metric label="Booking / Person" value={item.people.length ? (item.booking / item.people.length).toFixed(1) : "N/A"} /></div><div className="mt-5 space-y-2 border-t border-[#EEF0F3] pt-4"><PersonLink label="Top Performer" person={top} onSelect={onSelect} /><PersonLink label="Bottom Performer" person={bottom} onSelect={onSelect} /></div></Card>; })}</div></section>; }
-function Metric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-[#9CA3AF]">{label}</p><p className="mt-1 truncate font-semibold text-[#1F2937]" title={value}>{value}</p></div>; }
-function PersonLink({ label, person, onSelect }: { label: string; person?: Person; onSelect: (person: Person) => void }) { return <div className="flex items-center justify-between gap-3 text-xs"><span className="text-[#9CA3AF]">{label}</span>{person ? <button type="button" className="truncate font-semibold text-[#E86F00] hover:underline" onClick={() => onSelect(person)}>{person.name}</button> : <span className="font-semibold text-[#6B7280]">N/A</span>}</div>; }
+  return (
+    <ChartCard
+      title="Showroom Ranking"
+      subtitle={
+        targetsAvailable
+          ? "Ranked by showroom achievement"
+          : "Ranked by sales unit"
+      }
+      minHeight={420}
+      className="h-full"
+    >
+      {items.length ? (
+        <div className="flex min-h-[278px] flex-col justify-evenly gap-5">
+          {items.map((item, index) => {
+            const achievement = item.achievementPercent;
+            const width = targetsAvailable
+              ? Math.min(achievement ?? 0, 100)
+              : (item.salesUnit / peakSalesUnit) * 100;
+            const color = targetsAvailable
+              ? achievement !== null && achievement >= 100
+                ? "bg-[var(--status-success)]"
+                : achievement !== null && achievement >= 80
+                  ? "bg-[var(--brand-500)]"
+                  : "bg-[var(--brand-600)]"
+              : "bg-[var(--text-tertiary)]";
+            const metric = targetsAvailable
+              ? `${achievement?.toFixed(1)}%`
+              : `${formatNumber(item.salesUnit)} Units`;
+
+            return (
+              <div
+                key={item.showroomCode}
+                className="grid grid-cols-[24px_minmax(0,1fr)_76px] items-center gap-3 sm:grid-cols-[24px_minmax(120px,1fr)_minmax(120px,2fr)_76px]"
+              >
+                <span className="kmm-tabular text-sm font-semibold text-[var(--text-tertiary)]">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 text-sm font-semibold text-[var(--text-secondary)]">
+                  {item.showroomCode}{" "}
+                  <span className="block truncate font-normal text-[var(--text-tertiary)] sm:inline">
+                    {item.showroomName}
+                  </span>
+                </span>
+                <div className="hidden h-2 overflow-hidden rounded-full bg-[var(--surface-muted)] sm:block">
+                  <div
+                    className={cn("h-full rounded-full", color)}
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+                <span className="kmm-tabular text-right text-sm font-semibold text-[var(--text-primary)]">
+                  {metric}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState />
+      )}
+    </ChartCard>
+  );
+}
+
+function TeamSummary({ items, onSelect }: { items: BranchMetric[]; onSelect: (person: Person) => void }) { return <section className="space-y-4"><SectionHeader title="Team Summary" description="Showroom view for current employees." /><div className="grid gap-4 lg:grid-cols-3">{items.map((item) => { const ordered = [...item.people].sort((a, b) => b.achievement - a.achievement || b.salesUnit - a.salesUnit); const top = ordered[0]; const bottom = ordered.at(-1); return <Card key={item.code} className="min-h-[290px] rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)]"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[var(--text-primary)]">{item.code}</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">{item.name}</p></div><Badge variant="outline">{item.people.length} active</Badge></div><div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 text-sm"><Metric label="Showroom Manager" value="N/A" /><Metric label="Achievement" value={item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`} /><Metric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><Metric label="Conversion" value={item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`} /><Metric label="Booking / Person" value={item.people.length ? (item.booking / item.people.length).toFixed(1) : "N/A"} /></div><div className="mt-5 space-y-1 border-t border-[var(--divider)] pt-3"><PersonLink label="Top Performer" person={top} onSelect={onSelect} /><PersonLink label="Bottom Performer" person={bottom} onSelect={onSelect} /></div></Card>; })}</div></section>; }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><p className="text-xs text-[var(--text-tertiary)]">{label}</p><p className="kmm-tabular mt-1 break-words font-semibold leading-5 text-[var(--text-primary)]" title={value}>{value}</p></div>; }
+function PersonLink({ label, person, onSelect }: { label: string; person?: Person; onSelect: (person: Person) => void }) { return <div className="flex min-h-11 items-center justify-between gap-3 text-xs"><span className="shrink-0 text-[var(--text-tertiary)]">{label}</span>{person ? <button type="button" className="min-h-11 min-w-0 truncate rounded-[var(--radius-control)] px-1.5 text-right font-semibold text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)}>{person.name}</button> : <span className="font-semibold text-[var(--text-secondary)]">N/A</span>}</div>; }
 
 function TopSalespeople({ people, onSelect }: { people: Person[]; onSelect: (person: Person) => void }) {
   const [rankBy, setRankBy] = useState<RankingMetric>("salesValue");
   const metricValue = (person: Person) => rankBy === "salesUnit" ? person.salesUnit : rankBy === "salesValue" ? person.salesValue : rankBy === "gp" ? person.gp : rankBy === "gpPercent" ? ratio(person.gp, person.salesValue) : rankBy === "commission" ? person.commission : ratio(person.commission, person.gp);
   const ranked = [...people].sort((left, right) => { const difference = (metricValue(right) ?? Number.NEGATIVE_INFINITY) - (metricValue(left) ?? Number.NEGATIVE_INFINITY); return difference || left.name.localeCompare(right.name); });
-  return <section className="space-y-5"><SectionHeader title="Top Salespeople" description="Current employees only. Select a row to update Employee Detail." /><TableCard title="Salespeople Ranking" empty={!people.length} filters={<label className="flex items-center gap-2 text-xs font-semibold text-[#6B7280]">Rank by<select value={rankBy} onChange={(event) => setRankBy(event.target.value as RankingMetric)} className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-sm font-semibold text-[#4B5563] outline-none focus:border-[#FFB46E]"><option value="salesUnit">Sales Unit</option><option value="salesValue">Sales Value</option><option value="gp">GP Value</option><option value="gpPercent">GP %</option><option value="commission">Commission</option><option value="commissionOfGp">Commission / GP %</option></select></label>}><div className="overflow-x-auto rounded-xl border border-[#EEF0F3]"><table className="min-w-[1280px] w-full text-left text-xs"><thead className="bg-[#FAFBFC] text-[#6B7280]"><tr><th rowSpan={2} className="px-3 py-3 font-semibold">Rank</th><th rowSpan={2} className="px-3 py-3 font-semibold">Photo</th><th rowSpan={2} className="px-3 py-3 font-semibold">Name</th><th rowSpan={2} className="px-3 py-3 font-semibold">Showroom</th><th colSpan={2} className="border-l border-[#EEF0F3] px-3 py-2 text-center font-semibold">Sales</th><th colSpan={2} className="border-l border-[#EEF0F3] px-3 py-2 text-center font-semibold">GP</th><th colSpan={3} className="border-l border-[#EEF0F3] px-3 py-2 text-center font-semibold">Commission</th></tr><tr><th className="border-l border-[#EEF0F3] px-3 py-2 font-semibold">Unit</th><th className="px-3 py-2 font-semibold">Value</th><th className="border-l border-[#EEF0F3] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">GP %</th><th className="border-l border-[#EEF0F3] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">% of Sales</th><th className="px-3 py-2 font-semibold">% of GP</th></tr></thead><tbody className="divide-y divide-[#F1F2F4] text-[#4B5563]">{ranked.map((person, index) => { const gpPercent = ratio(person.gp, person.salesValue); const commissionOfSales = ratio(person.commission, person.salesValue); const commissionOfGp = ratio(person.commission, person.gp); const commissionTone = commissionOfGp === null ? "text-[#6B7280]" : commissionOfGp <= 20 ? "text-[#16A34A]" : commissionOfGp <= 30 ? "text-[#E86F00]" : "text-[#DC2626]"; return <tr key={person.name} className="cursor-pointer hover:bg-[#FFFAF5]" onClick={() => onSelect(person)}><td className="px-3 py-3 font-bold text-[#9CA3AF]">{index + 1}</td><td className="px-3 py-3"><Avatar name={person.name} /></td><td className="px-3 py-3 font-semibold text-[#1F2937]">{person.name}</td><td className="px-3 py-3">{person.branch}</td><td className="border-l border-[#F1F2F4] px-3 py-3 font-semibold">{formatNumber(person.salesUnit)}</td><td className="px-3 py-3 font-semibold">{formatMmk(person.salesValue)}</td><td className="border-l border-[#F1F2F4] px-3 py-3 font-semibold">{formatMmk(person.gp)}</td><td className={cn("px-3 py-3 font-semibold", gpPercent !== null && gpPercent >= 15 ? "text-[#16A34A]" : gpPercent !== null && gpPercent >= 5 ? "text-[#E86F00]" : "text-[#DC2626]")}>{gpPercent === null ? "N/A" : `${gpPercent.toFixed(1)}%`}</td><td className="border-l border-[#F1F2F4] px-3 py-3 font-semibold">{formatMmk(person.commission)}</td><td className="px-3 py-3">{commissionOfSales === null ? "N/A" : `${commissionOfSales.toFixed(1)}%`}</td><td className={cn("px-3 py-3 font-semibold", commissionTone)}>{commissionOfGp === null ? "N/A" : `${commissionOfGp.toFixed(1)}%`}</td></tr>; })}</tbody></table></div></TableCard></section>;
+  return <section className="space-y-4"><SectionHeader title="Top Salespeople" description="Current employees only. Select a row to update Employee Detail." /><TableCard title="Salespeople Ranking" empty={!people.length} filters={<label className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">Rank by<select value={rankBy} onChange={(event) => setRankBy(event.target.value as RankingMetric)} className="h-11 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm font-medium text-[var(--text-primary)] outline-none focus:border-[var(--brand-500)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><option value="salesUnit">Sales Unit</option><option value="salesValue">Sales Value</option><option value="gp">GP Value</option><option value="gpPercent">GP %</option><option value="commission">Commission</option><option value="commissionOfGp">Commission / GP %</option></select></label>}><div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]"><table className="kmm-tabular min-w-[1280px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th rowSpan={2} className="px-3 py-3 font-semibold">Rank</th><th rowSpan={2} className="px-3 py-3 font-semibold">Photo</th><th rowSpan={2} className="px-3 py-3 font-semibold">Name</th><th rowSpan={2} className="px-3 py-3 font-semibold">Showroom</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Sales</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">GP</th><th colSpan={3} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Commission</th></tr><tr><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Unit</th><th className="px-3 py-2 font-semibold">Value</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">GP %</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">% of Sales</th><th className="px-3 py-2 font-semibold">% of GP</th></tr></thead><tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">{ranked.map((person, index) => { const gpPercent = ratio(person.gp, person.salesValue); const commissionOfSales = ratio(person.commission, person.salesValue); const commissionOfGp = ratio(person.commission, person.gp); const commissionTone = commissionOfGp === null ? "text-[var(--text-secondary)]" : commissionOfGp <= 20 ? "text-[var(--status-success)]" : commissionOfGp <= 30 ? "text-[var(--brand-600)]" : "text-[var(--status-danger)]"; return <tr key={person.name} className="h-12 cursor-pointer transition-colors hover:bg-[var(--brand-50)] focus-visible:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(person); } }} tabIndex={0} aria-label={`View ${person.name} details`}><td className="px-3 py-2 font-semibold text-[var(--text-tertiary)]">{index + 1}</td><td className="px-3 py-2"><Avatar name={person.name} /></td><td className="px-3 py-2 font-semibold text-[var(--text-primary)]">{person.name}</td><td className="px-3 py-2">{person.branch}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatNumber(person.salesUnit)}</td><td className="px-3 py-2 text-right font-semibold">{formatMmk(person.salesValue)}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatMmk(person.gp)}</td><td className={cn("px-3 py-2 text-right font-semibold", gpPercent !== null && gpPercent >= 15 ? "text-[var(--status-success)]" : gpPercent !== null && gpPercent >= 5 ? "text-[var(--brand-600)]" : "text-[var(--status-danger)]")}>{gpPercent === null ? "N/A" : `${gpPercent.toFixed(1)}%`}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatMmk(person.commission)}</td><td className="px-3 py-2 text-right">{commissionOfSales === null ? "N/A" : `${commissionOfSales.toFixed(1)}%`}</td><td className={cn("px-3 py-2 text-right font-semibold", commissionTone)}>{commissionOfGp === null ? "N/A" : `${commissionOfGp.toFixed(1)}%`}</td></tr>; })}</tbody></table></div></TableCard></section>;
 }
 
-function EmployeeDetail({ person, rows }: { person: Person | null; rows: SalesRow[] }) { const months = MONTHS.map((label, index) => ({ label, sales: rows.filter((row) => row.month === index + 1).length })); const peak = Math.max(...months.map((item) => item.sales), 1); return <section className="space-y-5"><SectionHeader title="Employee Detail" description="Select a salesperson from the ranking table or team summary to update this view." />{person ? <Card className="rounded-2xl border-[#E8EAED] p-5 shadow-[0_8px_24px_rgba(31,41,55,0.035)] sm:p-6"><div className="flex flex-col gap-6 xl:grid xl:grid-cols-[280px_minmax(0,1fr)_minmax(300px,1.3fr)]"><div className="flex items-center gap-4 border-b border-[#EEF0F3] pb-5 xl:block xl:border-b-0 xl:border-r xl:pb-0 xl:pr-6"><Avatar name={person.name} large /><div className="min-w-0 xl:mt-4"><p className="truncate text-lg font-semibold text-[#1F2937]">{person.name}</p><p className="mt-1 text-sm text-[#6B7280]">{person.branch}</p><p className="mt-3 text-xs font-semibold text-[#E86F00]">Rank #{person.rank} · Active employee</p></div></div><div className="grid grid-cols-2 gap-x-5 gap-y-5 sm:grid-cols-3"><Metric label="Sales Unit" value={formatNumber(person.salesUnit)} /><Metric label="Sales Value" value={formatMmk(person.salesValue)} /><Metric label="GP Value" value={formatMmk(person.gp)} /><Metric label="GP %" value={`${ratio(person.gp, person.salesValue)?.toFixed(1) ?? "N/A"}${ratio(person.gp, person.salesValue) === null ? "" : "%"}`} /><Metric label="Commission" value={formatMmk(person.commission)} /><Metric label="Commission % of Sales" value={`${ratio(person.commission, person.salesValue)?.toFixed(1) ?? "N/A"}${ratio(person.commission, person.salesValue) === null ? "" : "%"}`} /><Metric label="Commission / GP" value={`${ratio(person.commission, person.gp)?.toFixed(1) ?? "N/A"}${ratio(person.commission, person.gp) === null ? "" : "%"}`} /></div><div><p className="text-sm font-semibold text-[#1F2937]">Monthly Sales Trend</p><div className="mt-5 flex h-36 items-end gap-2 border-b border-[#EEF0F3] pb-1">{months.map((item) => <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"><span className="text-[10px] font-semibold text-[#6B7280]">{item.sales || ""}</span><span className="w-full rounded-t bg-[#FF7A00]" style={{ height: `${Math.max(item.sales ? 10 : 2, (item.sales / peak) * 96)}px` }} /><span className="text-[10px] text-[#9CA3AF]">{item.label}</span></div>)}</div></div></div></Card> : <Card className="p-8"><EmptyState message="No active employee is available in the selected scope." /></Card>}</section>; }
+function EmployeeDetail({ person, rows }: { person: Person | null; rows: SalesRow[] }) { const months = MONTHS.map((label, index) => ({ label, sales: rows.filter((row) => row.month === index + 1).length })); const peak = Math.max(...months.map((item) => item.sales), 1); return <section className="space-y-4"><SectionHeader title="Employee Detail" description="Select a salesperson from the ranking table or team summary to update this view." />{person ? <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6"><div className="flex flex-col gap-6 xl:grid xl:grid-cols-[280px_minmax(0,1fr)_minmax(300px,1.3fr)]"><div className="flex items-center gap-4 border-b border-[var(--divider)] pb-5 xl:block xl:border-b-0 xl:border-r xl:pb-0 xl:pr-6"><Avatar name={person.name} large /><div className="min-w-0 xl:mt-4"><p className="truncate text-lg font-semibold text-[var(--text-primary)]">{person.name}</p><p className="mt-1 text-sm text-[var(--text-secondary)]">{person.branch}</p><p className="kmm-tabular mt-3 text-xs font-semibold text-[var(--brand-600)]">Rank #{person.rank} · Active employee</p></div></div><div className="grid grid-cols-2 gap-x-5 gap-y-5 sm:grid-cols-3"><Metric label="Sales Unit" value={formatNumber(person.salesUnit)} /><Metric label="Sales Value" value={formatMmk(person.salesValue)} /><Metric label="GP Value" value={formatMmk(person.gp)} /><Metric label="GP %" value={`${ratio(person.gp, person.salesValue)?.toFixed(1) ?? "N/A"}${ratio(person.gp, person.salesValue) === null ? "" : "%"}`} /><Metric label="Commission" value={formatMmk(person.commission)} /><Metric label="Commission % of Sales" value={`${ratio(person.commission, person.salesValue)?.toFixed(1) ?? "N/A"}${ratio(person.commission, person.salesValue) === null ? "" : "%"}`} /><Metric label="Commission / GP" value={`${ratio(person.commission, person.gp)?.toFixed(1) ?? "N/A"}${ratio(person.commission, person.gp) === null ? "" : "%"}`} /></div><div><p className="text-sm font-semibold text-[var(--text-primary)]">Monthly Sales Trend</p><div className="mt-5 flex h-36 items-end gap-2 border-b border-[var(--divider)] pb-1">{months.map((item) => <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"><span className="kmm-tabular text-[10px] font-semibold text-[var(--text-secondary)]">{item.sales || ""}</span><span className="w-full rounded-t bg-[var(--brand-500)]" style={{ height: `${Math.max(item.sales ? 10 : 2, (item.sales / peak) * 96)}px` }} /><span className="text-[10px] text-[var(--text-tertiary)]">{item.label}</span></div>)}</div></div></div></Card> : <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"><EmptyState message="No active employee is available in the selected scope." /></Card>}</section>; }
 
 function exportPeople(people: Person[]) { const headings = ["Rank", "Name", "Showroom", "Sales", "GP", "Booking", "Achievement %"]; const rows = people.map((person) => [String(person.rank), person.name, person.branch, String(person.salesUnit), String(person.gp), String(person.booking), person.achievement.toFixed(1)]); const csv = [headings, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "kmm-team.csv"; anchor.click(); URL.revokeObjectURL(url); }
 
 export function SalesOrganizationPage() {
-  const [mobileOpen, setMobileOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [notificationsOpen, setNotificationsOpen] = useState(false); const [filters, setFilters] = useState<FilterState>(defaultFilters); const [data, setData] = useState<DashboardData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterState>(defaultFilters); const [data, setData] = useState<DashboardData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [selectedName, setSelectedName] = useState<string | null>(null);
   async function loadData() { setLoading(true); setError(""); try { const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }); if (!response.ok) throw new Error(`Unable to load dashboard-data.json (${response.status})`); setData(await response.json()); } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Unable to load team data"); } finally { setLoading(false); } }
   useEffect(() => { queueMicrotask(() => { void loadData(); }); }, []);
   const inactiveNames = useMemo(() => new Set((data?.sales ?? []).filter((row) => isInactiveEmployeeName(row.salesperson)).map((row) => normalizeEmployeeBaseName(row.salesperson))), [data]);
@@ -121,5 +327,180 @@ export function SalesOrganizationPage() {
   const totalSalesValue = sum(activeValueRows, (row) => row.finalReceived); const totalGp = sum(activeValueRows, (row) => row.gp1); const totalAchievement = totalTarget ? (activeUnitRows.length / totalTarget) * 100 : null; const totalGpPercent = totalSalesValue ? (totalGp / totalSalesValue) * 100 : null; const salesComparison = previousSalesValue && previousSalesValue !== 0 ? ((totalSalesValue - previousSalesValue) / previousSalesValue) * 100 : null;
   const filterOptions = useMemo(() => { const source = data?.sales ?? []; const matching = source.filter((row) => matchesFilters(row, { ...filters, salesperson: [] })); return { year: [...new Set(source.map((row) => String(row.year)).filter((value) => value !== "null"))].sort((a, b) => Number(b) - Number(a)), month: MONTHS, branch: [...new Set(source.map((row) => row.branch).filter(Boolean))].sort(), salesperson: [...new Set(matching.map((row) => row.salesperson).filter((name) => isCurrentEmployee(name, inactiveNames)))].sort() }; }, [data, filters, inactiveNames]);
   function updateFilter(key: FilterKey, values: string[]) { setSelectedName(null); setFilters((current) => ({ ...current, [key]: values, ...(key === "branch" ? { salesperson: [] } : {}) })); }
-  return <div className="min-h-screen bg-[#F8FAFC] text-[#1F2937]"><AppSidebar collapsed={collapsed} mobileOpen={mobileOpen} onCollapsedChange={setCollapsed} onMobileOpenChange={setMobileOpen} /><div className={cn("transition-[padding] duration-300", collapsed ? "lg:pl-[76px]" : "lg:pl-[240px]")}><header className="sticky top-0 z-30 flex h-[82px] items-center gap-3 border-b border-[#E5E7EB] bg-white/95 px-4 backdrop-blur-md sm:px-6 xl:px-8"><button className="rounded-xl border border-[#E5E7EB] p-2.5 text-[#55565A] hover:bg-[#F8FAFC] lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={19} /></button><div className="hidden max-w-md flex-1 md:block"><p className="text-lg font-bold tracking-[-0.02em] text-[#1F2937]">Team</p><p className="text-xs text-[#9CA3AF]">KMM Sales Intelligence</p></div><div className="ml-auto flex items-center gap-2 sm:gap-3"><HeaderPresentationTrigger /><div className="relative"><button className="relative grid size-10 place-items-center rounded-xl border border-[#E5E7EB] text-[#55565A]" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Open notifications"><Bell size={18} /><span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#EF4444]" /></button>{notificationsOpen && <Card className="absolute right-0 top-12 z-50 w-[310px] p-3 shadow-xl"><p className="text-sm font-semibold">Data source status</p><p className="mt-1 text-xs text-[#6B7280]">Team roster includes current salespeople only.</p></Card>}</div><button className="flex items-center gap-2 rounded-xl p-1.5 pr-2" aria-label="Open profile menu"><span className="grid size-9 place-items-center rounded-xl bg-[#55565A] text-xs font-bold text-white">KM</span><span className="hidden text-left xl:block"><span className="block text-xs font-semibold">KMM Admin</span><span className="block text-[10px] text-[#9CA3AF]">Executive view</span></span><ChevronDown className="hidden text-[#9CA3AF] xl:block" size={15} /></button></div></header><main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6"><div className="space-y-6"><section><TeamFilters filters={filters} options={filterOptions} onChange={updateFilter} onRefresh={loadData} onReset={() => { setFilters(defaultFilters); setSelectedName(null); }} onExport={() => exportPeople(people)} /></section>{loading && <Card className="grid min-h-[320px] place-items-center p-8"><div className="w-full max-w-xl space-y-4"><LoadingSkeleton variant="chart" /><p className="text-center text-sm font-semibold text-[#6B7280]">Loading team data...</p></div></Card>}{error && !loading && <Card className="grid min-h-[320px] place-items-center p-8"><ErrorState message={error} onRetry={loadData} /></Card>}{data && !loading && !error && <><section aria-label="Team KPIs" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:gap-3 2xl:gap-4"><KpiCard title="Active Salespeople" value={people.length} unit="People" supportingText="Current employees only" /><KpiCard title="Showroom Achievement" value={totalAchievement === null ? "N/A" : `${totalAchievement.toFixed(1)}%`} unit="" supportingText="vs selected target" /><KpiCard title="Total Sales" value={formatCompact(totalSalesValue)} unit="MMK" comparison={salesComparison === null ? undefined : { value: `${salesComparison >= 0 ? "+" : ""}${salesComparison.toFixed(1)}%`, direction: salesComparison >= 0 ? "positive" : "negative", label: "vs last year" }} /><KpiCard title="Total GP" value={formatCompact(totalGp)} unit="MMK" supportingText={totalGpPercent === null ? "GP% N/A" : `GP% ${totalGpPercent.toFixed(1)}%`} /><KpiCard title="Best Showroom" value={bestShowroom?.code ?? "N/A"} unit="" supportingText={bestShowroom?.achievement === null || !bestShowroom ? "Achievement N/A" : `${bestShowroom.achievement.toFixed(1)}% achievement`} /><KpiCard title="Best Salesperson" value={bestSalesperson ? <span className="flex items-center gap-2 text-xl"><Avatar name={bestSalesperson.name} />{bestSalesperson.name}</span> : "N/A"} unit="" supportingText={bestSalesperson ? `${bestSalesperson.branch} · ${bestSalesperson.achievement.toFixed(1)}% achievement` : undefined} /></section><section className="grid grid-cols-1 gap-5 xl:grid-cols-2 xl:items-stretch"><ShowroomPerformance items={branchMetrics} /><ShowroomRanking items={showroomAchievementRanking} /></section><TeamSummary items={branchMetrics} onSelect={(person) => setSelectedName(person.name)} /><TopSalespeople people={people} onSelect={(person) => setSelectedName(person.name)} /><EmployeeDetail person={selectedPerson} rows={selectedRows} /></>}</div></main></div></div>;
+  return (
+    <div className="kmm-sales-organization-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
+      <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
+          <div className="space-y-5 xl:space-y-6">
+            <section aria-labelledby="sales-organization-title">
+              <div
+                className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
+                aria-hidden="true"
+              />
+              <h1
+                id="sales-organization-title"
+                className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
+              >
+                Sales Organization Intelligence
+              </h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+                Current team structure, showroom ownership, performance, and
+                employee detail for the selected period.
+              </p>
+            </section>
+
+            <section aria-label="Sales organization filters">
+              <TeamFilters
+                filters={filters}
+                options={filterOptions}
+                onChange={updateFilter}
+                onRefresh={loadData}
+                onReset={() => {
+                  setFilters(defaultFilters);
+                  setSelectedName(null);
+                }}
+                onExport={() => exportPeople(people)}
+              />
+            </section>
+
+            {loading && (
+              <Card
+                className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                aria-busy="true"
+                aria-label="Loading sales organization data"
+              >
+                <div className="w-full max-w-xl space-y-4">
+                  <LoadingSkeleton variant="chart" />
+                  <p className="text-center text-sm font-medium text-[var(--text-secondary)]">
+                    Loading team data...
+                  </p>
+                </div>
+              </Card>
+            )}
+
+            {error && !loading && (
+              <Card
+                className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                aria-live="assertive"
+              >
+                <ErrorState message={error} onRetry={loadData} />
+              </Card>
+            )}
+
+            {data && !loading && !error && (
+              <>
+                <section
+                  aria-label="Team KPIs"
+                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:gap-3 2xl:gap-4"
+                >
+                  <KpiCard
+                    variant="executive"
+                    title="Active Salespeople"
+                    value={people.length}
+                    unit="People"
+                    subtitle="Current employees only"
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Showroom Achievement"
+                    value={
+                      totalAchievement === null
+                        ? "N/A"
+                        : `${totalAchievement.toFixed(1)}%`
+                    }
+                    subtitle="vs selected target"
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Total Sales"
+                    value={formatCompact(totalSalesValue)}
+                    unit="MMK"
+                    trendValue={
+                      salesComparison === null
+                        ? undefined
+                        : `${salesComparison >= 0 ? "+" : ""}${salesComparison.toFixed(1)}%`
+                    }
+                    trendDirection={
+                      salesComparison === null
+                        ? "neutral"
+                        : salesComparison >= 0
+                          ? "up"
+                          : "down"
+                    }
+                    comparisonLabel={
+                      salesComparison === null ? undefined : "vs last year"
+                    }
+                    status={
+                      salesComparison === null
+                        ? "neutral"
+                        : salesComparison >= 0
+                          ? "positive"
+                          : "negative"
+                    }
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Total GP"
+                    value={formatCompact(totalGp)}
+                    unit="MMK"
+                    subtitle={
+                      totalGpPercent === null
+                        ? "GP% N/A"
+                        : `GP% ${totalGpPercent.toFixed(1)}%`
+                    }
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Best Showroom"
+                    value={bestShowroom?.code ?? "N/A"}
+                    subtitle={
+                      bestShowroom?.achievement === null || !bestShowroom
+                        ? "Achievement N/A"
+                        : `${bestShowroom.achievement.toFixed(1)}% achievement`
+                    }
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Best Salesperson"
+                    value={
+                      bestSalesperson ? (
+                        <span className="flex min-w-0 items-center gap-2 text-xl">
+                          <Avatar name={bestSalesperson.name} />
+                          <span className="truncate">
+                            {bestSalesperson.name}
+                          </span>
+                        </span>
+                      ) : (
+                        "N/A"
+                      )
+                    }
+                    subtitle={
+                      bestSalesperson
+                        ? `${bestSalesperson.branch} · ${bestSalesperson.achievement.toFixed(1)}% achievement`
+                        : undefined
+                    }
+                  />
+                </section>
+
+                <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:items-stretch">
+                  <ShowroomPerformance items={branchMetrics} />
+                  <ShowroomRanking items={showroomAchievementRanking} />
+                </section>
+                <TeamSummary
+                  items={branchMetrics}
+                  onSelect={(person) => setSelectedName(person.name)}
+                />
+                <TopSalespeople
+                  people={people}
+                  onSelect={(person) => setSelectedName(person.name)}
+                />
+                <EmployeeDetail
+                  person={selectedPerson}
+                  rows={selectedRows}
+                />
+              </>
+            )}
+          </div>
+      </main>
+    </div>
+  );
 }

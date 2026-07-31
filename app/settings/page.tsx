@@ -1,10 +1,5 @@
-import { AuthGate } from "../../components/auth/auth-gate";
-import { PlaceholderPage } from "../../components/navigation/placeholder-page";
+import { SettingsPage as SettingsControlCenter } from "../../components/settings/settings-page";
 
 export default function SettingsPage() {
-  return (
-    <AuthGate>
-      <PlaceholderPage title="Settings" />
-    </AuthGate>
-  );
+  return <SettingsControlCenter />;
 }

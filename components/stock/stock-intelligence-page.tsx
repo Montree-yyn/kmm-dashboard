@@ -1,82 +1,1218 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Menu, RotateCcw, Search } from "lucide-react";
-import { AppSidebar } from "../navigation/app-sidebar";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  RotateCcw,
+  Search,
+} from "lucide-react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { ChartCard } from "../design-system/chart-card";
 import { ErrorState } from "../design-system/error-state";
-import { FilterBar } from "../design-system/filter-bar";
 import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { TableCard } from "../design-system/table-card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { getOpenBookingUnitRows } from "../../lib/dashboard/booking-selectors";
-import { getAgedStock, getAverageStockAge, getCurrentStockRows, getStockByProduct, getStockUnitRows, getStockValue, getStockValueRows, normalizeProductType } from "../../lib/dashboard/stock-selectors";
-import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
+import {
+  getAgedStock,
+  getAverageStockAge,
+  getCurrentStockRows,
+  getStockByProduct,
+  getStockUnitRows,
+  getStockValue,
+  getStockValueRows,
+  normalizeProductType,
+} from "../../lib/dashboard/stock-selectors";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const BRANCH_NAMES: Record<string, string> = { KMM01: "Hpa-an", KMM02: "Mawlamyine", KMM03: "Tharyarwaddy" };
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+const BRANCH_NAMES: Record<string, string> = {
+  KMM01: "Hpa-an",
+  KMM02: "Mawlamyine",
+  KMM03: "Tharyarwaddy",
+};
 const UNIT_PRODUCTS = PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[];
+const chartCardClass =
+  "min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]";
+const agingPresentation = [
+  {
+    surface:
+      "border-[color-mix(in_srgb,var(--status-success)_22%,transparent)] bg-[color-mix(in_srgb,var(--status-success)_7%,white)]",
+    tone: "text-[var(--status-success)]",
+  },
+  {
+    surface:
+      "border-[color-mix(in_srgb,var(--status-warning)_22%,transparent)] bg-[color-mix(in_srgb,var(--status-warning)_7%,white)]",
+    tone: "text-[var(--status-warning)]",
+  },
+  {
+    surface:
+      "border-[color-mix(in_srgb,var(--brand-500)_24%,transparent)] bg-[color-mix(in_srgb,var(--brand-500)_7%,white)]",
+    tone: "text-[var(--brand-600)]",
+  },
+  {
+    surface:
+      "border-[color-mix(in_srgb,var(--status-danger)_22%,transparent)] bg-[color-mix(in_srgb,var(--status-danger)_7%,white)]",
+    tone: "text-[var(--status-danger)]",
+  },
+] as const;
 type Key = "year" | "month" | "branch" | "product";
 type Filters = Record<Key, string[]>;
-type Stock = { date: string; year: number | null; month: number | null; branch: string; kmm: number | string | null; productType: string; productGroup: string; model: string; ageBucket: string; ageDays: number | null; snapshotDate: string; msrp: number | null; stockId?: string | null; serialNumber: string | null; engineNumber?: string | null; chassisNumber?: string | null; currentStatus: string };
-type Booking = { date: string; year: number | null; month: number | null; branch: string; salesperson: string; productType: string; model: string; price?: number | null; deposit?: number | null; purchaseStatus?: string; status: string };
-type Data = { meta?: { sourceUpdatedAt?: string; sources?: string[] }; stock: Stock[]; booking: Booking[] };
+type Stock = {
+  date: string;
+  year: number | null;
+  month: number | null;
+  branch: string;
+  kmm: number | string | null;
+  productType: string;
+  productGroup: string;
+  model: string;
+  ageBucket: string;
+  ageDays: number | null;
+  snapshotDate: string;
+  msrp: number | null;
+  stockId?: string | null;
+  serialNumber: string | null;
+  engineNumber?: string | null;
+  chassisNumber?: string | null;
+  currentStatus: string;
+};
+type Booking = {
+  date: string;
+  year: number | null;
+  month: number | null;
+  branch: string;
+  salesperson: string;
+  productType: string;
+  model: string;
+  price?: number | null;
+  deposit?: number | null;
+  purchaseStatus?: string;
+  status: string;
+};
+type Data = {
+  meta?: { sourceUpdatedAt?: string; sources?: string[] };
+  stock: Stock[];
+  booking: Booking[];
+};
 
 const initial: Filters = { year: [], month: [], branch: [], product: [] };
-const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-const numeric = (value: unknown) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
-const money = (value: unknown) => `${numeric(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-const compact = (value: unknown) => `${(numeric(value) / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
-const unitCategory = (row: { productType: string; productGroup?: string }) => normalizeProductType(row);
-const dateDays = (row: Stock) => Number.isFinite(Number(row.ageDays)) && Number(row.ageDays) >= 0 ? Number(row.ageDays) : null;
-const aging = (row: Stock) => { const days = dateDays(row); if (days === null) return "Unknown"; return days <= 30 ? "0–30" : days <= 60 ? "31–60" : days <= 90 ? "61–90" : ">90"; };
-const risk = (row: Stock) => { const age = aging(row); return age === ">90" ? "Critical" : age === "61–90" ? "At Risk" : age === "31–60" ? "Watch" : age === "0–30" ? "Healthy" : "N/A"; };
-const rowMatches = (row: Stock | Booking, filters: Filters) => (!filters.year.length || (row.year !== null && filters.year.includes(String(row.year)))) && (!filters.month.length || (row.month !== null && filters.month.includes(MONTHS[row.month - 1]))) && (!filters.branch.length || filters.branch.includes(row.branch)) && (!filters.product.length || filters.product.includes(unitCategory(row)));
+const csvCell = (value: unknown) =>
+  `"${String(value ?? "").replaceAll('"', '""')}"`;
+const numeric = (value: unknown) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+const money = (value: unknown) =>
+  `${numeric(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+const compact = (value: unknown) =>
+  `${(numeric(value) / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
+const unitCategory = (row: { productType: string; productGroup?: string }) =>
+  normalizeProductType(row);
+const dateDays = (row: Stock) =>
+  Number.isFinite(Number(row.ageDays)) && Number(row.ageDays) >= 0
+    ? Number(row.ageDays)
+    : null;
+const aging = (row: Stock) => {
+  const days = dateDays(row);
+  if (days === null) return "Unknown";
+  return days <= 30
+    ? "0–30"
+    : days <= 60
+      ? "31–60"
+      : days <= 90
+        ? "61–90"
+        : ">90";
+};
+const risk = (row: Stock) => {
+  const age = aging(row);
+  return age === ">90"
+    ? "Critical"
+    : age === "61–90"
+      ? "At Risk"
+      : age === "31–60"
+        ? "Watch"
+        : age === "0–30"
+          ? "Healthy"
+          : "N/A";
+};
+const rowMatches = (row: Stock | Booking, filters: Filters) =>
+  (!filters.year.length ||
+    (row.year !== null && filters.year.includes(String(row.year)))) &&
+  (!filters.month.length ||
+    (row.month !== null && filters.month.includes(MONTHS[row.month - 1]))) &&
+  (!filters.branch.length || filters.branch.includes(row.branch)) &&
+  (!filters.product.length || filters.product.includes(unitCategory(row)));
 
-function MultiSelect({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (values: string[]) => void }) {
-  const [open, setOpen] = useState(false); const [query, setQuery] = useState("");
-  const visible = options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
-  const display = values.length === 0 ? "All" : values.length === 1 ? values[0] : `${values.length} selected`;
-  return <div className="relative min-w-0"><label className="mb-2 block text-[11px] font-bold uppercase tracking-[.12em] text-[#8A8E96]">{label}</label><button type="button" onClick={() => setOpen(!open)} className="flex h-11 w-full items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-semibold text-[#1F2937]"><span className="truncate">{display}</span><ChevronDown size={16} className="text-[#9CA3AF]" /></button>{open && <Card className="absolute left-0 right-0 top-[72px] z-50 p-2 shadow-xl"><div className="relative mb-2"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" /><input className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] pl-8 pr-2 text-sm outline-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${label.toLowerCase()}`} /></div><div className="max-h-52 space-y-1 overflow-auto">{visible.map((option) => <label key={option} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[#FFF7EF]"><input type="checkbox" checked={values.includes(option)} onChange={() => onChange(values.includes(option) ? values.filter((value) => value !== option) : [...values, option])} className="accent-[#FF8615]" />{option}</label>)}</div></Card>}</div>;
+function MultiSelect({
+  label,
+  options,
+  values,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const visible = options.filter((option) =>
+    option.toLowerCase().includes(query.toLowerCase()),
+  );
+  const display =
+    values.length === 0
+      ? "All"
+      : values.length === 1
+        ? values[0]
+        : `${values.length} selected`;
+  const controlId = `stock-${label.toLowerCase().replaceAll(" ", "-")}`;
+  return (
+    <div className="relative min-w-0">
+      <label
+        htmlFor={controlId}
+        className="mb-1.5 block text-xs font-medium leading-4 text-[var(--text-secondary)]"
+      >
+        {label}
+      </label>
+      <button
+        id={controlId}
+        type="button"
+        onClick={() => setOpen(!open)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+        className="flex h-11 w-full items-center justify-between rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+        aria-label={`${label} filter`}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{display}</span>
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-[var(--text-tertiary)] transition-transform duration-200 motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <Card
+          className="absolute left-0 right-0 top-[68px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)]"
+          role="listbox"
+          aria-label={`${label} options`}
+          aria-multiselectable="true"
+        >
+          <div className="relative mb-2">
+            <Search
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
+              aria-hidden="true"
+            />
+            <input
+              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={`Search ${label.toLowerCase()}`}
+              aria-label={`Search ${label.toLowerCase()}`}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setOpen(false);
+              }}
+            />
+          </div>
+          <div className="max-h-52 space-y-1 overflow-auto">
+            {visible.map((option) => (
+              <label
+                key={option}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-2 text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-50)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={values.includes(option)}
+                  onChange={() =>
+                    onChange(
+                      values.includes(option)
+                        ? values.filter((value) => value !== option)
+                        : [...values, option],
+                    )
+                  }
+                  className="size-4 accent-[var(--brand-500)]"
+                />
+                <span className="min-w-0 break-words">{option}</span>
+              </label>
+            ))}
+            {!visible.length && (
+              <p className="px-2 py-3 text-center text-xs text-[var(--text-tertiary)]">
+                No matching options
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
 }
 
-function HorizontalBars({ rows, value, suffix = " Units", color = "#FF7A00" }: { rows: { label: string; count: number; value: number }[]; value?: (row: { label: string; count: number; value: number }) => number; suffix?: string; color?: string }) {
-  const items = rows.map((row) => ({ ...row, amount: numeric(value ? value(row) : row.count) })); const max = Math.max(...items.map((item) => item.amount), 1);
-  return <div className="space-y-4">{items.map((item) => <div key={item.label}><div className="mb-1.5 flex justify-between gap-3 text-xs"><span className="truncate font-medium text-[#4B5563]">{item.label}</span><span className="font-semibold text-[#1F2937]">{item.amount.toLocaleString()}{suffix}</span></div><div className="h-2 rounded-full bg-[#F1F2F4]"><div className="h-2 rounded-full" style={{ width: `${(item.amount / max) * 100}%`, backgroundColor: color }} /></div></div>)}</div>;
+function HorizontalBars({
+  rows,
+  value,
+  suffix = " Units",
+  color = "#FF7A00",
+}: {
+  rows: { label: string; count: number; value: number }[];
+  value?: (row: { label: string; count: number; value: number }) => number;
+  suffix?: string;
+  color?: string;
+}) {
+  const items = rows.map((row) => ({
+    ...row,
+    amount: numeric(value ? value(row) : row.count),
+  }));
+  const max = Math.max(...items.map((item) => item.amount), 1);
+  return (
+    <div className="space-y-3.5">
+      {items.map((item) => (
+        <div key={item.label}>
+          <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
+            <span
+              className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
+              title={item.label}
+            >
+              {item.label}
+            </span>
+            <span className="kmm-tabular shrink-0 font-semibold text-[var(--text-primary)]">
+              {item.amount.toLocaleString()}
+              {suffix}
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+            <div
+              className="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
+              style={{
+                width: `${(item.amount / max) * 100}%`,
+                backgroundColor: color,
+              }}
+            />
+          </div>
+        </div>
+      ))}
+      {!items.length && (
+        <p className="grid min-h-32 place-items-center text-center text-sm text-[var(--text-tertiary)]">
+          No stock data available for the selected filters.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function StockTrend({ rows }: { rows: Stock[] }) {
   const [metric, setMetric] = useState<"unit" | "value">("unit");
-  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({ id: String(year), year, label: String(year), kind: index === 0 ? "current" as const : index === 1 ? "previous" as const : "older" as const, values: MONTHS.map((_, month) => {
-    const monthRows = rows.filter((row) => row.year === year && row.month === month + 1);
-    if (!monthRows.length) return null;
-    return metric === "unit" ? monthRows.length : monthRows.reduce((total, row) => total + numeric(row.msrp), 0);
-  }) }));
-  return <PremiumTrendChart title="Stock Trend" subtitle="Compare stock entries by year, period and metric." labels={MONTHS} unit={metric === "unit" ? "Unit" : "MMK"} formatValue={metric === "unit" ? (value) => value.toLocaleString() : compact} defaultSeriesIds={["2026", "2025"]} onMetricChange={(value) => setMetric(value as "unit" | "value")} series={series} />;
+  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({
+    id: String(year),
+    year,
+    label: String(year),
+    kind:
+      index === 0
+        ? ("current" as const)
+        : index === 1
+          ? ("previous" as const)
+          : ("older" as const),
+    values: MONTHS.map((_, month) => {
+      const monthRows = rows.filter(
+        (row) => row.year === year && row.month === month + 1,
+      );
+      if (!monthRows.length) return null;
+      return metric === "unit"
+        ? monthRows.length
+        : monthRows.reduce((total, row) => total + numeric(row.msrp), 0);
+    }),
+  }));
+  return (
+    <PremiumTrendChart
+      title="Stock Trend"
+      subtitle="Compare stock entries by year, period and metric."
+      labels={MONTHS}
+      unit={metric === "unit" ? "Unit" : "MMK"}
+      formatValue={
+        metric === "unit" ? (value) => value.toLocaleString() : compact
+      }
+      defaultSeriesIds={["2026", "2025"]}
+      onMetricChange={(value) => setMetric(value as "unit" | "value")}
+      series={series}
+      className={cn(
+        chartCardClass,
+        "max-[760px]:[&>header]:!flex-col max-[760px]:[&>header]:!items-stretch max-[760px]:[&>header>div:last-child]:!w-full max-[760px]:[&>header>div:last-child]:!max-w-full max-[760px]:[&>header>div:last-child]:!justify-start max-[760px]:[&>header>div:last-child]:!whitespace-normal",
+      )}
+    />
+  );
 }
 
 export function StockIntelligencePage() {
-  const [data, setData] = useState<Data | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [filters, setFilters] = useState<Filters>(initial); const [collapsed, setCollapsed] = useState(false); const [mobileOpen, setMobileOpen] = useState(false); const [query, setQuery] = useState(""); const [page, setPage] = useState(1); const [sort, setSort] = useState<"age" | "date" | "value">("age");
-  const load = () => { setLoading(true); setError(""); fetch("/dashboard-data.json").then((response) => response.ok ? response.json() : Promise.reject()).then((value) => setData(value)).catch(() => setError("Stock data could not be loaded.")).finally(() => setLoading(false)); };
-  useEffect(() => { const id = window.setTimeout(load, 0); return () => window.clearTimeout(id); }, []);
-  const rows = useMemo(() => getCurrentStockRows(data?.stock.filter((row) => rowMatches(row, filters)) ?? []), [data, filters]);
-  const booking = useMemo(() => data ? getOpenBookingUnitRows(data.booking, filters) : [], [data, filters]);
-  const unitRows = getStockUnitRows(rows); const valueRows = getStockValueRows(rows); const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows); const knownAge = averageStockAge === null ? [] : [averageStockAge];
-  const options = useMemo(() => ({ year: [...new Set(data?.stock.map((row) => String(row.year)).filter((value) => value !== "null"))].sort().reverse(), month: MONTHS.filter((month, index) => data?.stock.some((row) => row.month === index + 1)), branch: ["KMM01", "KMM02", "KMM03"].filter((branch) => data?.stock.some((row) => row.branch === branch)), product: [...UNIT_PRODUCTS] }), [data]);
-  const productRows = getStockByProduct(rows).filter((item) => UNIT_PRODUCTS.includes(item.product)).map((item) => ({ label: item.product, count: item.unit, value: item.value }));
-  const ageGroups = ["0–30", "31–60", "61–90", ">90"].map((label) => { const items = unitRows.filter((row) => aging(row) === label); return { label, count: items.length, value: items.reduce((total, row) => total + numeric(row.msrp), 0) }; });
-  const modelMap = new Map<string, Stock[]>(); unitRows.forEach((row) => { const key = row.model || "Unknown model"; modelMap.set(key, [...(modelMap.get(key) ?? []), row]); });
-  const models = [...modelMap.entries()].map(([label, items]) => ({ label, rows: items, count: items.length, value: items.reduce((total, row) => total + numeric(row.msrp), 0), averageAge: items.map((row) => dateDays(row)).filter((age): age is number => age !== null).reduce((a, b, _, ages) => a + b / ages.length, 0) })).sort((a, b) => b.count - a.count);
-  const bookingByModel = new Map<string, number>(); booking.forEach((row) => bookingByModel.set(row.model || "Unknown model", (bookingByModel.get(row.model || "Unknown model") ?? 0) + 1));
-  const comparedModels = [...new Set([...models.map((item) => item.label), ...bookingByModel.keys()])].map((label) => ({ label, stock: models.find((item) => item.label === label)?.count ?? 0, booking: bookingByModel.get(label) ?? 0 })).sort((a, b) => Math.max(b.stock, b.booking) - Math.max(a.stock, a.booking)).slice(0, 10);
-  const table = rows.filter((row) => `${row.branch} ${row.date} ${row.productType} ${row.model} ${row.serialNumber ?? ""}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => sort === "age" ? (dateDays(b) ?? -1) - (dateDays(a) ?? -1) : sort === "value" ? numeric(b.msrp) - numeric(a.msrp) : String(b.date).localeCompare(String(a.date)));
-  const pages = Math.max(1, Math.ceil(table.length / 10)); const visible = table.slice((page - 1) * 10, page * 10);
-  const update = (key: Key, values: string[]) => { setFilters((previous) => ({ ...previous, [key]: values })); setPage(1); };
-  const exportRows = () => { const headers = ["Branch", "Date In", "Days In Stock", "Product Type", "Model", "Serial Number", "MSRP", "Booking Status", "Aging Group", "Risk Status"]; const contents = [headers, ...table.map((row) => [row.branch, row.date || "N/A", dateDays(row) ?? "N/A", unitCategory(row), row.model || "N/A", row.serialNumber || "N/A", row.msrp ?? "N/A", row.currentStatus || "N/A", aging(row), risk(row)])].map((line) => line.map(csvCell).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([contents], { type: "text/csv" })); const link = document.createElement("a"); link.href = url; link.download = "kmm-stock-detail.csv"; link.click(); URL.revokeObjectURL(url); };
-  return <div className="min-h-screen bg-[#F8FAFC] text-[#1F2937]"><AppSidebar collapsed={collapsed} mobileOpen={mobileOpen} onCollapsedChange={setCollapsed} onMobileOpenChange={setMobileOpen} /><div className={cn("transition-[padding] duration-300", collapsed ? "lg:pl-[76px]" : "lg:pl-[240px]")}><header className="sticky top-0 z-30 flex h-[82px] items-center gap-3 border-b border-[#E5E7EB] bg-white px-4 sm:px-6 xl:px-8"><button className="rounded-xl border border-[#E5E7EB] p-2.5 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={19} /></button><div><h1 className="text-lg font-bold">Stock</h1><p className="text-xs text-[#9CA3AF]">KMM Inventory Intelligence</p></div><div className="ml-auto"><HeaderPresentationTrigger /></div></header><main className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-5 xl:p-6"><section className="space-y-5"><FilterBar actions={<><Button variant="outline" className="h-11" onClick={() => { setFilters(initial); setPage(1); }}><RotateCcw size={16} />Reset</Button><Button className="h-11" onClick={exportRows}><Download size={16} />Export</Button></>}><MultiSelect label="Date In Year" options={options.year} values={filters.year} onChange={(values) => update("year", values)} /><MultiSelect label="Date In Month" options={options.month} values={filters.month} onChange={(values) => update("month", values)} /><MultiSelect label="Branch" options={options.branch} values={filters.branch} onChange={(values) => update("branch", values)} /><MultiSelect label="Product Type" options={options.product} values={filters.product} onChange={(values) => update("product", values)} /></FilterBar></section>{loading && <LoadingSkeleton variant="chart" />}{error && <ErrorState message={error} onRetry={load} />}{data && !loading && !error && <><section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 xl:gap-3"><KpiCard title="Stock Unit" value={unitRows.length} unit="Units" /><KpiCard title="Stock Value" value={compact(stockValue)} unit="MMK" supportingText="Approved product groups with a valid MSRP" /><KpiCard title="Average Stock Age" value={knownAge.length ? Math.round(knownAge.reduce((total, value) => total + value, 0) / knownAge.length) : "N/A"} unit={knownAge.length ? "Days" : ""} /><KpiCard title="Aged Stock" value={aged.length} unit=">90 Days" supportingText={rows.length ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% of filtered inventory` : "No filtered stock"} /><KpiCard title="Stock Coverage" value={booking.length ? `${(unitRows.length / booking.length).toFixed(1)}x` : "N/A"} unit="Stock ÷ Booking" supportingText={booking.length ? `${booking.length} open booking unit(s)` : "No open Booking data in filter"} /></section><ChartCard title="Stock Health" subtitle="Remaining inventory age based on Date In"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{ageGroups.map((item, index) => <div key={item.label} className={["border-[#DCFCE7] bg-[#F0FDF4]", "border-[#FEF3C7] bg-[#FFFBEB]", "border-[#FED7AA] bg-[#FFF7ED]", "border-[#FECACA] bg-[#FEF2F2]"][index] + " rounded-xl border p-4"}><p className={["text-[#15803D]", "text-[#B45309]", "text-[#C2410C]", "text-[#DC2626]"][index] + " text-sm font-bold"}>{item.label} Days</p><p className="mt-3 text-2xl font-semibold">{item.count} <span className="text-xs text-[#6B7280]">Units</span></p><p className="mt-2 text-xs text-[#4B5563]">{compact(item.value)} MMK · {rows.length ? ((item.count / rows.length) * 100).toFixed(1) : "0.0"}%</p></div>)}</div><div className="mt-6 flex h-3 overflow-hidden rounded-full bg-[#F1F2F4]">{ageGroups.map((item, index) => <div key={item.label} style={{ width: `${unitRows.length ? (item.count / unitRows.length) * 100 : 0}%` }} className={["bg-[#22C55E]", "bg-[#FACC15]", "bg-[#FB923C]", "bg-[#EF4444]"][index]} />)}</div></ChartCard><section className="grid gap-5 xl:grid-cols-[1.85fr_1fr]"><ChartCard title="Stock Trend" subtitle="Monthly current-inventory entries by Date In"><StockTrend rows={unitRows} /></ChartCard><ChartCard title="Stock vs Booking" subtitle="Open Booking versus remaining Stock by model"><div className="space-y-4">{comparedModels.map((item) => { const max = Math.max(...comparedModels.flatMap((model) => [model.stock, model.booking]), 1); return <div key={item.label}><div className="mb-1.5 flex justify-between gap-3 text-xs"><span className="truncate font-medium">{item.label}</span><span className="shrink-0 text-[#6B7280]">S {item.stock} · B {item.booking}</span></div><div className="space-y-1"><div className="h-2 rounded-full bg-[#F1F2F4]"><div className="h-2 rounded-full bg-[#FF7A00]" style={{ width: `${(item.stock / max) * 100}%` }} /></div><div className="h-2 rounded-full bg-[#F1F2F4]"><div className="h-2 rounded-full bg-[#64748B]" style={{ width: `${(item.booking / max) * 100}%` }} /></div></div></div>; })}{!comparedModels.length && <p className="text-sm text-[#9CA3AF]">No comparable model data in the current filter.</p>}</div><div className="mt-5 flex gap-4 text-xs"><span><i className="mr-1 inline-block size-2 rounded-full bg-[#FF7A00]" />Stock</span><span><i className="mr-1 inline-block size-2 rounded-full bg-[#64748B]" />Open Booking</span></div></ChartCard></section><section><h2 className="mb-4 text-[19px] font-semibold">Branch Performance</h2><div className="grid gap-4 md:grid-cols-3">{["KMM01", "KMM02", "KMM03"].map((branch) => { const stock = unitRows.filter((row) => row.branch === branch); const booked = booking.filter((row) => row.branch === branch); const value = valueRows.filter((row) => row.branch === branch).reduce((total, row) => total + numeric(row.msrp), 0); const ages = stock.map((row) => dateDays(row)).filter((age): age is number => age !== null); const old = stock.filter((row) => aging(row) === ">90").length; const max = Math.max(stock.length, booked.length, 1); return <Card key={branch} className="border-[#E8EAED] p-5 shadow-[0_8px_24px_rgba(31,41,55,0.035)]"><p className="text-lg font-semibold">{branch} <span className="text-sm font-normal text-[#9CA3AF]">{BRANCH_NAMES[branch]}</span></p><div className="mt-4 grid grid-cols-2 gap-4 text-sm"><div><p className="text-xs text-[#9CA3AF]">Stock Unit</p><p className="mt-1 font-semibold">{stock.length}</p></div><div><p className="text-xs text-[#9CA3AF]">Booking Unit</p><p className="mt-1 font-semibold">{booked.length}</p></div><div><p className="text-xs text-[#9CA3AF]">Stock Value</p><p className="mt-1 font-semibold">{compact(value)}</p></div><div><p className="text-xs text-[#9CA3AF]">Average Age</p><p className="mt-1 font-semibold">{ages.length ? `${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} Days` : "N/A"}</p></div><div><p className="text-xs text-[#9CA3AF]">&gt;90 Days</p><p className="mt-1 font-semibold text-[#DC2626]">{old}</p></div><div><p className="text-xs text-[#9CA3AF]">Stock Gap</p><p className="mt-1 font-semibold">{stock.length - booked.length}</p></div></div><div className="mt-5 space-y-2 border-t border-[#EEF0F3] pt-4 text-xs"><div className="flex items-center gap-2"><span className="w-12">Stock</span><div className="h-2 flex-1 rounded-full bg-[#F1F2F4]"><div className="h-2 rounded-full bg-[#FF7A00]" style={{ width: `${(stock.length / max) * 100}%` }} /></div></div><div className="flex items-center gap-2"><span className="w-12">Booking</span><div className="h-2 flex-1 rounded-full bg-[#F1F2F4]"><div className="h-2 rounded-full bg-[#64748B]" style={{ width: `${(booked.length / max) * 100}%` }} /></div></div></div></Card>; })}</div></section><section className="grid gap-5 xl:grid-cols-2"><ChartCard title="Product Analysis" subtitle="Stock unit by product group"><HorizontalBars rows={productRows} /></ChartCard><ChartCard title="Top 10 Aged Model" subtitle="Models ranked by average days in stock"><HorizontalBars rows={models.filter((item) => item.averageAge > 0).sort((a, b) => b.averageAge - a.averageAge).slice(0, 10).map((item) => ({ label: item.label, count: Math.round(item.averageAge), value: item.value }))} suffix=" Days" /></ChartCard></section><ChartCard title="Stock Aging Matrix" subtitle="Remaining stock unit by model and age band"><div className="overflow-x-auto"><table className="min-w-[720px] w-full text-sm"><thead className="bg-[#FAFBFC] text-left text-xs text-[#6B7280]"><tr><th className="p-3">Model</th>{["0–30", "31–60", "61–90", ">90"].map((label) => <th key={label} className="p-3 text-center">{label}</th>)}<th className="p-3 text-center">Total</th></tr></thead><tbody>{models.map((item) => <tr key={item.label} className="border-t border-[#EEF0F3]"><td className="p-3 font-medium">{item.label}</td>{["0–30", "31–60", "61–90", ">90"].map((bucket, index) => { const count = item.rows.filter((row) => aging(row) === bucket).length; return <td key={bucket} className="p-3 text-center"><span className={["bg-[#DCFCE7]", "bg-[#FEF3C7]", "bg-[#FED7AA]", "bg-[#FECACA]"][index] + " inline-block min-w-10 rounded px-2 py-1"}>{count}</span></td>; })}<td className="p-3 text-center font-semibold">{item.count}</td></tr>)}</tbody></table></div></ChartCard><TableCard title="Stock Detail" search={<div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className="h-9 w-64 rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] pl-9 pr-3 text-sm outline-none" placeholder="Search stock detail" /></div>} filters={<select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }} className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm"><option value="age">Sort: Days in stock</option><option value="date">Sort: Date in</option><option value="value">Sort: MSRP</option></select>} exportAction={<Button className="h-9" onClick={exportRows}><Download size={15} />Export</Button>} pagination={<div className="flex items-center justify-between text-xs text-[#6B7280]"><span>{table.length} stock row(s)</span><div className="flex items-center gap-2"><button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded border p-1 disabled:opacity-40"><ChevronLeft size={15} /></button><span>{page} / {pages}</span><button disabled={page === pages} onClick={() => setPage(page + 1)} className="rounded border p-1 disabled:opacity-40"><ChevronRight size={15} /></button></div></div>} empty={!visible.length}><div className="max-h-[480px] overflow-auto rounded-xl border border-[#EEF0F3]"><table className="min-w-[1160px] w-full text-left text-xs"><thead className="sticky top-0 z-10 bg-[#FAFBFC] text-[#6B7280]"><tr>{["Branch", "Date In", "Days In Stock", "Product Type", "Model", "Serial Number", "MSRP", "Booking Status", "Aging Group", "Risk Status"].map((header) => <th key={header} className="whitespace-nowrap px-3 py-3 font-semibold">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#F1F2F4]">{visible.map((row, index) => <tr key={`${row.date}-${row.model}-${index}`}><td className="px-3 py-3">{row.branch}</td><td className="whitespace-nowrap px-3 py-3">{row.date || "N/A"}</td><td className="px-3 py-3 text-center">{dateDays(row) ?? "N/A"}</td><td className="px-3 py-3">{unitCategory(row)}</td><td className="px-3 py-3 font-semibold">{row.model || "N/A"}</td><td className="px-3 py-3 text-[#9CA3AF]">{row.serialNumber || "N/A"}</td><td className="px-3 py-3 text-right">{row.msrp === null ? "N/A" : money(row.msrp)}</td><td className="px-3 py-3 text-[#9CA3AF]">{row.currentStatus || "N/A"}</td><td className="px-3 py-3">{aging(row)}</td><td className="px-3 py-3"><span className={risk(row) === "Critical" ? "font-semibold text-[#DC2626]" : risk(row) === "At Risk" ? "font-semibold text-[#C2410C]" : risk(row) === "Watch" ? "text-[#B45309]" : "text-[#15803D]"}>{risk(row)}</span></td></tr>)}</tbody></table></div></TableCard><p className="pb-2 text-xs text-[#9CA3AF]">Source: {(data.meta?.sources ?? []).join(" · ") || "N/A"}. Unknown product groups remain visible in detail but are excluded from unit and value KPIs. Date In filters are optional and do not limit the default current-stock snapshot.</p></>}</main></div></div>;
+  const [data, setData] = useState<Data | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState<Filters>(initial);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"age" | "date" | "value">("age");
+  const load = () => {
+    setLoading(true);
+    setError("");
+    fetch("/dashboard-data.json")
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((value) => setData(value))
+      .catch(() => setError("Stock data could not be loaded."))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    const id = window.setTimeout(load, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  const rows = useMemo(
+    () =>
+      getCurrentStockRows(
+        data?.stock.filter((row) => rowMatches(row, filters)) ?? [],
+      ),
+    [data, filters],
+  );
+  const booking = useMemo(
+    () => (data ? getOpenBookingUnitRows(data.booking, filters) : []),
+    [data, filters],
+  );
+  const unitRows = getStockUnitRows(rows);
+  const valueRows = getStockValueRows(rows);
+  const stockValue = getStockValue(rows);
+  const averageStockAge = getAverageStockAge(rows);
+  const aged = getAgedStock(rows);
+  const knownAge = averageStockAge === null ? [] : [averageStockAge];
+  const options = useMemo(
+    () => ({
+      year: [
+        ...new Set(
+          data?.stock
+            .map((row) => String(row.year))
+            .filter((value) => value !== "null"),
+        ),
+      ]
+        .sort()
+        .reverse(),
+      month: MONTHS.filter((month, index) =>
+        data?.stock.some((row) => row.month === index + 1),
+      ),
+      branch: ["KMM01", "KMM02", "KMM03"].filter((branch) =>
+        data?.stock.some((row) => row.branch === branch),
+      ),
+      product: [...UNIT_PRODUCTS],
+    }),
+    [data],
+  );
+  const productRows = getStockByProduct(rows)
+    .filter((item) => UNIT_PRODUCTS.includes(item.product))
+    .map((item) => ({
+      label: item.product,
+      count: item.unit,
+      value: item.value,
+    }));
+  const ageGroups = ["0–30", "31–60", "61–90", ">90"].map((label) => {
+    const items = unitRows.filter((row) => aging(row) === label);
+    return {
+      label,
+      count: items.length,
+      value: items.reduce((total, row) => total + numeric(row.msrp), 0),
+    };
+  });
+  const modelMap = new Map<string, Stock[]>();
+  unitRows.forEach((row) => {
+    const key = row.model || "Unknown model";
+    modelMap.set(key, [...(modelMap.get(key) ?? []), row]);
+  });
+  const models = [...modelMap.entries()]
+    .map(([label, items]) => ({
+      label,
+      rows: items,
+      count: items.length,
+      value: items.reduce((total, row) => total + numeric(row.msrp), 0),
+      averageAge: items
+        .map((row) => dateDays(row))
+        .filter((age): age is number => age !== null)
+        .reduce((a, b, _, ages) => a + b / ages.length, 0),
+    }))
+    .sort((a, b) => b.count - a.count);
+  const bookingByModel = new Map<string, number>();
+  booking.forEach((row) =>
+    bookingByModel.set(
+      row.model || "Unknown model",
+      (bookingByModel.get(row.model || "Unknown model") ?? 0) + 1,
+    ),
+  );
+  const comparedModels = [
+    ...new Set([...models.map((item) => item.label), ...bookingByModel.keys()]),
+  ]
+    .map((label) => ({
+      label,
+      stock: models.find((item) => item.label === label)?.count ?? 0,
+      booking: bookingByModel.get(label) ?? 0,
+    }))
+    .sort((a, b) => Math.max(b.stock, b.booking) - Math.max(a.stock, a.booking))
+    .slice(0, 10);
+  const table = rows
+    .filter((row) =>
+      `${row.branch} ${row.date} ${row.productType} ${row.model} ${row.serialNumber ?? ""}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+    )
+    .sort((a, b) =>
+      sort === "age"
+        ? (dateDays(b) ?? -1) - (dateDays(a) ?? -1)
+        : sort === "value"
+          ? numeric(b.msrp) - numeric(a.msrp)
+          : String(b.date).localeCompare(String(a.date)),
+    );
+  const pages = Math.max(1, Math.ceil(table.length / 10));
+  const visible = table.slice((page - 1) * 10, page * 10);
+  const update = (key: Key, values: string[]) => {
+    setFilters((previous) => ({ ...previous, [key]: values }));
+    setPage(1);
+  };
+  const exportRows = () => {
+    const headers = [
+      "Branch",
+      "Date In",
+      "Days In Stock",
+      "Product Type",
+      "Model",
+      "Serial Number",
+      "MSRP",
+      "Booking Status",
+      "Aging Group",
+      "Risk Status",
+    ];
+    const contents = [
+      headers,
+      ...table.map((row) => [
+        row.branch,
+        row.date || "N/A",
+        dateDays(row) ?? "N/A",
+        unitCategory(row),
+        row.model || "N/A",
+        row.serialNumber || "N/A",
+        row.msrp ?? "N/A",
+        row.currentStatus || "N/A",
+        aging(row),
+        risk(row),
+      ]),
+    ]
+      .map((line) => line.map(csvCell).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([contents], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "kmm-stock-detail.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="kmm-stock-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
+      <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
+          <div className="space-y-5 xl:space-y-6">
+            <section
+              className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
+              aria-labelledby="stock-title"
+            >
+              <div className="min-w-0">
+                <div
+                  className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
+                  aria-hidden="true"
+                />
+                <h1
+                  id="stock-title"
+                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
+                >
+                  Stock Intelligence
+                </h1>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Current inventory position, value, composition, age, and
+                  supporting stock detail.
+                </p>
+              </div>
+              {data?.meta?.sourceUpdatedAt && (
+                <p className="text-xs text-[var(--text-tertiary)]">
+                  Last update:{" "}
+                  <span className="kmm-tabular">
+                    {data.meta.sourceUpdatedAt}
+                  </span>
+                </p>
+              )}
+            </section>
+            <section aria-label="Stock filters">
+              <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <MultiSelect
+                      label="Date In Year"
+                      options={options.year}
+                      values={filters.year}
+                      onChange={(values) => update("year", values)}
+                    />
+                    <MultiSelect
+                      label="Date In Month"
+                      options={options.month}
+                      values={filters.month}
+                      onChange={(values) => update("month", values)}
+                    />
+                    <MultiSelect
+                      label="Branch"
+                      options={options.branch}
+                      values={filters.branch}
+                      onChange={(values) => update("branch", values)}
+                    />
+                    <MultiSelect
+                      label="Product Type"
+                      options={options.product}
+                      values={filters.product}
+                      onChange={(values) => update("product", values)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                    <Button
+                      variant="outline"
+                      className="h-11 rounded-[var(--radius-control-lg)] border-[var(--border-default)] px-4 text-[var(--text-primary)]"
+                      onClick={() => {
+                        setFilters(initial);
+                        setPage(1);
+                      }}
+                    >
+                      <RotateCcw size={16} />
+                      Reset
+                    </Button>
+                    <Button
+                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                      onClick={exportRows}
+                    >
+                      <Download size={16} />
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </section>
+            {loading && (
+              <Card
+                className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                aria-busy="true"
+                aria-label="Loading stock data"
+              >
+                <div className="w-full max-w-xl space-y-4">
+                  <LoadingSkeleton variant="chart" />
+                  <p className="text-center text-sm font-medium text-[var(--text-secondary)]">
+                    Loading real stock data...
+                  </p>
+                </div>
+              </Card>
+            )}
+            {error && !loading && (
+              <Card
+                className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                aria-live="assertive"
+              >
+                <ErrorState message={error} onRetry={load} />
+              </Card>
+            )}
+            {data && !loading && !error && (
+              <>
+                <section
+                  aria-label="Stock KPIs"
+                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
+                >
+                  <KpiCard
+                    variant="executive"
+                    title="Stock Unit"
+                    value={unitRows.length}
+                    unit="Units"
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Stock Value"
+                    value={compact(stockValue)}
+                    unit="MMK"
+                    subtitle="Approved product groups with a valid MSRP"
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Average Stock Age"
+                    value={
+                      knownAge.length
+                        ? Math.round(
+                            knownAge.reduce(
+                              (total, value) => total + value,
+                              0,
+                            ) / knownAge.length,
+                          )
+                        : "N/A"
+                    }
+                    unit={knownAge.length ? "Days" : ""}
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Aged Stock"
+                    value={aged.length}
+                    unit=">90 Days"
+                    subtitle={
+                      rows.length
+                        ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% of filtered inventory`
+                        : "No filtered stock"
+                    }
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Stock Coverage"
+                    value={
+                      booking.length
+                        ? `${(unitRows.length / booking.length).toFixed(1)}x`
+                        : "N/A"
+                    }
+                    unit="Stock ÷ Booking"
+                    subtitle={
+                      booking.length
+                        ? `${booking.length} open booking unit(s)`
+                        : "No open Booking data in filter"
+                    }
+                  />
+                </section>
+                <ChartCard
+                  title="Stock Health"
+                  subtitle="Remaining inventory age based on Date In"
+                  className={chartCardClass}
+                >
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {ageGroups.map((item, index) => (
+                      <div
+                        key={item.label}
+                        className={`${agingPresentation[index].surface} rounded-[var(--radius-control-lg)] border p-4`}
+                      >
+                        <p
+                          className={`${agingPresentation[index].tone} text-sm font-semibold`}
+                        >
+                          {item.label} Days
+                        </p>
+                        <p className="kmm-tabular mt-3 text-2xl font-semibold text-[var(--text-primary)]">
+                          {item.count}{" "}
+                          <span className="text-xs font-medium text-[var(--text-secondary)]">
+                            Units
+                          </span>
+                        </p>
+                        <p className="kmm-tabular mt-2 text-xs text-[var(--text-secondary)]">
+                          {compact(item.value)} MMK ·{" "}
+                          {rows.length
+                            ? ((item.count / rows.length) * 100).toFixed(1)
+                            : "0.0"}
+                          %
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="mt-6 flex h-2.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                    aria-label="Stock age distribution"
+                  >
+                    {ageGroups.map((item, index) => (
+                      <div
+                        key={item.label}
+                        style={{
+                          width: `${unitRows.length ? (item.count / unitRows.length) * 100 : 0}%`,
+                        }}
+                        className={
+                          [
+                            "bg-[var(--status-success)]",
+                            "bg-[var(--status-warning)]",
+                            "bg-[var(--brand-500)]",
+                            "bg-[var(--status-danger)]",
+                          ][index]
+                        }
+                        title={`${item.label} Days: ${item.count} Units`}
+                      />
+                    ))}
+                  </div>
+                </ChartCard>
+                <section className="grid gap-5 xl:grid-cols-[1.85fr_1fr]">
+                  <StockTrend rows={unitRows} />
+                  <ChartCard
+                    title="Stock vs Booking"
+                    subtitle="Open Booking versus remaining Stock by model"
+                    className={chartCardClass}
+                  >
+                    <div className="space-y-3.5">
+                      {comparedModels.map((item) => {
+                        const max = Math.max(
+                          ...comparedModels.flatMap((model) => [
+                            model.stock,
+                            model.booking,
+                          ]),
+                          1,
+                        );
+                        return (
+                          <div key={item.label}>
+                            <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
+                              <span
+                                className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
+                                title={item.label}
+                              >
+                                {item.label}
+                              </span>
+                              <span className="kmm-tabular shrink-0 font-semibold text-[var(--text-primary)]">
+                                S {item.stock} · B {item.booking}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                                <div
+                                  className="h-full rounded-full bg-[var(--brand-500)]"
+                                  style={{
+                                    width: `${(item.stock / max) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                                <div
+                                  className="h-full rounded-full bg-[var(--text-secondary)]"
+                                  style={{
+                                    width: `${(item.booking / max) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!comparedModels.length && (
+                        <p className="grid min-h-32 place-items-center text-center text-sm text-[var(--text-tertiary)]">
+                          No comparable model data in the current filter.
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
+                      <span className="flex items-center gap-1.5">
+                        <i className="inline-block size-2 rounded-full bg-[var(--brand-500)]" />
+                        Stock
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <i className="inline-block size-2 rounded-full bg-[var(--text-secondary)]" />
+                        Open Booking
+                      </span>
+                    </div>
+                  </ChartCard>
+                </section>
+                <section>
+                  <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
+                    Branch Performance
+                  </h2>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {["KMM01", "KMM02", "KMM03"].map((branch) => {
+                      const stock = unitRows.filter(
+                        (row) => row.branch === branch,
+                      );
+                      const booked = booking.filter(
+                        (row) => row.branch === branch,
+                      );
+                      const value = valueRows
+                        .filter((row) => row.branch === branch)
+                        .reduce((total, row) => total + numeric(row.msrp), 0);
+                      const ages = stock
+                        .map((row) => dateDays(row))
+                        .filter((age): age is number => age !== null);
+                      const old = stock.filter(
+                        (row) => aging(row) === ">90",
+                      ).length;
+                      const max = Math.max(stock.length, booked.length, 1);
+                      return (
+                        <Card
+                          key={branch}
+                          className="min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)]"
+                        >
+                          <p className="text-lg font-semibold text-[var(--text-primary)]">
+                            {branch}{" "}
+                            <span className="text-sm font-normal text-[var(--text-tertiary)]">
+                              {BRANCH_NAMES[branch]}
+                            </span>
+                          </p>
+                          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                Stock Unit
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold">
+                                {stock.length}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                Booking Unit
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold">
+                                {booked.length}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                Stock Value
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold">
+                                {compact(value)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                Average Age
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold">
+                                {ages.length
+                                  ? `${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} Days`
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                &gt;90 Days
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold text-[var(--status-danger)]">
+                                {old}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[var(--text-tertiary)]">
+                                Stock Gap
+                              </p>
+                              <p className="kmm-tabular mt-1 font-semibold">
+                                {stock.length - booked.length}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-5 space-y-2 border-t border-[var(--divider)] pt-4 text-xs text-[var(--text-secondary)]">
+                            <div className="flex items-center gap-2">
+                              <span className="w-12">Stock</span>
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                                <div
+                                  className="h-full rounded-full bg-[var(--brand-500)]"
+                                  style={{
+                                    width: `${(stock.length / max) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-12">Booking</span>
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                                <div
+                                  className="h-full rounded-full bg-[var(--text-secondary)]"
+                                  style={{
+                                    width: `${(booked.length / max) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section className="grid gap-5 xl:grid-cols-2">
+                  <ChartCard
+                    title="Product Analysis"
+                    subtitle="Stock unit by product group"
+                    className={chartCardClass}
+                  >
+                    <HorizontalBars rows={productRows} />
+                  </ChartCard>
+                  <ChartCard
+                    title="Top 10 Aged Model"
+                    subtitle="Models ranked by average days in stock"
+                    className={chartCardClass}
+                  >
+                    <HorizontalBars
+                      rows={models
+                        .filter((item) => item.averageAge > 0)
+                        .sort((a, b) => b.averageAge - a.averageAge)
+                        .slice(0, 10)
+                        .map((item) => ({
+                          label: item.label,
+                          count: Math.round(item.averageAge),
+                          value: item.value,
+                        }))}
+                      suffix=" Days"
+                    />
+                  </ChartCard>
+                </section>
+                <ChartCard
+                  title="Stock Aging Matrix"
+                  subtitle="Remaining stock unit by model and age band"
+                  className={chartCardClass}
+                >
+                  <div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--divider)]">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead className="bg-[var(--surface-subtle)] text-left text-xs text-[var(--text-secondary)]">
+                        <tr>
+                          <th className="h-11 px-3 py-2.5" scope="col">
+                            Model
+                          </th>
+                          {["0–30", "31–60", "61–90", ">90"].map((label) => (
+                            <th
+                              key={label}
+                              className="h-11 px-3 py-2.5 text-center"
+                              scope="col"
+                            >
+                              {label}
+                            </th>
+                          ))}
+                          <th
+                            className="h-11 px-3 py-2.5 text-center"
+                            scope="col"
+                          >
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--divider)]">
+                        {models.map((item) => (
+                          <tr
+                            key={item.label}
+                            className="transition-colors hover:bg-[var(--surface-subtle)]"
+                          >
+                            <td className="min-h-11 break-words px-3 py-3 font-medium text-[var(--text-primary)]">
+                              {item.label}
+                            </td>
+                            {["0–30", "31–60", "61–90", ">90"].map(
+                              (bucket, index) => {
+                                const count = item.rows.filter(
+                                  (row) => aging(row) === bucket,
+                                ).length;
+                                return (
+                                  <td
+                                    key={bucket}
+                                    className="kmm-tabular px-3 py-3 text-center"
+                                  >
+                                    <span
+                                      className={
+                                        [
+                                          "bg-[color-mix(in_srgb,var(--status-success)_10%,white)]",
+                                          "bg-[color-mix(in_srgb,var(--status-warning)_10%,white)]",
+                                          "bg-[color-mix(in_srgb,var(--brand-500)_10%,white)]",
+                                          "bg-[color-mix(in_srgb,var(--status-danger)_10%,white)]",
+                                        ][index] +
+                                        " inline-block min-w-10 rounded-[var(--radius-control)] px-2 py-1"
+                                      }
+                                    >
+                                      {count}
+                                    </span>
+                                  </td>
+                                );
+                              },
+                            )}
+                            <td className="kmm-tabular px-3 py-3 text-center font-semibold">
+                              {item.count}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </ChartCard>
+                <TableCard
+                  title="Stock Detail"
+                  className={chartCardClass}
+                  search={
+                    <div className="relative min-w-0 flex-1 sm:flex-none">
+                      <Search
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
+                        aria-hidden="true"
+                      />
+                      <label htmlFor="stock-detail-search" className="sr-only">
+                        Search stock detail
+                      </label>
+                      <input
+                        id="stock-detail-search"
+                        value={query}
+                        onChange={(event) => {
+                          setQuery(event.target.value);
+                          setPage(1);
+                        }}
+                        className="h-11 w-full rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:w-64"
+                        placeholder="Search stock detail"
+                      />
+                    </div>
+                  }
+                  filters={
+                    <>
+                      <label htmlFor="stock-detail-sort" className="sr-only">
+                        Sort stock detail
+                      </label>
+                      <select
+                        id="stock-detail-sort"
+                        value={sort}
+                        onChange={(event) => {
+                          setSort(event.target.value as typeof sort);
+                          setPage(1);
+                        }}
+                        className="h-11 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                      >
+                        <option value="age">Sort: Days in stock</option>
+                        <option value="date">Sort: Date in</option>
+                        <option value="value">Sort: MSRP</option>
+                      </select>
+                    </>
+                  }
+                  exportAction={
+                    <Button
+                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                      onClick={exportRows}
+                    >
+                      <Download size={15} />
+                      Export
+                    </Button>
+                  }
+                  pagination={
+                    <div className="flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)]">
+                      <span className="kmm-tabular">
+                        {table.length} stock row(s)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={page === 1}
+                          onClick={() => setPage(page - 1)}
+                          className="grid size-11 place-items-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Previous stock detail page"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <span className="kmm-tabular min-w-12 text-center">
+                          {page} / {pages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={page === pages}
+                          onClick={() => setPage(page + 1)}
+                          className="grid size-11 place-items-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Next stock detail page"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  }
+                  empty={!visible.length}
+                >
+                  <div className="max-h-[480px] overflow-auto rounded-[var(--radius-control-lg)] border border-[var(--divider)]">
+                    <table className="w-full min-w-[1160px] text-left text-xs">
+                      <thead className="sticky top-0 z-10 bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
+                        <tr>
+                          {[
+                            "Branch",
+                            "Date In",
+                            "Days In Stock",
+                            "Product Type",
+                            "Model",
+                            "Serial Number",
+                            "MSRP",
+                            "Booking Status",
+                            "Aging Group",
+                            "Risk Status",
+                          ].map((header) => (
+                            <th
+                              key={header}
+                              className={cn(
+                                "h-11 whitespace-nowrap px-3 py-2.5 font-semibold",
+                                ["Days In Stock", "MSRP"].includes(header) &&
+                                  "text-right",
+                              )}
+                              scope="col"
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--divider)]">
+                        {visible.map((row, index) => (
+                          <tr
+                            key={`${row.date}-${row.model}-${index}`}
+                            className="transition-colors hover:bg-[var(--surface-subtle)]"
+                          >
+                            <td className="h-11 px-3 py-3">{row.branch}</td>
+                            <td className="h-11 whitespace-nowrap px-3 py-3">
+                              {row.date || "N/A"}
+                            </td>
+                            <td className="kmm-tabular h-11 px-3 py-3 text-right">
+                              {dateDays(row) ?? "N/A"}
+                            </td>
+                            <td className="h-11 px-3 py-3">
+                              {unitCategory(row)}
+                            </td>
+                            <td className="h-11 max-w-[240px] break-words px-3 py-3 font-semibold text-[var(--text-primary)]">
+                              {row.model || "N/A"}
+                            </td>
+                            <td className="h-11 px-3 py-3 text-[var(--text-tertiary)]">
+                              {row.serialNumber || "N/A"}
+                            </td>
+                            <td className="kmm-tabular h-11 px-3 py-3 text-right">
+                              {row.msrp === null ? "N/A" : money(row.msrp)}
+                            </td>
+                            <td className="h-11 px-3 py-3 text-[var(--text-tertiary)]">
+                              {row.currentStatus || "N/A"}
+                            </td>
+                            <td className="h-11 px-3 py-3">{aging(row)}</td>
+                            <td className="h-11 px-3 py-3">
+                              <span
+                                className={
+                                  risk(row) === "Critical"
+                                    ? "font-semibold text-[var(--status-danger)]"
+                                    : risk(row) === "At Risk"
+                                      ? "font-semibold text-[var(--brand-600)]"
+                                      : risk(row) === "Watch"
+                                        ? "text-[var(--status-warning)]"
+                                        : "text-[var(--status-success)]"
+                                }
+                              >
+                                {risk(row)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </TableCard>
+                <p className="pb-2 text-xs leading-5 text-[var(--text-tertiary)]">
+                  Source: {(data.meta?.sources ?? []).join(" · ") || "N/A"}.
+                  Unknown product groups remain visible in detail but are
+                  excluded from unit and value KPIs. Date In filters are
+                  optional and do not limit the default current-stock snapshot.
+                </p>
+              </>
+            )}
+          </div>
+      </main>
+    </div>
+  );
 }

@@ -1,14 +1,153 @@
 @import "tailwindcss";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
+@keyframes kmm-kai-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes kmm-kai-slide-in-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.kmm-kai-panel {
+  inset: 0 0 0 auto;
+  width: min(420px, 100vw);
+  height: 100dvh;
+  animation: kmm-kai-slide-in-right 250ms ease both;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .kmm-kai-panel {
+    width: min(360px, 100vw);
+  }
+}
+
+@media (max-width: 639px) {
+  .kmm-kai-panel {
+    inset: auto 0 0;
+    width: 100%;
+    height: 80dvh;
+    max-height: 80vh;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    animation-name: kmm-kai-slide-in-up;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kmm-kai-panel {
+    animation: none;
+  }
+}
+
+[data-marketing-workspace]:fullscreen {
+  height: 100vh;
+  min-height: 100vh;
+  background: var(--surface-canvas);
+}
+
 :root {
-  --background: #f8fafc;
-  --foreground: #1f2937;
+  color-scheme: light;
+
+  /* KMM Design System v2.0: brand and semantic color foundation. */
+  --brand-50: #fff8f3;
+  --brand-100: #fff0e6;
+  --brand-500: #f56600;
+  --brand-600: #e85d00;
+  --brand-focus: rgb(245 102 0 / 22%);
+
+  --surface-canvas: #f5f5f7;
+  --surface-default: #ffffff;
+  --surface-subtle: #fafafc;
+  --surface-elevated: rgb(255 255 255 / 92%);
+
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --text-disabled: #a1a1a6;
+
+  --border-default: #e5e5ea;
+  --border-subtle: rgb(0 0 0 / 6%);
+  --divider: #ededf2;
+
+  --status-success: #168a45;
+  --status-success-bg: #eaf7ef;
+  --status-warning: #b76800;
+  --status-warning-bg: #fff4e5;
+  --status-danger: #d92d20;
+  --status-danger-bg: #fdecec;
+  --status-info: #3b6ea8;
+  --status-info-bg: #eef4fb;
+
+  --chart-current: #f56600;
+  --chart-previous: #f7a35c;
+  --chart-neutral: #86868b;
+  --chart-grid: #ededf2;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-control: 10px;
+  --radius-control-lg: 12px;
+  --radius-card: 16px;
+  --radius-panel: 20px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-hover: 0 4px 16px rgb(0 0 0 / 6%);
+  --shadow-floating: 0 12px 32px rgb(0 0 0 / 12%);
+  --shadow-overlay: 0 18px 50px rgb(0 0 0 / 16%);
+
+  --motion-fast: 160ms;
+  --motion-standard: 200ms;
+  --motion-slow: 240ms;
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-state: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font-kmm:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --background: var(--surface-canvas);
+  --foreground: var(--text-primary);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-surface: var(--surface-default);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-border: var(--border-default);
+  --color-divider: var(--divider);
+  --radius-kmm-control: var(--radius-control);
+  --radius-kmm-card: var(--radius-card);
+  --radius-kmm-panel: var(--radius-panel);
+  --shadow-kmm-card: var(--shadow-card);
+  --shadow-kmm-hover: var(--shadow-hover);
+  --shadow-kmm-floating: var(--shadow-floating);
   --font-sans: var(--font-kmm);
 }
 
@@ -24,8 +163,32 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-kmm), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-kmm);
   text-rendering: optimizeLegibility;
+}
+
+.kmm-surface {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-default);
+  box-shadow: var(--shadow-card);
+}
+
+.kmm-surface-subtle {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-subtle);
+}
+
+.kmm-floating-surface {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-floating);
+}
+
+.kmm-tabular {
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .presentation-trigger {
@@ -39,7 +202,11 @@ body {
   background: #ffffff;
   color: #4b5563;
   box-shadow: 0 6px 18px rgb(31 41 55 / 8%);
-  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .presentation-trigger:hover,
@@ -119,7 +286,11 @@ body {
   background: #ffffff;
   color: #4b5563;
   box-shadow: 0 10px 28px rgb(31 41 55 / 12%);
-  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
 }
 
 .presentation-dock-panel button:hover {
@@ -193,20 +364,38 @@ select {
   cursor: pointer;
 }
 
+.kmm-decision-toolbar {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
+}
+
+.kmm-compare-control {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgb(255 134 21 / 22%);
+  outline: 2px solid var(--brand-500);
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--brand-focus);
 }
 
 ::selection {
-  background: #ffdbb9;
-  color: #1f2937;
+  background: var(--brand-100);
+  color: var(--text-primary);
 }
 
 .chart-grid {
-  background-image: repeating-linear-gradient(to top, transparent 0, transparent 54px, #eceef1 55px);
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 54px,
+    #eceef1 55px
+  );
 }
 
 .kmm-showroom-marker {
@@ -217,9 +406,14 @@ select:focus-visible {
   border: 2px solid #ff7a00;
   border-radius: 999px;
   background: #ffffff;
-  box-shadow: 0 0 0 7px rgb(255 122 0 / 16%), 0 3px 9px rgb(31 41 55 / 28%), 0 0 24px rgb(255 122 0 / 56%);
+  box-shadow:
+    0 0 0 7px rgb(255 122 0 / 16%),
+    0 3px 9px rgb(31 41 55 / 28%),
+    0 0 24px rgb(255 122 0 / 56%);
   cursor: pointer;
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .kmm-marketing-map .maplibregl-map,
@@ -227,6 +421,261 @@ select:focus-visible {
 .kmm-marketing-map .maplibregl-canvas {
   height: 100% !important;
   width: 100% !important;
+}
+
+.kmm-marketing-map .maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+
+.kmm-marketing-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: var(--radius-control-lg);
+  background: rgb(255 255 255 / 90%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 10px 28px rgb(0 0 0 / 10%);
+  backdrop-filter: blur(8px);
+}
+
+.kmm-marketing-map .maplibregl-ctrl-group button + button {
+  border-top-color: var(--divider);
+}
+
+.kmm-marketing-map .maplibregl-ctrl-group button:hover {
+  background-color: rgb(245 245 247 / 92%);
+}
+
+.kmm-marketing-map .maplibregl-ctrl-group button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--brand-500);
+  outline-offset: -3px;
+}
+
+@media (min-width: 768px) {
+  [data-marketing-workspace]:fullscreen
+    .kmm-map-has-side-panel
+    .maplibregl-ctrl-top-right,
+  [data-marketing-workspace]:fullscreen
+    .kmm-map-has-side-panel
+    .maplibregl-ctrl-bottom-right {
+    right: min(416px, calc(100vw - 368px));
+    transition: right var(--motion-slow) var(--ease-enter);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .kmm-map-has-side-panel .maplibregl-ctrl-top-right,
+  .kmm-map-has-side-panel .maplibregl-ctrl-bottom-right {
+    right: min(416px, calc(100vw - 368px));
+    transition: right var(--motion-slow) var(--ease-enter);
+  }
+}
+
+.kmm-map-tool-button,
+.kmm-map-toolbar,
+.kmm-layer-manager-panel,
+.kmm-map-legend {
+  border: 1px solid rgb(255 255 255 / 74%);
+  background: rgb(255 255 255 / 90%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 12px 30px rgb(0 0 0 / 11%);
+  backdrop-filter: blur(8px);
+}
+
+.kmm-map-tool-button {
+  transition:
+    background-color var(--motion-fast) var(--ease-state),
+    color var(--motion-fast) var(--ease-state),
+    box-shadow var(--motion-fast) var(--ease-state);
+}
+
+.kmm-map-tool-button:hover,
+.kmm-map-toolbar-button:hover {
+  background: rgb(245 245 247 / 94%);
+  color: var(--text-primary);
+}
+
+.kmm-map-tool-button.is-active {
+  background: var(--brand-50);
+  box-shadow: inset 0 0 0 1px rgb(245 102 0 / 24%);
+}
+
+.kmm-map-toolbar {
+  gap: 2px;
+}
+
+.kmm-map-toolbar-button {
+  transition:
+    background-color var(--motion-fast) var(--ease-state),
+    color var(--motion-fast) var(--ease-state),
+    transform var(--motion-fast) var(--ease-state);
+}
+
+.kmm-map-toolbar-button:active {
+  transform: scale(0.96);
+}
+
+.kmm-map-tool-button:focus-visible,
+.kmm-map-toolbar-button:focus-visible,
+.kmm-layer-switch:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--brand-focus);
+}
+
+.kmm-layer-manager-panel {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 18px 44px rgb(0 0 0 / 14%);
+}
+
+.kmm-layer-switch-track {
+  background: #d8d8dc;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 5%);
+  transition:
+    background-color var(--motion-standard) var(--ease-state),
+    box-shadow var(--motion-standard) var(--ease-state);
+}
+
+.kmm-layer-switch-track.is-checked {
+  background: var(--brand-500);
+  box-shadow: inset 0 0 0 1px rgb(207 81 0 / 18%);
+}
+
+.kmm-layer-switch-thumb {
+  box-sizing: border-box;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 18%),
+    0 1px 5px rgb(0 0 0 / 12%);
+  transition: transform var(--motion-standard) var(--ease-enter);
+}
+
+.kmm-map-legend {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 4%),
+    0 8px 24px rgb(0 0 0 / 9%);
+}
+
+.kmm-executive-intelligence-header,
+.kmm-comparison-header {
+  box-shadow: 0 1px 0 rgb(0 0 0 / 5%);
+}
+
+.kmm-intelligence-status,
+.kmm-detail-status {
+  box-shadow: inset 0 0 0 1px rgb(22 138 69 / 10%);
+}
+
+.kmm-intelligence-body {
+  display: grid;
+}
+
+.kmm-intelligence-section {
+  padding: 18px 0;
+}
+
+.kmm-intelligence-section:first-child {
+  padding-top: 0;
+}
+
+.kmm-intelligence-section + .kmm-intelligence-section {
+  border-top: 1px solid var(--divider);
+}
+
+.kmm-intelligence-heading {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.kmm-intelligence-heading-secondary {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.kmm-intelligence-kpis {
+  gap: 1px;
+  overflow: hidden;
+  border-radius: var(--radius-control-lg);
+  background: var(--divider);
+}
+
+.kmm-intelligence-kpi {
+  background: var(--surface-subtle);
+}
+
+.kmm-intelligence-kpi-primary {
+  min-height: 84px;
+  padding: 14px 14px 12px;
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand-500);
+}
+
+.kmm-intelligence-kpi-primary b {
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.kmm-intelligence-kpi-primary span {
+  margin-top: 5px;
+  color: var(--brand-600);
+}
+
+.kmm-intelligence-insights > div {
+  min-width: 0;
+}
+
+.kmm-intelligence-insights > div:nth-child(odd) {
+  padding-right: 12px;
+  border-right: 1px solid var(--divider);
+}
+
+.kmm-intelligence-insights > div:nth-child(even) {
+  padding-left: 12px;
+}
+
+.kmm-intelligence-insights > div:nth-child(n + 3) {
+  border-top: 1px solid var(--divider);
+}
+
+.kmm-intelligence-action {
+  box-shadow: inset 3px 0 0 rgb(245 102 0 / 50%);
+}
+
+.kmm-intelligence-metadata {
+  color: var(--text-tertiary);
+}
+
+.kmm-intelligence-metadata dd {
+  color: var(--text-secondary);
+  font-weight: 550;
+}
+
+.kmm-comparison-panel {
+  scrollbar-gutter: stable;
+}
+
+.kmm-comparison-matrix {
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.kmm-comparison-matrix thead {
+  background: rgb(250 250 252 / 78%);
+}
+
+.kmm-comparison-chip {
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
 
 .kmm-showroom-marker::after {
@@ -241,7 +690,10 @@ select:focus-visible {
 .kmm-showroom-marker:hover,
 .kmm-showroom-marker.is-selected {
   transform: scale(1.14);
-  box-shadow: 0 0 0 9px rgb(255 122 0 / 20%), 0 4px 12px rgb(31 41 55 / 30%), 0 0 30px rgb(255 122 0 / 72%);
+  box-shadow:
+    0 0 0 9px rgb(255 122 0 / 20%),
+    0 4px 12px rgb(31 41 55 / 30%),
+    0 0 30px rgb(255 122 0 / 72%);
 }
 
 .kmm-map-label {
@@ -249,7 +701,12 @@ select:focus-visible {
   user-select: none;
   white-space: nowrap;
   color: #4b5563;
-  text-shadow: 0 1px 0 #ffffff, 0 -1px 0 #ffffff, 1px 0 0 #ffffff, -1px 0 0 #ffffff, 0 2px 8px rgb(255 255 255 / 90%);
+  text-shadow:
+    0 1px 0 #ffffff,
+    0 -1px 0 #ffffff,
+    1px 0 0 #ffffff,
+    -1px 0 0 #ffffff,
+    0 2px 8px rgb(255 255 255 / 90%);
 }
 
 .kmm-map-label-region {
@@ -268,9 +725,11 @@ select:focus-visible {
 .kmm-township-detail-panel {
   height: 100%;
   overflow-y: auto;
-  background: #ffffff;
-  padding: 18px;
-  color: #1f2937;
+  background: var(--surface-elevated);
+  padding: 0 20px 22px;
+  color: var(--text-primary);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .kmm-township-detail-overlay {
@@ -278,8 +737,12 @@ select:focus-visible {
 }
 
 @keyframes kmm-township-detail-enter {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .kmm-township-detail-panel-mobile {
@@ -309,54 +772,126 @@ select:focus-visible {
 
 .kmm-township-detail-header {
   position: sticky;
-  top: -18px;
+  top: -20px;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: start;
-  padding: 18px 0 12px;
-  background: #ffffff;
+  padding: 18px 0 16px;
+  background: var(--surface-elevated);
+  backdrop-filter: blur(16px);
 }
 
 .kmm-township-detail-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.25;
+  margin: 5px 0 0;
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
 .kmm-township-detail-header p {
   margin: 5px 0 0;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+}
+
+.kmm-township-detail-header .kmm-detail-eyebrow {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.kmm-detail-status {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  margin-top: 10px;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.kmm-detail-status.is-ready {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.kmm-detail-status.is-waiting {
+  background: var(--surface-subtle);
+  color: var(--text-tertiary);
 }
 
 .kmm-township-detail-header button {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #4b5563;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: background var(--motion-fast) var(--ease-state);
+}
+
+.kmm-township-detail-header button:hover {
+  background: var(--surface-subtle);
 }
 
 .kmm-township-detail-section {
-  margin-top: 16px;
-  border-top: 1px solid #eef0f3;
-  padding-top: 15px;
+  margin-top: 0;
+  border: 0;
+  border-top: 1px solid var(--divider);
+  border-radius: 0;
+  background: transparent;
+  padding: 18px 0;
 }
 
 .kmm-township-detail-section h4 {
   margin: 0 0 12px;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.kmm-township-detail-performance {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.kmm-township-detail-performance h4 {
+  color: var(--text-primary);
+  font-size: 12px;
+  text-transform: none;
+}
+
+.kmm-township-detail-performance .kmm-township-metric-list div:first-child {
+  display: block;
+  border-radius: var(--radius-control-lg);
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand-500);
+  padding: 13px 14px;
+}
+
+.kmm-township-detail-performance .kmm-township-metric-list div:first-child dt {
+  color: var(--brand-600);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.kmm-township-detail-performance .kmm-township-metric-list div:first-child dd {
+  margin-top: 3px;
+  color: var(--brand-600);
+  font-size: 24px;
+  font-weight: 650;
+  text-align: left;
 }
 
 .kmm-township-debug summary {
@@ -399,7 +934,9 @@ select:focus-visible {
   color: #4b5563;
   font-size: 12px;
   font-weight: 700;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .kmm-township-quick-action:hover {
@@ -477,7 +1014,7 @@ select:focus-visible {
 
 .kmm-township-metric-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
 }
 
@@ -502,7 +1039,8 @@ select:focus-visible {
 
 .kmm-township-metric-list dd {
   color: #1f2937;
-  font-weight: 800;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums lining-nums;
   text-align: right;
 }
 

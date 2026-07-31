@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { PresentationLayout } from "../components/layout/PresentationLayout";
+import { GlobalAppShell } from "../components/layout/global-app-shell";
 import { LocaleProvider } from "../src/context/LocaleContext";
 
 export const metadata: Metadata = {
@@ -20,7 +21,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="th">
-      <body style={{ "--font-kmm": "Inter" } as React.CSSProperties}><LocaleProvider><PresentationLayout>{children}</PresentationLayout></LocaleProvider></body>
+      <body>
+        <LocaleProvider>
+          <PresentationLayout>
+            <GlobalAppShell>{children}</GlobalAppShell>
+          </PresentationLayout>
+        </LocaleProvider>
+      </body>
     </html>
   );
 }

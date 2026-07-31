@@ -37,8 +37,9 @@ test("visible navigation order is centralized and hidden modules leave no gaps",
     "Booking",
     "Stock",
     "Marketing",
-    "Team",
     "Expense",
+    "Team",
+    "Data Hub",
     "Settings",
   ]);
   for (const label of ["Home", "Customer", "Report", "AI"]) {
@@ -76,6 +77,7 @@ test("page components no longer mount their own application navigation", async (
     "components/booking/booking-intelligence-page.tsx",
     "components/stock/stock-intelligence-page.tsx",
     "components/marketing/marketing-intelligence-page.tsx",
+    "components/data-hub/data-hub-page.tsx",
     "components/settings/settings-page.tsx",
   ];
   const sources = await Promise.all(files.map(read));

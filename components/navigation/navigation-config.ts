@@ -2,6 +2,7 @@ import {
   Banknote,
   BarChart3,
   ClipboardList,
+  Database,
   Gauge,
   Home,
   LayoutDashboard,
@@ -45,8 +46,14 @@ export const navigationItems: NavigationItem[] = [
   },
   { label: "Report", href: "/report", icon: BarChart3, visible: false },
   { label: "AI", href: "/ai", icon: Sparkles, visible: false },
-  { label: "Team", href: "/team", icon: Users, visible: true },
   { label: "Expense", href: "/expense", icon: Gauge, visible: true },
+  { label: "Team", href: "/team", icon: Users, visible: true },
+  {
+    label: "Data Hub",
+    href: "/data-hub",
+    icon: Database,
+    visible: true,
+  },
   { label: "Settings", href: "/settings", icon: Settings, visible: true },
 ];
 

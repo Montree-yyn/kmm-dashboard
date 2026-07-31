@@ -16,6 +16,7 @@ const shellRoutePrefixes = [
   "/settings",
   "/expense",
   "/team",
+  "/data-hub",
 ] as const;
 
 function routeUsesAppShell(pathname: string) {

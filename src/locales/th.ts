@@ -2,6 +2,8 @@ const th = {
   "app.title": "แดชบอร์ดผู้บริหาร KMM",
   "app.subtitle": "ระบบวิเคราะห์ยอดขาย KMM",
   "nav.marketing": "การตลาด",
+  "nav.dataHub": "ศูนย์ข้อมูล",
+  "page.dataHubSubtitle": "ศูนย์ข้อมูลระดับองค์กร",
   "common.all": "ทั้งหมด",
   "common.copy": "คัดลอก",
   "common.currentSnapshot": "ภาพรวมปัจจุบัน",

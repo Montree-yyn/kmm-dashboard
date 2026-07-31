@@ -2,6 +2,8 @@ const en = {
   "app.title": "KMM Executive Dashboard",
   "app.subtitle": "KMM Sales Intelligence",
   "nav.marketing": "Marketing",
+  "nav.dataHub": "Data Hub",
+  "page.dataHubSubtitle": "Enterprise Data Hub",
   "common.all": "All",
   "common.copy": "Copy",
   "common.currentSnapshot": "Current snapshot",

@@ -43,6 +43,11 @@ const routeTitles: Array<{
     subtitle: "KMM Geospatial Intelligence",
   },
   {
+    prefix: "/data-hub",
+    title: "Data Hub",
+    subtitle: "Enterprise Data Hub",
+  },
+  {
     prefix: "/settings",
     title: "Settings",
     subtitle: "Enterprise Control Center",

@@ -14,5 +14,5 @@ const statusVariant = {
 } as const;
 
 export function StatusBadge({ status, children, className }: StatusBadgeProps) {
-  return <Badge variant={statusVariant[status]} className={className}>{children}</Badge>;
+  return <Badge role="status" variant={statusVariant[status]} className={className}>{children}</Badge>;
 }

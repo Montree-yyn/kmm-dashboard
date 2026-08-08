@@ -80,7 +80,10 @@ test("Stock does not fabricate purchase plan or received metrics absent from its
 });
 
 test("Stock filters preserve all dimensions and accessible 44px controls", async () => {
-  const page = await read("components/stock/stock-intelligence-page.tsx");
+  const [page, controls] = await Promise.all([
+    read("components/stock/stock-intelligence-page.tsx"),
+    read("components/design-system/data-controls.tsx"),
+  ]);
 
   for (const label of [
     "Date In Year",
@@ -90,10 +93,10 @@ test("Stock filters preserve all dimensions and accessible 44px controls", async
   ]) {
     assert.match(page, new RegExp(`label="${label}"`));
   }
-  assert.match(page, /aria-label=\{`\$\{label\} filter`\}/);
-  assert.match(page, /aria-haspopup="listbox"/);
-  assert.match(page, /if \(event\.key === "Escape"\) setOpen\(false\)/);
-  assert.match(page, /className="flex h-11 w-full/);
+  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.match(controls, /aria-haspopup="listbox"/);
+  assert.match(controls, /if \(event\.key === "Escape"\) setOpen\(false\)/);
+  assert.match(controls, /className="flex h-11 w-full/);
   assert.match(page, /setFilters\(initial\)/);
 });
 

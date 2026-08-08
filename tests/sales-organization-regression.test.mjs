@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { tsImport } from "tsx/esm/api";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const salesBusiness = await tsImport("../lib/sales/business-service.ts", import.meta.url);
 
 test("Sales Organization route preserves authentication and the existing page", async () => {
   const [route, shell] = await Promise.all([
@@ -35,18 +37,22 @@ test("organization branches and active employee rules remain unchanged", async (
 test("Sales Organization KPIs preserve their existing calculations", async () => {
   const page = await read("components/team/sales-organization-page.tsx");
 
-  assert.match(page, /fetch\(`\/dashboard-data\.json\?ts=\$\{Date\.now\(\)\}`/);
-  assert.match(page, /const totalSalesValue = sum\(activeValueRows/);
-  assert.match(page, /const totalGp = sum\(activeValueRows/);
+  assert.match(page, /loadLiveSalesData\(\{ allowFallback: false \}\)/);
+  assert.match(page, /loadLiveOperationalData\(\{ allowFallback: false \}\)/);
+  assert.match(page, /kmm:sales-imported/);
+  assert.doesNotMatch(page, /dashboard-data\.json/);
+  assert.match(page, /const activeKpis = getSalesKpis\(activeSales\)/);
+  assert.match(page, /const totalSalesValue = activeKpis\.salesValue/);
+  assert.match(page, /const totalGp = activeKpis\.grossProfit/);
   assert.match(
     page,
-    /const totalAchievement = totalTarget \? \(activeUnitRows\.length \/ totalTarget\) \* 100 : null/,
+    /const totalAchievement = totalTarget \? \(activeKpis\.salesUnit \/ totalTarget\) \* 100 : null/,
   );
   assert.match(
     page,
     /const totalGpPercent = totalSalesValue \? \(totalGp \/ totalSalesValue\) \* 100 : null/,
   );
-  assert.match(page, /const bestShowroom = \[\.\.\.branchMetrics\]\.sort/);
+  assert.match(page, /const bestShowroom = branchMetrics\.find/);
   assert.match(page, /const bestSalesperson = people\[0\]/);
 
   for (const title of [
@@ -59,6 +65,73 @@ test("Sales Organization KPIs preserve their existing calculations", async () =>
   ]) {
     assert.match(page, new RegExp(`title="${title}"`));
   }
+});
+
+test("live Team parity uses the shared Sales rules for replacement data and every filter dimension", () => {
+  const row = ({ type, value, gp, branch, salesperson, month }) => ({
+    date: `2026-${String(month).padStart(2, "0")}-01`,
+    year: 2026,
+    month,
+    branch,
+    salesperson,
+    productType: type,
+    model: "MODEL",
+    quantity: 1,
+    finalReceived: value,
+    gp1: gp,
+    expense: null,
+  });
+  const latest = [
+    row({ type: "TT", value: 100, gp: 10, branch: "KMM01", salesperson: "Alice", month: 1 }),
+    row({ type: "IM", value: 50, gp: 5, branch: "KMM01", salesperson: "Alice", month: 1 }),
+    row({ type: "CH", value: 200, gp: 20, branch: "KMM02", salesperson: "Bob", month: 2 }),
+    row({ type: "OT", value: 25, gp: 3, branch: "KMM02", salesperson: "Bob", month: 2 }),
+  ];
+  const scoped = latest.filter((item) => salesBusiness.salesRowMatches(item, {
+    year: [2026],
+    month: ["Jan"],
+    branch: ["KMM01"],
+    salesperson: ["Alice"],
+  }));
+  assert.deepEqual(salesBusiness.getSalesKpis(scoped), {
+    salesUnit: 1,
+    salesValue: 150,
+    grossProfit: 15,
+    grossProfitAvailable: true,
+    expense: null,
+  });
+  assert.deepEqual(
+    salesBusiness.getBranchSummary(latest).map(({ label, value }) => [label, value]),
+    [["KMM01", 1], ["KMM02", 1]],
+  );
+  assert.deepEqual(
+    salesBusiness.getSalespersonSummary(latest).map(({ label, value }) => [label, value]),
+    [["Alice", 1], ["Bob", 1]],
+  );
+  // A replacement is represented by the latest active array only; old rows are
+  // intentionally not concatenated into Team calculations.
+  const replaced = [row({ type: "EX", value: 300, gp: 30, branch: "KMM03", salesperson: "Cara", month: 3 })];
+  assert.equal(salesBusiness.getSalesKpis(replaced).salesUnit, 1);
+  assert.equal(salesBusiness.getSalesKpis(replaced).salesValue, 300);
+  assert.equal(salesBusiness.getSalesKpis(replaced).grossProfit, 30);
+});
+
+test("Team employee and showroom mapping use live master metadata and canonical aliases", async () => {
+  const [page, repository, api, client] = await Promise.all([
+    read("components/team/sales-organization-page.tsx"),
+    read("lib/sales/repository.ts"),
+    read("app/api/sales/route.ts"),
+    read("lib/sales/client.ts"),
+  ]);
+  assert.match(page, /employeeMasterAvailable/);
+  assert.match(page, /makeEmployeeDirectory/);
+  assert.match(page, /isCurrentLiveEmployee/);
+  assert.match(page, /canonicalBranch/);
+  assert.match(repository, /salespersonMaster/);
+  assert.match(repository, /listSalespeople/);
+  assert.match(api, /employeeMasterAvailable/);
+  assert.match(api, /status === "active"/);
+  assert.match(client, /allowFallback\?: boolean/);
 });
 
 test("Sales Organization uses only the shared executive KPI presentation", async () => {

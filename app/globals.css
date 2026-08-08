@@ -61,13 +61,18 @@
   /* KMM Design System v2.0: brand and semantic color foundation. */
   --brand-50: #fff8f3;
   --brand-100: #fff0e6;
+  --brand-300: #ffc2a1;
+  --brand-400: #ff9d66;
   --brand-500: #f56600;
-  --brand-600: #e85d00;
-  --brand-focus: rgb(245 102 0 / 22%);
+  --brand-600: #c24700;
+  --brand-700: #9f3d00;
+  --brand-focus: rgb(159 61 0 / 24%);
+  --focus-ring: #9f3d00;
 
   --surface-canvas: #f5f5f7;
   --surface-default: #ffffff;
   --surface-subtle: #fafafc;
+  --surface-muted: #f1f1f4;
   --surface-elevated: rgb(255 255 255 / 92%);
 
   --text-primary: #1d1d1f;
@@ -79,13 +84,13 @@
   --border-subtle: rgb(0 0 0 / 6%);
   --divider: #ededf2;
 
-  --status-success: #168a45;
+  --status-success: #0f6b35;
   --status-success-bg: #eaf7ef;
-  --status-warning: #b76800;
+  --status-warning: #8a4b00;
   --status-warning-bg: #fff4e5;
-  --status-danger: #d92d20;
+  --status-danger: #a51b13;
   --status-danger-bg: #fdecec;
-  --status-info: #3b6ea8;
+  --status-info: #245487;
   --status-info-bg: #eef4fb;
 
   --chart-current: #f56600;
@@ -133,10 +138,14 @@
   --color-foreground: var(--foreground);
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
   --color-brand-500: var(--brand-500);
   --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
   --color-surface: var(--surface-default);
   --color-surface-subtle: var(--surface-subtle);
+  --color-surface-muted: var(--surface-muted);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
@@ -378,10 +387,12 @@ select {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--brand-500);
+select:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--brand-focus);
+  box-shadow: 0 0 0 4px var(--brand-focus);
 }
 
 ::selection {

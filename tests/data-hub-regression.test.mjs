@@ -59,9 +59,13 @@ test("validation accepts a clean batch and blocks malformed rows", async () => {
   assert.equal(valid.canImport, true);
   const invalid = validateImportRows(source, ["invoice_no", "quantity", "date"], [{ invoice_no: "INV-001", quantity: 2, date: "2026-07-01" }, { invoice_no: "INV-001", quantity: "not-a-number", date: "" }]);
   assert.equal(invalid.canImport, false);
-  assert.equal(invalid.duplicateRows, 1);
+  assert.equal(invalid.duplicateRows, 0);
   assert.equal(invalid.wrongTypeCells, 1);
   assert.equal(invalid.emptyCells, 1);
+  const repeated = { invoice_no: "INV-003", quantity: 1, date: "2026-07-03" };
+  const duplicate = validateImportRows(source, ["invoice_no", "quantity", "date"], [repeated, { ...repeated }]);
+  assert.equal(duplicate.canImport, false);
+  assert.equal(duplicate.duplicateRows, 1);
 });
 
 test("Data Hub renders approval, status recovery and the v1.2 history contract", async () => {

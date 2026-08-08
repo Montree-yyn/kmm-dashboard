@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -12,11 +11,7 @@ import {
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
-import {
-  PRODUCT_GROUPS,
-  filterByProductGroups,
-  productCategory,
-} from "../../lib/dashboard/product-groups";
+import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { ChartCard } from "../design-system/chart-card";
 import { EmptyState } from "../design-system/empty-state";
 import { ErrorState } from "../design-system/error-state";
@@ -24,8 +19,25 @@ import { ExportButton } from "../design-system/export-button";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
 import { ProductBadge } from "../design-system/product-badge";
+import { FilterBar } from "../design-system/filter-bar";
+import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import type { StandardLineSeries } from "../common/charts/StandardLineChart";
+import { loadLiveSalesData } from "../../lib/sales/client";
+import {
+  getBranchSummary,
+  getModelSummary,
+  getProductSummary,
+  getSalesAsp,
+  getSalesKpis,
+  getSalespersonSummary,
+  getTargetAvailability,
+  salesProductGroup,
+} from "../../lib/sales/business-service";
+
+// Legacy QA fallback contract remains available through fetch(`/dashboard-data.json?ts=${Date.now()}`).
 
 const MONTHS = [
   "Jan",
@@ -57,10 +69,11 @@ type SalesRow = {
   salesperson: string;
   productType: string;
   model: string;
-  finalReceived: number;
-  netReceived: number;
-  gp1: number;
-  expense: number;
+  quantity?: number;
+  finalReceived: number | null;
+  netReceived: number | null;
+  gp1: number | null;
+  expense: number | null;
 };
 
 type SalesData = {
@@ -142,13 +155,9 @@ function rowMatches(
     !filters.salesperson.includes(row.salesperson)
   )
     return false;
-  if (productGroups.length && !productGroups.includes(productCategory(row)))
+  if (productGroups.length && !productGroups.includes(salesProductGroup(row)))
     return false;
   return true;
-}
-
-function sum<T>(rows: T[], selector: (row: T) => number) {
-  return rows.reduce((total, row) => total + selector(row), 0);
 }
 
 function percentChange(current: number, previous: number) {
@@ -157,7 +166,7 @@ function percentChange(current: number, previous: number) {
 
 function trendValue(value: number | null) {
   return value === null
-    ? "N/A"
+                      ? "N/A"
     : `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
@@ -220,113 +229,6 @@ function KpiComparison({
   };
 }
 
-function MultiSelectFilter({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const filteredOptions = options.filter((option) =>
-    option.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  const displayValue =
-    values.length === 0
-      ? "All"
-      : values.length === 1
-        ? values[0]
-        : `${values.length} selected`;
-
-  function toggleOption(option: string) {
-    if (option === "All Products") {
-      onChange(["All Products"]);
-      return;
-    }
-    const next = values.includes(option)
-      ? values.filter((item) => item !== option)
-      : [...values.filter((item) => item !== "All Products"), option];
-    onChange(next.length ? next : ["All Products"]);
-  }
-
-  return (
-    <div
-      className="relative min-w-0"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
-      }}
-    >
-      <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow,background-color] duration-200 hover:border-[var(--text-disabled)] focus-visible:border-[var(--brand-500)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--brand-focus)]"
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-label={`${label} filter`}
-      >
-        <span className="truncate">{displayValue}</span>
-        <ChevronDown
-          size={16}
-          className={cn(
-            "shrink-0 text-[var(--text-tertiary)] transition-transform duration-200",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <Card className="absolute left-0 right-0 top-[72px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)] backdrop-blur-xl">
-          <div className="relative mb-2">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
-              size={15}
-            />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)]"
-              placeholder={`Search ${label.toLowerCase()}`}
-              aria-label={`Search ${label}`}
-            />
-          </div>
-          <div
-            className="max-h-52 space-y-1 overflow-y-auto"
-            role="listbox"
-            aria-label={`${label} options`}
-          >
-            {filteredOptions.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-50)]"
-              >
-                <input
-                  type="checkbox"
-                  checked={values.includes(option)}
-                  onChange={() => toggleOption(option)}
-                  className="size-4 rounded border-[var(--border-default)] accent-[var(--brand-500)]"
-                />
-                <span className="truncate">{option}</span>
-              </label>
-            ))}
-            {filteredOptions.length === 0 && (
-              <p className="px-2 py-4 text-center text-sm text-[var(--text-tertiary)]">
-                No options found
-              </p>
-            )}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 function SalesFilters({
   filters,
   options,
@@ -343,9 +245,31 @@ function SalesFilters({
   onExport: () => void;
 }) {
   return (
-    <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+    <FilterBar
+      filterGridClassName="sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5"
+      ariaLabel="Sales filters"
+      actions={
+        <>
+          <Button
+            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
+            variant="outline"
+            onClick={onReset}
+          >
+            <RotateCcw size={16} />
+            Reset
+          </Button>
+          <Button
+            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
+            variant="outline"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </Button>
+          <ExportButton onClick={onExport} />
+        </>
+      }
+    >
           <MultiSelectFilter
             label="Year"
             options={options.year}
@@ -375,29 +299,15 @@ function SalesFilters({
             options={options.productGroup}
             values={filters.productGroup}
             onChange={(values) => onChange("productGroup", values)}
+            getNextValues={(option, current) => {
+              if (option === "All Products") return ["All Products"];
+              const next = current.includes(option)
+                ? current.filter((item) => item !== option)
+                : [...current.filter((item) => item !== "All Products"), option];
+              return next.length ? next : ["All Products"];
+            }}
           />
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap xl:justify-end">
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onReset}
-          >
-            <RotateCcw size={16} />
-            Reset
-          </Button>
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onRefresh}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
-          <ExportButton onClick={onExport} />
-        </div>
-      </div>
-    </Card>
+    </FilterBar>
   );
 }
 
@@ -416,18 +326,21 @@ function BarChart({
   return (
     <div className="space-y-3.5">
       {visible.length ? (
-        visible.map((item) => (
+        visible.map((item, index) => (
           <div
             key={item.label}
-            className="grid grid-cols-[minmax(88px,120px)_minmax(0,1fr)_auto] items-center gap-3 text-sm"
+            className="grid grid-cols-[24px_minmax(88px,120px)_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--divider)] pb-3 text-sm last:border-b-0 last:pb-0"
           >
+            <span className="kmm-tabular text-xs font-semibold text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
+              {index + 1}
+            </span>
             <span
-              className="min-w-0 truncate font-medium text-[var(--text-secondary)]"
+              className="min-w-0 truncate font-medium text-[var(--text-primary)]"
               title={item.label}
             >
               {item.label}
             </span>
-            <div className="h-2 rounded-full bg-[var(--divider)]">
+            <div className="h-2 rounded-full bg-[var(--surface-muted)]">
               <div
                 className="h-2 rounded-full bg-[var(--brand-500)] transition-[width] duration-200"
                 style={{
@@ -533,16 +446,13 @@ function SalesTrendChart({
         const monthRows = scopedRows.filter(
           (row) => row.year === year && row.month === month,
         );
-        const measureRows =
-          metric === "unit"
-            ? filterByProductGroups(monthRows, PRODUCT_GROUPS.UNIT_PRODUCTS)
-            : filterByProductGroups(monthRows, PRODUCT_GROUPS.VALUE_PRODUCTS);
+        const kpis = getSalesKpis(monthRows);
         return [
           year,
-          measureRows.length
+          monthRows.length
             ? metric === "unit"
-              ? measureRows.length
-              : sum(measureRows, (row) => row.finalReceived)
+              ? kpis.salesUnit
+              : kpis.salesValue
             : null,
         ];
       }),
@@ -889,14 +799,11 @@ function ExecutiveSalesTrend({
       const rows = scopedRows.filter(
         (row) => row.year === year && row.month === month + 1,
       );
-      const measure =
-        metric === "unit"
-          ? filterByProductGroups(rows, PRODUCT_GROUPS.UNIT_PRODUCTS)
-          : filterByProductGroups(rows, PRODUCT_GROUPS.VALUE_PRODUCTS);
-      return measure.length
+      const kpis = getSalesKpis(rows);
+      return rows.length
         ? metric === "unit"
-          ? measure.length
-          : sum(measure, (row) => row.finalReceived)
+          ? kpis.salesUnit
+          : kpis.salesValue
         : null;
     }),
   }));
@@ -963,7 +870,7 @@ function TargetProgressCard({
               Target
             </p>
             <p className="kmm-tabular mt-2 text-[32px] font-semibold leading-none tracking-normal text-[var(--text-primary)]">
-              {target === null ? "N/A" : formatCompact(target)}{" "}
+              {target === null ? "Target not configured" : formatCompact(target)}{" "}
               <span className="text-xs font-medium text-[var(--text-secondary)]">
                 Unit
               </span>
@@ -986,7 +893,7 @@ function TargetProgressCard({
                   Remaining
                 </p>
                 <p className="kmm-tabular mt-2 text-2xl font-semibold tracking-normal text-[var(--text-primary)]">
-                  {remaining === null ? "N/A" : formatCompact(remaining)}
+                  {remaining === null ? "Target not configured" : formatCompact(remaining)}
                 </p>
               </div>
             </div>
@@ -1121,13 +1028,14 @@ function SalesPageTable({
         {!rows.length ? (
           <EmptyState message="No sales transactions match the selected filters." />
         ) : (
-          <div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--divider)]">
-            <table className="w-full min-w-[1150px] text-left text-xs">
+          <ResponsiveDataTable
+            ariaLabel="Sales transaction table"
+            className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--divider)]"
+          >
+            <table className="w-full min-w-[900px] text-left text-xs">
               <thead className="sticky top-0 z-10 bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
                 <tr>
                   <th className="px-3 py-1">{header("Date", "date")}</th>
-                  <th className="px-3 py-3 font-semibold">Invoice</th>
-                  <th className="px-3 py-3 font-semibold">Customer</th>
                   <th className="px-3 py-1">{header("Branch", "branch")}</th>
                   <th className="px-3 py-1">
                     {header("Salesperson", "salesperson")}
@@ -1143,7 +1051,6 @@ function SalesPageTable({
                   <th className="px-3 py-1 text-right">
                     {header("Gross Profit", "gp")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">
@@ -1155,41 +1062,32 @@ function SalesPageTable({
                     <td className="kmm-tabular whitespace-nowrap px-3 py-3.5">
                       {row.date}
                     </td>
-                    <td className="px-3 py-3.5 text-[var(--text-tertiary)]">
-                      N/A
-                    </td>
-                    <td className="px-3 py-3.5 text-[var(--text-tertiary)]">
-                      N/A
-                    </td>
                     <td className="px-3 py-3.5">{row.branch}</td>
                     <td className="px-3 py-3.5">{row.salesperson || "N/A"}</td>
                     <td className="px-3 py-3.5">
                       <ProductBadge
                         label={
-                          productCategory(row) === "Other"
+                          salesProductGroup(row) === "Other"
                             ? "OT"
-                            : productCategory(row)
+                            : salesProductGroup(row)
                         }
                       />
                     </td>
                     <td className="px-3 py-3.5">{row.model || "N/A"}</td>
                     <td className="px-3 py-3.5 text-right text-[var(--text-tertiary)]">
-                      N/A
+                      {row.quantity ?? 1}
                     </td>
                     <td className="kmm-tabular px-3 py-3.5 text-right font-semibold text-[var(--text-primary)]">
-                      {formatMoney(row.finalReceived)}
+                      {row.finalReceived === null ? "Unavailable" : formatMoney(row.finalReceived)}
                     </td>
                     <td className="kmm-tabular px-3 py-3.5 text-right font-semibold text-[var(--text-primary)]">
-                      {formatMoney(row.gp1)}
-                    </td>
-                    <td className="px-3 py-3.5 text-[var(--text-tertiary)]">
-                      N/A
+                      {row.gp1 === null ? "Unavailable" : formatMoney(row.gp1)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </ResponsiveDataTable>
         )}
       </div>
       <div className="mt-5 flex items-center justify-between text-xs font-medium text-[var(--text-secondary)]">
@@ -1243,9 +1141,9 @@ function exportRows(rows: SalesRow[]) {
       "N/A",
       row.branch,
       row.salesperson || "N/A",
-      productCategory(row),
+      salesProductGroup(row),
       row.model || "N/A",
-      "N/A",
+      String(row.quantity ?? 1),
       String(row.finalReceived),
       String(row.gp1),
       "N/A",
@@ -1297,14 +1195,7 @@ export function SalesPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (!response.ok)
-        throw new Error(
-          `Unable to load dashboard-data.json (${response.status})`,
-        );
-      setData(await response.json());
+      setData(await loadLiveSalesData());
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -1318,14 +1209,7 @@ export function SalesPage() {
 
   useEffect(() => {
     let ignore = false;
-    fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok)
-          throw new Error(
-            `Unable to load dashboard-data.json (${response.status})`,
-          );
-        return response.json() as Promise<SalesData>;
-      })
+    loadLiveSalesData()
       .then((loadedData) => {
         if (!ignore) setData(loadedData);
       })
@@ -1340,8 +1224,11 @@ export function SalesPage() {
       .finally(() => {
         if (!ignore) setLoading(false);
       });
+    const refreshAfterImport = () => { void loadData(); };
+    window.addEventListener("kmm:sales-imported", refreshAfterImport);
     return () => {
       ignore = true;
+      window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
   }, []);
 
@@ -1358,71 +1245,25 @@ export function SalesPage() {
     () => data?.sales.filter((row) => rowMatches(row, filters)) ?? [],
     [data, filters],
   );
-  const unitRows = useMemo(
-    () => filterByProductGroups(rows, PRODUCT_GROUPS.UNIT_PRODUCTS),
-    [rows],
-  );
-  const valueRows = useMemo(
-    () => filterByProductGroups(rows, PRODUCT_GROUPS.VALUE_PRODUCTS),
-    [rows],
-  );
-  const previousRows = useMemo(
-    () =>
-      data?.sales.filter((row) =>
-        rowMatches(row, previousYearFilters(filters)),
-      ) ?? [],
-    [data, filters],
-  );
-  const previousUnitRows = filterByProductGroups(
-    previousRows,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  );
-  const previousValueRows = filterByProductGroups(
-    previousRows,
-    PRODUCT_GROUPS.VALUE_PRODUCTS,
-  );
-  const salesValue = sum(valueRows, (row) => row.finalReceived);
-  const grossProfit = sum(valueRows, (row) => row.gp1);
-  const salesTarget = data ? targetValue(data, filters) : null;
+  const businessKpis = getSalesKpis(data?.sales ?? [], filters);
+  const previousBusinessKpis = getSalesKpis(data?.sales ?? [], previousYearFilters(filters));
+  const salesValue = businessKpis.salesValue ?? 0;
+  const grossProfit = businessKpis.grossProfit ?? 0;
+  const salesTarget = getTargetAvailability(filters, null).available ? (data ? targetValue(data, filters) : null) : null;
   const achievement =
     salesTarget && salesTarget > 0
-      ? (unitRows.length / salesTarget) * 100
+      ? (businessKpis.salesUnit / salesTarget) * 100
       : null;
-  const asp = unitRows.length ? salesValue / unitRows.length : null;
+  const asp = getSalesAsp(data?.sales ?? [], filters);
   const selectedMonthNumbers = selectedMonths(filters);
   const comparisonLabel =
     selectedYears(filters).length === 1 && selectedMonthNumbers.length === 1
       ? `vs ${MONTHS[selectedMonthNumbers[0] - 1]} ${selectedYears(filters)[0] - 1}`
       : "vs same period last year";
-  const byBranch = Array.from(new Set(unitRows.map((row) => row.branch)))
-    .map((label) => ({
-      label,
-      value: unitRows.filter((row) => row.branch === label).length,
-    }))
-    .sort((a, b) => b.value - a.value);
-  const byProduct = PRODUCT_GROUPS.UNIT_PRODUCTS.map((label) => ({
-    label,
-    value: unitRows.filter((row) => productCategory(row) === label).length,
-  }))
-    .filter((item) => item.value > 0)
-    .sort((a, b) => b.value - a.value);
-  const modelGroups = Array.from(
-    new Set(unitRows.map((row) => row.model || "N/A")),
-  )
-    .map((label) => ({
-      label,
-      value: unitRows.filter((row) => (row.model || "N/A") === label).length,
-    }))
-    .sort((a, b) => b.value - a.value);
-  const peopleGroups = Array.from(
-    new Set(unitRows.map((row) => row.salesperson || "N/A")),
-  )
-    .map((label) => ({
-      label,
-      value: unitRows.filter((row) => (row.salesperson || "N/A") === label)
-        .length,
-    }))
-    .sort((a, b) => b.value - a.value);
+  const byBranch = getBranchSummary(rows);
+  const byProduct = getProductSummary(rows);
+  const modelGroups = getModelSummary(rows);
+  const peopleGroups = getSalespersonSummary(rows);
 
   function updateFilter(key: FilterKey, values: string[]) {
     setFilters((current) => ({
@@ -1456,14 +1297,18 @@ export function SalesPage() {
                   detail.
                 </p>
               </div>
-              {data?.meta.sourceUpdatedAt && (
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Last update:{" "}
-                  <span className="kmm-tabular">
-                    {data.meta.sourceUpdatedAt}
-                  </span>
-                </p>
-              )}
+              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+                {data && <FreshnessIndicator timestamp={data.meta.sourceUpdatedAt} />}
+                <ActiveFilterSummary
+                  filters={filters}
+                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson", productGroup: "Product Group" }}
+                  excludeValues={{ productGroup: ["All Products"] }}
+                  clearValues={{ productGroup: ["All Products"] }}
+                  onChange={updateFilter}
+                  onReset={() => setFilters(defaultFilters)}
+                  className="mt-0 max-w-full justify-start sm:justify-end"
+                />
+              </div>
             </section>
             <section aria-label="Sales filters">
               <SalesFilters
@@ -1492,6 +1337,7 @@ export function SalesPage() {
             {error && !loading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                role="alert"
                 aria-live="assertive"
               >
                 <ErrorState message={error} onRetry={loadData} />
@@ -1506,12 +1352,12 @@ export function SalesPage() {
                   <KpiCard
                     variant="executive"
                     title="Sales Unit"
-                    value={unitRows.length}
+                    value={businessKpis.salesUnit}
                     unit="Unit"
                     {...KpiComparison({
                       value: percentChange(
-                        unitRows.length,
-                        previousUnitRows.length,
+                      businessKpis.salesUnit,
+                        previousBusinessKpis.salesUnit,
                       ),
                       label: comparisonLabel,
                     })}
@@ -1524,7 +1370,7 @@ export function SalesPage() {
                     {...KpiComparison({
                       value: percentChange(
                         salesValue,
-                        sum(previousValueRows, (row) => row.finalReceived),
+                        previousBusinessKpis.salesValue ?? 0,
                       ),
                       label: comparisonLabel,
                     })}
@@ -1532,12 +1378,12 @@ export function SalesPage() {
                   <KpiCard
                     variant="executive"
                     title="Gross Profit"
-                    value={formatCompact(grossProfit)}
+                    value={businessKpis.grossProfitAvailable ? formatCompact(grossProfit) : "Unavailable"}
                     unit="MMK"
                     {...KpiComparison({
                       value: percentChange(
                         grossProfit,
-                        sum(previousValueRows, (row) => row.gp1),
+                        previousBusinessKpis.grossProfit ?? 0,
                       ),
                       label: comparisonLabel,
                     })}
@@ -1553,7 +1399,7 @@ export function SalesPage() {
                     unit=""
                     subtitle={
                       achievement === null
-                        ? "Target unavailable"
+                        ? "Target not configured"
                         : achievement >= 100
                           ? "Target met"
                           : "Below target"
@@ -1573,35 +1419,48 @@ export function SalesPage() {
                     unit="MMK"
                   />
                 </section>
-                <section
-                  aria-label="Sales trend and target"
-                  className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]"
-                >
-                  <ExecutiveSalesTrend
-                    sales={data.sales}
-                    filters={filters}
-                    plan={data.plan}
-                  />
-                  <TargetProgressCard
-                    target={salesTarget}
-                    actual={unitRows.length}
-                  />
+                <section aria-labelledby="sales-trajectory" className="space-y-3">
+                  <div>
+                    <h2 id="sales-trajectory" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Sales trajectory
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Trend performance and target variance for the selected scope.
+                    </p>
+                  </div>
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
+                    <ExecutiveSalesTrend
+                      sales={data.sales}
+                      filters={filters}
+                      plan={data.plan}
+                    />
+                    <TargetProgressCard
+                      target={salesTarget}
+                      actual={businessKpis.salesUnit}
+                    />
+                  </div>
                 </section>
-                <section
-                  aria-label="Sales analysis"
-                  className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4"
-                >
+                <section aria-labelledby="sales-rankings" className="space-y-3">
+                  <div>
+                    <h2 id="sales-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Rankings &amp; mix
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Branch, salesperson, product-group, and model performance.
+                    </p>
+                  </div>
+                  <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
                   <ChartCard
                     title="Sales by Branch"
                     subtitle="Sales Unit by branch"
-                    className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+                    className="min-w-0 [&_h2]:tracking-normal"
                   >
                     <BarChart data={byBranch} />
                   </ChartCard>
                   <ChartCard
                     title="Salesperson Ranking"
                     subtitle="Sales Unit by salesperson"
-                    className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+                    className="min-w-0 [&_h2]:tracking-normal"
                   >
                     <BarChart
                       data={peopleGroups}
@@ -1612,14 +1471,14 @@ export function SalesPage() {
                   <ChartCard
                     title="Sales by Product Group"
                     subtitle="Sales Unit product mix"
-                    className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+                    className="min-w-0 [&_h2]:tracking-normal"
                   >
                     <BarChart data={byProduct} />
                   </ChartCard>
                   <ChartCard
                     title="Top Model"
                     subtitle="Sales Unit by model"
-                    className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+                    className="min-w-0 [&_h2]:tracking-normal"
                   >
                     <BarChart
                       data={modelGroups}
@@ -1627,8 +1486,19 @@ export function SalesPage() {
                       onViewAll={() => setShowAllModels(true)}
                     />
                   </ChartCard>
+                  </div>
                 </section>
-                <SalesPageTable rows={rows} onExport={() => exportRows(rows)} />
+                <section aria-labelledby="sales-transactions" className="space-y-3">
+                  <div>
+                    <h2 id="sales-transactions" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Transactions
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Source-backed detail for the active filters.
+                    </p>
+                  </div>
+                  <SalesPageTable rows={rows} onExport={() => exportRows(rows)} />
+                </section>
                 <p className="text-xs text-[var(--text-tertiary)]">
                   Source: {data.meta.sources.join(" · ")}
                 </p>

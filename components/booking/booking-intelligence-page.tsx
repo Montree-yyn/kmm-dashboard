@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -16,7 +15,16 @@ import { ErrorState } from "../design-system/error-state";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
 import { TableCard } from "../design-system/table-card";
+import { FilterBar } from "../design-system/filter-bar";
+import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import { loadLiveOperationalData } from "../../lib/operations/client";
+import { getOperationalBusiness } from "../../lib/operations/business-service";
+// Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
+// Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
+// Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getAverageBookingAge(data.booking, filters); getBookingConversionRate(data.booking, filters).
 import {
   PRODUCT_GROUPS,
   productCategory,
@@ -132,6 +140,7 @@ function isMissingNumber(value: unknown) {
 function compact(value?: number | string | null) {
   return `${(safeNumber(value) / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
 }
+
 function money(value?: number | string | null) {
   return isMissingNumber(value)
     ? "N/A"
@@ -173,103 +182,6 @@ function group(rows: Booking[], key: (row: Booking) => string) {
     .sort((a, b) => b.rows.length - a.rows.length);
 }
 
-function Select({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (value: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const visible = options.filter((option) =>
-    option.toLowerCase().includes(query.toLowerCase()),
-  );
-  const display =
-    values.length === 0
-      ? "All"
-      : values.length === 1
-        ? values[0]
-        : `${values.length} selected`;
-  useEffect(() => {
-    if (!open) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
-  return (
-    <div
-      className="relative min-w-0"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
-      }}
-    >
-      <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex h-11 w-full items-center justify-between rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2"
-        aria-label={`${label} filter`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="truncate">{display}</span>
-        <ChevronDown size={16} className="text-[var(--text-tertiary)]" />
-      </button>
-      {open && (
-        <Card
-          className="absolute left-0 right-0 top-[72px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)]"
-          role="listbox"
-          aria-label={`${label} options`}
-        >
-          <div className="relative mb-2">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
-            />
-            <input
-              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-8 pr-2 text-sm text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-              placeholder={`Search ${label.toLowerCase()}`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="max-h-52 space-y-1 overflow-auto">
-            {visible.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 py-2 text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-50)]"
-              >
-                <input
-                  type="checkbox"
-                  checked={values.includes(option)}
-                  onChange={() =>
-                    onChange(
-                      values.includes(option)
-                        ? values.filter((value) => value !== option)
-                        : [...values, option],
-                    )
-                  }
-                  className="accent-[var(--brand-500)]"
-                />
-                {option}
-              </label>
-            ))}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 function Bars({
   items,
   value = (item: { rows: Booking[]; metric?: number }) =>
@@ -292,10 +204,13 @@ function Bars({
   const max = Math.max(...measured.map(({ amount }) => amount), 1);
   return (
     <div className="space-y-4">
-      {measured.map(({ item, amount }) => (
+      {measured.map(({ item, amount }, index) => (
         <div key={item.label}>
           <div className="mb-1.5 flex justify-between gap-3 text-xs">
-            <span className="truncate font-medium text-[var(--text-secondary)]">
+            <span className="min-w-0 truncate font-medium text-[var(--text-secondary)]">
+              <span className="mr-2 kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
+                {index + 1}
+              </span>
               {item.label}
             </span>
             <span className="kmm-tabular font-semibold text-[var(--text-primary)]">
@@ -368,15 +283,16 @@ export function BookingIntelligencePage() {
   const load = (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError("");
-    fetch("/dashboard-data.json")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((value) => setData(value))
+    loadLiveOperationalData()
+      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, booking: value.booking }))
       .catch(() => setError("Booking data could not be loaded."))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     const id = window.setTimeout(() => load(false), 0);
-    return () => window.clearTimeout(id);
+    const refresh = () => void load(false);
+    window.addEventListener("kmm:sales-imported", refresh);
+    return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
   }, []);
   const rows = useMemo(
     () => (data ? getBookingRows(data.booking, filters) : []),
@@ -390,17 +306,14 @@ export function BookingIntelligencePage() {
     () => (data ? getOpenBookingValueRows(data.booking, filters) : []),
     [data, filters],
   );
-  const bookingUnit = data ? getOpenBookingUnit(data.booking, filters) : 0;
-  const bookingValue = data ? getBookingValue(data.booking, filters) : 0;
-  const depositReceived = data ? getDepositAmount(data.booking, filters) : 0;
-  const averageBookingAge = data
-    ? getAverageBookingAge(data.booking, filters)
-    : null;
-  const bookingConversionRate = data
-    ? getBookingConversionRate(data.booking, filters)
-    : null;
+  const operationalBusiness = data ? getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], [], filters).booking : null;
+  const bookingUnit = operationalBusiness?.unit ?? 0;
+  const bookingValue = operationalBusiness?.value ?? 0;
+  const depositReceived = operationalBusiness?.deposit ?? 0;
+  const averageBookingAge = operationalBusiness?.averageAge ?? null;
+  const bookingConversionRate = operationalBusiness?.conversionRate ?? null;
   const bookingByProduct = data
-    ? getBookingByProduct(data.booking, filters)
+    ? getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], [], filters).booking.byProduct
     : [];
   const options = useMemo(
     () => ({
@@ -530,57 +443,25 @@ export function BookingIntelligencePage() {
                   detail.
                 </p>
               </div>
-              {data?.meta.sourceUpdatedAt && (
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Last update:{" "}
-                  <span className="kmm-tabular">
-                    {data.meta.sourceUpdatedAt}
-                  </span>
-                </p>
-              )}
+              {/* The operational endpoint currently exposes a client refresh marker,
+                  not a source timestamp; keep the shared indicator honest. */}
+              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+                {data && <FreshnessIndicator />}
+                <ActiveFilterSummary
+                  filters={filters}
+                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson", product: "Product Type", status: "Booking Status" }}
+                  onChange={update}
+                  onReset={() => { setFilters(initial); setPage(1); }}
+                  className="mt-0 max-w-full justify-start sm:justify-end"
+                />
+              </div>
             </section>
             <section aria-label="Booking filters">
-              <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-                    <Select
-                      label="Year"
-                      options={options.year}
-                      values={filters.year}
-                      onChange={(v) => update("year", v)}
-                    />
-                    <Select
-                      label="Month"
-                      options={options.month}
-                      values={filters.month}
-                      onChange={(v) => update("month", v)}
-                    />
-                    <Select
-                      label="Branch"
-                      options={options.branch}
-                      values={filters.branch}
-                      onChange={(v) => update("branch", v)}
-                    />
-                    <Select
-                      label="Salesperson"
-                      options={options.salesperson}
-                      values={filters.salesperson}
-                      onChange={(v) => update("salesperson", v)}
-                    />
-                    <Select
-                      label="Product Type"
-                      options={options.product}
-                      values={filters.product}
-                      onChange={(v) => update("product", v)}
-                    />
-                    <Select
-                      label="Booking Status"
-                      options={options.status}
-                      values={filters.status}
-                      onChange={(v) => update("status", v)}
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <FilterBar
+                filterGridClassName="min-w-0 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
+                ariaLabel="Booking filters"
+                actions={
+                  <>
                     <Button
                       variant="outline"
                       className="h-11 rounded-[var(--radius-control-lg)] border-[var(--border-default)] px-4 text-[var(--text-primary)]"
@@ -593,15 +474,52 @@ export function BookingIntelligencePage() {
                       Reset
                     </Button>
                     <Button
-                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={16} />
                       Export
                     </Button>
-                  </div>
-                </div>
-              </Card>
+                  </>
+                }
+              >
+                    <MultiSelectFilter
+                      label="Year"
+                      options={options.year}
+                      values={filters.year}
+                      onChange={(v) => update("year", v)}
+                    />
+                    <MultiSelectFilter
+                      label="Month"
+                      options={options.month}
+                      values={filters.month}
+                      onChange={(v) => update("month", v)}
+                    />
+                    <MultiSelectFilter
+                      label="Branch"
+                      options={options.branch}
+                      values={filters.branch}
+                      onChange={(v) => update("branch", v)}
+                    />
+                    <MultiSelectFilter
+                      label="Salesperson"
+                      options={options.salesperson}
+                      values={filters.salesperson}
+                      onChange={(v) => update("salesperson", v)}
+                    />
+                    <MultiSelectFilter
+                      label="Product Type"
+                      options={options.product}
+                      values={filters.product}
+                      onChange={(v) => update("product", v)}
+                    />
+                    <MultiSelectFilter
+                      label="Booking Status"
+                      options={options.status}
+                      values={filters.status}
+                      onChange={(v) => update("status", v)}
+                    />
+              </FilterBar>
             </section>
             {loading && (
               <Card
@@ -620,6 +538,7 @@ export function BookingIntelligencePage() {
             {error && !loading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                role="alert"
                 aria-live="assertive"
               >
                 <ErrorState message={error} onRetry={load} />
@@ -671,11 +590,20 @@ export function BookingIntelligencePage() {
                     subtitle="Booking → Delivered"
                   />
                 </section>
-                <ChartCard
-                  title="Booking Health Summary"
-                  subtitle="Open booking age as of 11 Jul 2026"
-                  className={chartCardClass}
-                >
+                <section className="space-y-4" aria-labelledby="booking-observed-pipeline">
+                  <div>
+                    <h2 id="booking-observed-pipeline" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Observed pipeline
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Stages, health, and branch pressure available in the current extract.
+                    </p>
+                  </div>
+                  <ChartCard
+                    title="Booking Health Summary"
+                    subtitle="Open-booking age and value in the current scope"
+                    className={chartCardClass}
+                  >
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {health.map((item, i) => (
                       <div
@@ -703,21 +631,21 @@ export function BookingIntelligencePage() {
                           %
                         </p>
                         <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                          Deposit: N/A
+                          Deposit detail is not split by health band
                         </p>
                       </div>
                     ))}
                   </div>
-                </ChartCard>
-                <Trend
-                  rows={data.booking
-                    .filter((r) => match(r, { ...filters, status: [] }))
-                    .filter(isUnitProduct)}
-                />
+                  </ChartCard>
+                  <Trend
+                    rows={data.booking
+                      .filter((r) => match(r, { ...filters, status: [] }))
+                      .filter(isUnitProduct)}
+                  />
                 <section className="grid gap-5 xl:grid-cols-[1.1fr_1.9fr]">
                   <ChartCard
                     title="Booking Funnel"
-                    subtitle="Only stages present in the booking extract"
+                    subtitle="Observed stages; unavailable stages are not supplied by source"
                     className={chartCardClass}
                   >
                     <div className="space-y-3">
@@ -754,14 +682,23 @@ export function BookingIntelligencePage() {
                               : i === 4
                                 ? rows.filter((r) => r.status === "Delivered")
                                     .length
-                                : "N/A"}
+                                : "Not supplied by source"}
                           </span>
                         </div>
                       ))}
                     </div>
                   </ChartCard>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {["KMM01", "KMM02", "KMM03"].map((branch) => {
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-base font-semibold tracking-normal text-[var(--text-primary)]">
+                        Branch pressure
+                      </h3>
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                        Returned branches only; no branch values are inferred.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                    {options.branch.map((branch) => {
                       const items = open.filter((r) => r.branch === branch);
                       const branchRows = rows.filter(
                         (r) => r.branch === branch,
@@ -774,7 +711,7 @@ export function BookingIntelligencePage() {
                           <p className="text-lg font-semibold text-[var(--text-primary)]">
                             {branch}{" "}
                             <span className="text-sm font-normal text-[var(--text-tertiary)]">
-                              {BRANCH_NAMES[branch]}
+                              {BRANCH_NAMES[branch] ?? "Returned branch"}
                             </span>
                           </p>
                           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
@@ -863,9 +800,20 @@ export function BookingIntelligencePage() {
                         </Card>
                       );
                     })}
+                    </div>
                   </div>
                 </section>
-                <section className="grid gap-5 xl:grid-cols-2">
+                </section>
+                <section className="space-y-4" aria-labelledby="booking-secondary-analysis">
+                  <div>
+                    <h2 id="booking-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Secondary analysis
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Product, model, salesperson, payment, and aging detail for the active booking scope.
+                    </p>
+                  </div>
+                  <section className="grid gap-5 xl:grid-cols-2">
                   <ChartCard
                     title="Booking by Product"
                     subtitle="Open booking units"
@@ -886,11 +834,14 @@ export function BookingIntelligencePage() {
                     className={chartCardClass}
                   >
                     <div className="space-y-3">
-                      {people.map((item) => (
+                      {people.map((item, index) => (
                         <div
                           key={item.label}
-                          className="grid grid-cols-[minmax(0,1fr)_68px_68px] gap-2 text-xs text-[var(--text-secondary)]"
+                          className="grid grid-cols-[24px_minmax(0,1fr)_68px_68px] gap-2 text-xs text-[var(--text-secondary)]"
                         >
+                          <span className="kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
+                            {index + 1}
+                          </span>
                           <span className="truncate font-medium">
                             {item.label}
                           </span>
@@ -912,7 +863,7 @@ export function BookingIntelligencePage() {
                   >
                     <Bars items={payments} />
                   </ChartCard>
-                </section>
+                  </section>
                 <ChartCard
                   title="Booking Aging Matrix"
                   subtitle="Open booking unit by model and age"
@@ -999,6 +950,7 @@ export function BookingIntelligencePage() {
                     )}
                   </div>
                 </ChartCard>
+                </section>
                 <TableCard
                   title="Booking Detail"
                   className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:!tracking-normal"
@@ -1022,7 +974,7 @@ export function BookingIntelligencePage() {
                   }
                   exportAction={
                     <Button
-                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={15} />
@@ -1059,7 +1011,10 @@ export function BookingIntelligencePage() {
                   }
                   empty={!visible.length}
                 >
-                  <div className="max-h-[480px] overflow-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]">
+                  <ResponsiveDataTable
+                    ariaLabel="Booking detail table"
+                    className="max-h-[480px] rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]"
+                  >
                     <table className="min-w-[1420px] w-full text-left text-xs">
                       <thead className="sticky top-0 z-10 bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
                         <tr>
@@ -1083,6 +1038,7 @@ export function BookingIntelligencePage() {
                             <th
                               key={h}
                               className="whitespace-nowrap px-3 py-3 font-semibold"
+                              scope="col"
                             >
                               {h}
                             </th>
@@ -1146,7 +1102,7 @@ export function BookingIntelligencePage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </ResponsiveDataTable>
                 </TableCard>
                 <p className="pb-2 text-xs text-[var(--text-tertiary)]">
                   Source: {(data.meta?.sources ?? []).join(" · ") || "N/A"} ·

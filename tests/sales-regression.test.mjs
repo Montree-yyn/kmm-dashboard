@@ -16,15 +16,15 @@ test("Sales route preserves authentication and the existing page component", asy
 test("Sales business data and KPI calculations remain source-backed", async () => {
   const page = await read("components/sales/sales-page.tsx");
   assert.match(page, /fetch\(`\/dashboard-data\.json\?ts=\$\{Date\.now\(\)\}`/);
-  assert.match(page, /const salesValue = sum\(valueRows/);
-  assert.match(page, /const grossProfit = sum\(valueRows/);
+  assert.match(page, /const salesValue = businessKpis\.salesValue/);
+  assert.match(page, /const grossProfit = businessKpis\.grossProfit/);
   assert.match(
     page,
-    /const achievement =[\s\S]*?\(unitRows\.length \/ salesTarget\) \* 100/,
+    /const achievement =[\s\S]*?\(businessKpis\.salesUnit \/ salesTarget\) \* 100/,
   );
   assert.match(
     page,
-    /const asp = unitRows\.length \? salesValue \/ unitRows\.length : null/,
+    /const asp = getSalesAsp\(data\?\.sales \?\? \[\], filters\)/,
   );
 });
 
@@ -49,7 +49,10 @@ test("Sales page follows the Golden Reference shell and KPI hierarchy", async ()
 });
 
 test("Sales filters retain all dimensions with accessible 44px controls", async () => {
-  const page = await read("components/sales/sales-page.tsx");
+  const [page, controls] = await Promise.all([
+    read("components/sales/sales-page.tsx"),
+    read("components/design-system/data-controls.tsx"),
+  ]);
   for (const label of [
     "Year",
     "Month",
@@ -62,8 +65,8 @@ test("Sales filters retain all dimensions with accessible 44px controls", async 
       new RegExp(`MultiSelectFilter[\\s\\S]*?label="${label}"`),
     );
   }
-  assert.match(page, /aria-label=\{`\$\{label\} filter`\}/);
-  assert.match(page, /className="flex h-11 w-full/);
+  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.match(controls, /className="flex h-11 w-full/);
   assert.match(page, /2xl:grid-cols-5/);
 });
 
@@ -83,8 +86,6 @@ test("Sales transaction table preserves columns, sorting, and contained scrollin
   const page = await read("components/sales/sales-page.tsx");
   for (const label of [
     "Date",
-    "Invoice",
-    "Customer",
     "Branch",
     "Salesperson",
     "Product Group",
@@ -92,10 +93,14 @@ test("Sales transaction table preserves columns, sorting, and contained scrollin
     "Quantity",
     "Sales Value",
     "Gross Profit",
-    "Status",
   ]) {
     assert.match(page, new RegExp(`>\\s*${label}\\s*<|header\\("${label}"`));
   }
+  // Invoice, Customer, and Status remain in the export contract but are not
+  // rendered as empty table columns when the source does not provide them.
+  assert.match(page, /"Invoice"/);
+  assert.match(page, /"Customer"/);
+  assert.match(page, /"Status"/);
   assert.match(page, /function changeSort/);
   assert.match(page, /overflow-x-auto/);
   assert.match(page, /pageSize = 10/);

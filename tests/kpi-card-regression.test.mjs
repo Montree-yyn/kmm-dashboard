@@ -106,7 +106,7 @@ test("existing selectors and calculations remain attached to KPI props", async (
   assert.match(dashboard, /getOpenBookingUnit\(data\.booking, filters\)/);
   assert.match(dashboard, /getStockUnit\(currentStock\)/);
   assert.match(sales, /const achievement =/);
-  assert.match(sales, /const asp = unitRows\.length/);
+  assert.match(sales, /const asp = getSalesAsp/);
   assert.match(booking, /getOpenBookingUnit\(data\.booking, filters\)/);
   assert.match(booking, /getBookingConversionRate\(data\.booking, filters\)/);
 });

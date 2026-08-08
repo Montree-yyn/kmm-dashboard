@@ -3,6 +3,8 @@ export const STOCK_VALUE_PRODUCTS = [...STOCK_UNIT_PRODUCTS, "IM", "IMO", "OT"] 
 
 export type StockProduct = (typeof STOCK_VALUE_PRODUCTS)[number] | "Unknown";
 export type StockRow = {
+  year?: number | null;
+  month?: number | null;
   kmm?: unknown;
   productType?: string | null;
   productGroup?: string | null;

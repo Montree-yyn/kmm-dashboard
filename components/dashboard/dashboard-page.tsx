@@ -1,20 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ChevronDown,
   RefreshCw,
   RotateCcw,
-  Search,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
-import {
-  PRODUCT_GROUPS,
-  filterByProductGroups,
-  productCategory,
-} from "../../lib/dashboard/product-groups";
+import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import {
   getBookingByProduct,
   getBookingValue,
@@ -34,7 +28,21 @@ import { ErrorState } from "../design-system/error-state";
 import { ExportButton } from "../design-system/export-button";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
+import { FilterBar } from "../design-system/filter-bar";
+import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { FreshnessIndicator } from "../design-system/freshness-indicator";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import { loadLiveSalesData } from "../../lib/sales/client";
+import {
+  getBranchSummary,
+  getProductSummary,
+  getSalesKpis,
+  isEngineUnitProduct,
+  salesTransactionQuantity,
+  getTargetAvailability,
+} from "../../lib/sales/business-service";
+import { loadLiveOperationalData } from "../../lib/operations/client";
+import { getOperationalBusiness } from "../../lib/operations/business-service";
 
 const MONTHS = [
   "Jan",
@@ -62,10 +70,11 @@ type SalesRow = {
   salesperson: string;
   productType: string;
   model: string;
-  finalReceived: number;
-  netReceived: number;
-  gp1: number;
-  expense: number;
+  quantity?: number;
+  finalReceived: number | null;
+  netReceived: number | null;
+  gp1: number | null;
+  expense: number | null;
 };
 
 type BookingRow = {
@@ -93,7 +102,7 @@ type StockRow = {
   productGroup?: string;
   model: string;
   ageBucket: string;
-  msrp: number;
+  msrp: number | null;
   currentStatus?: string;
   stockId?: string | null;
   serialNumber?: string | null;
@@ -158,8 +167,8 @@ function formatCompact(value: number) {
   return Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
 }
 
-function sum<T>(rows: T[], selector: (row: T) => number) {
-  return rows.reduce((total, row) => total + selector(row), 0);
+function sum<T>(rows: T[], selector: (row: T) => number | null) {
+  return rows.reduce((total, row) => total + (selector(row) ?? 0), 0);
 }
 
 function selectedYears(filters: FilterState) {
@@ -226,127 +235,6 @@ function trendStatus(
   return value >= 0 ? "positive" : "negative";
 }
 
-function topGroups<T>(rows: T[], selector: (row: T) => string, limit?: number) {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const label = selector(row) || "Missing";
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  }
-  const groups = Array.from(counts, ([label, value]) => ({
-    label,
-    value,
-  })).sort((a, b) => b.value - a.value);
-  return typeof limit === "number" ? groups.slice(0, limit) : groups;
-}
-
-function MultiSelectFilter({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const filteredOptions = useMemo(
-    () =>
-      options.filter((option) =>
-        option.toLowerCase().includes(query.trim().toLowerCase()),
-      ),
-    [options, query],
-  );
-
-  function toggleValue(value: string) {
-    onChange(
-      values.includes(value)
-        ? values.filter((item) => item !== value)
-        : [...values, value],
-    );
-  }
-
-  const displayValue =
-    values.length === 0
-      ? "All"
-      : values.length === 1
-        ? values[0]
-        : `${values.length} selected`;
-
-  return (
-    <div
-      className="relative min-w-0"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
-      }}
-    >
-      <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow,background-color] duration-200 hover:border-[var(--text-disabled)] focus-visible:border-[var(--brand-500)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--brand-focus)]"
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-label={`${label} filter`}
-      >
-        <span className="truncate">{displayValue}</span>
-        <ChevronDown
-          size={16}
-          className={cn(
-            "shrink-0 text-[var(--text-tertiary)] transition-transform duration-200",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <Card className="absolute left-0 right-0 top-[72px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)] backdrop-blur-xl">
-          <div className="relative mb-2">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
-              size={15}
-            />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)]"
-              placeholder={`Search ${label.toLowerCase()}`}
-            />
-          </div>
-          <div
-            className="max-h-52 space-y-1 overflow-y-auto"
-            role="listbox"
-            aria-label={`${label} options`}
-          >
-            {filteredOptions.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-50)]"
-              >
-                <input
-                  type="checkbox"
-                  checked={values.includes(option)}
-                  onChange={() => toggleValue(option)}
-                  className="size-4 rounded border-[var(--border-default)] accent-[var(--brand-500)]"
-                />
-                <span className="truncate">{option}</span>
-              </label>
-            ))}
-            {filteredOptions.length === 0 && (
-              <p className="px-2 py-4 text-center text-sm text-[var(--text-tertiary)]">
-                No options found
-              </p>
-            )}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 function GlobalFilter({
   filters,
   options,
@@ -363,9 +251,31 @@ function GlobalFilter({
   onExport: () => void;
 }) {
   return (
-    <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <FilterBar
+      filterGridClassName="sm:grid-cols-2 xl:grid-cols-4"
+      ariaLabel="Dashboard filters"
+      actions={
+        <>
+          <Button
+            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
+            variant="outline"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </Button>
+          <Button
+            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
+            variant="outline"
+            onClick={onReset}
+          >
+            <RotateCcw size={16} />
+            Reset
+          </Button>
+          <ExportButton onClick={onExport} />
+        </>
+      }
+    >
           <MultiSelectFilter
             label="Year"
             options={options.year}
@@ -390,28 +300,7 @@ function GlobalFilter({
             values={filters.salesperson}
             onChange={(values) => onChange("salesperson", values)}
           />
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap lg:justify-end">
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onRefresh}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onReset}
-          >
-            <RotateCcw size={16} />
-            Reset
-          </Button>
-          <ExportButton onClick={onExport} />
-        </div>
-      </div>
-    </Card>
+    </FilterBar>
   );
 }
 
@@ -422,40 +311,22 @@ function KpiSection({
   data: DashboardData;
   filters: FilterState;
 }) {
-  const filteredSales = data.sales.filter((row) => rowMatches(row, filters));
   const filteredStock = data.stock.filter((row) => rowMatches(row, filters));
-  const currentSales = filterByProductGroups(
-    filteredSales,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  );
-  const currentSalesValueRows = filterByProductGroups(
-    filteredSales,
-    PRODUCT_GROUPS.VALUE_PRODUCTS,
-  );
-  const currentBooking = getOpenBookingUnit(data.booking, filters);
-  const currentBookingValue = getBookingValue(data.booking, filters);
-  const currentBookingDeposit = getDepositAmount(data.booking, filters);
+  const operationalBusiness = getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch });
+  // Legacy parity expression retained: getStockUnit(currentStock).
+  // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
+  const currentBooking = operationalBusiness.booking.unit;
+  const currentBookingValue = operationalBusiness.booking.value ?? 0;
+  const currentBookingDeposit = operationalBusiness.booking.deposit ?? 0;
   const currentStock = getCurrentStockRows(filteredStock);
 
   const previousFilters = previousYearFilters(filters);
-  const previousFilteredSales = data.sales.filter((row) =>
-    rowMatches(row, previousFilters),
-  );
-  const previousSales = filterByProductGroups(
-    previousFilteredSales,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  );
-  const previousSalesValueRows = filterByProductGroups(
-    previousFilteredSales,
-    PRODUCT_GROUPS.VALUE_PRODUCTS,
-  );
-  const salesValue = sum(currentSalesValueRows, (row) => row.finalReceived);
-  const previousSalesValue = sum(
-    previousSalesValueRows,
-    (row) => row.finalReceived,
-  );
-  const grossProfit = sum(currentSalesValueRows, (row) => row.gp1);
-  const previousGrossProfit = sum(previousSalesValueRows, (row) => row.gp1);
+  const businessKpis = getSalesKpis(data.sales, filters);
+  const previousBusinessKpis = getSalesKpis(data.sales, previousFilters);
+  const salesValue = businessKpis.salesValue ?? 0;
+  const previousSalesValue = previousBusinessKpis.salesValue ?? 0;
+  const grossProfit = businessKpis.grossProfit ?? 0;
+  const previousGrossProfit = previousBusinessKpis.grossProfit ?? 0;
   const years = selectedYears(filters);
   const months = selectedMonths(filters);
   const comparisonLabel =
@@ -463,8 +334,8 @@ function KpiSection({
       ? `vs ${MONTHS[months[0] - 1]} ${years[0] - 1}`
       : "vs same period last year";
   const salesComparison = percentChange(
-    currentSales.length,
-    previousSales.length,
+    businessKpis.salesUnit,
+    previousBusinessKpis.salesUnit,
   );
   const salesValueComparison = percentChange(salesValue, previousSalesValue);
   const grossProfitComparison = percentChange(grossProfit, previousGrossProfit);
@@ -477,7 +348,7 @@ function KpiSection({
       <KpiCard
         variant="executive"
         title="Sales Unit"
-        value={currentSales.length}
+        value={businessKpis.salesUnit}
         unit="Unit"
         trendValue={trendText(salesComparison)}
         trendDirection={trendDirection(salesComparison)}
@@ -497,7 +368,7 @@ function KpiSection({
       <KpiCard
         variant="executive"
         title="Gross Profit"
-        value={formatCompact(grossProfit)}
+        value={businessKpis.grossProfitAvailable ? formatCompact(grossProfit) : "Unavailable"}
         unit="MMK"
         trendValue={trendText(grossProfitComparison)}
         trendDirection={trendDirection(grossProfitComparison)}
@@ -514,7 +385,7 @@ function KpiSection({
       <KpiCard
         variant="executive"
         title="Stock Unit"
-        value={getStockUnit(currentStock)}
+        value={operationalBusiness.stock.unit}
         unit="Total Unit"
       />
     </section>
@@ -522,11 +393,11 @@ function KpiSection({
 }
 
 const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#FF7A00",
-  CH: "#4B5563",
-  EX: "#9CA3AF",
-  TP: "#D1D5DB",
-  MAX: "#F3F4F6",
+  TT: "#C24700",
+  CH: "#2563A8",
+  EX: "#475569",
+  TP: "#0F766E",
+  MAX: "#64748B",
 };
 
 function filterForCharts<
@@ -543,19 +414,6 @@ function filterForCharts<
 
 type TrendDatum = { label: string; value: number | null };
 type ChartPoint = TrendDatum & { x: number; y: number | null };
-
-function productSeries<T extends { productType: string; model?: string }>(
-  rows: T[],
-  labels: readonly string[],
-  selector: (row: T) => number,
-) {
-  return labels.map((label) => ({
-    label,
-    value: rows
-      .filter((row) => productCategory(row) === label)
-      .reduce((total, row) => total + selector(row), 0),
-  }));
-}
 
 function chartPoints(
   data: TrendDatum[],
@@ -883,11 +741,15 @@ function YearTrendChart({
   unitRows,
   valueRows,
   unitLabel = "Unit",
+  height = 420,
+  className,
 }: {
   title: string;
   unitRows: YearTrendRow[];
   valueRows: YearTrendRow[];
   unitLabel?: string;
+  height?: number;
+  className?: string;
 }) {
   const [metric, setMetric] = useState<"unit" | "value">("unit");
   const rows = metric === "unit" ? unitRows : valueRows;
@@ -912,7 +774,8 @@ function YearTrendChart({
   }));
   return (
     <PremiumTrendChart
-      className="min-w-0 border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal [&>header]:!flex-col [&>header]:!items-stretch [&>header>div:last-child]:!w-full [&>header>div:last-child]:!justify-start [&>header_button]:!h-11 [&>header_select]:!h-11 min-[1400px]:[&>header]:!flex-row min-[1400px]:[&>header]:!items-center min-[1400px]:[&>header>div:last-child]:!w-auto min-[1400px]:[&>header>div:last-child]:!justify-end"
+      height={height}
+      className={cn("min-w-0 border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal [&>header]:!flex-col [&>header]:!items-stretch [&>header>div:last-child]:!w-full [&>header>div:last-child]:!justify-start [&>header_button]:!h-11 [&>header_select]:!h-11 min-[1400px]:[&>header]:!flex-row min-[1400px]:[&>header]:!items-center min-[1400px]:[&>header>div:last-child]:!w-auto min-[1400px]:[&>header>div:last-child]:!justify-end", className)}
       title={title}
       labels={MONTHS}
       unit={metric === "unit" ? unitLabel : "MMK"}
@@ -928,7 +791,7 @@ function YearTrendChart({
 
 function HorizontalBarChart({
   data,
-  color = "#FF7A00",
+  color = "#C24700",
 }: {
   data: { label: string; value: number }[];
   color?: string;
@@ -938,11 +801,14 @@ function HorizontalBarChart({
 
   return (
     <div className="space-y-4">
-      {sorted.map((item) => (
+      {sorted.map((item, index) => (
         <div
           key={item.label}
-          className="grid grid-cols-[minmax(64px,88px)_minmax(0,1fr)_auto] items-center gap-3 text-sm"
+          className="grid grid-cols-[24px_minmax(64px,88px)_minmax(0,1fr)_auto] items-center gap-3 text-sm"
         >
+          <span className="kmm-tabular text-xs font-semibold text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
+            {index + 1}
+          </span>
           <span
             className="min-w-0 font-semibold leading-tight text-[#4B5563]"
             title={item.label}
@@ -1092,19 +958,19 @@ function TargetProgressItem({
           {name}
         </p>
         <span className={cn("text-[15px] font-semibold", percentageTone)}>
-          {achievement === null ? "N/A" : `${Math.round(achievement)}%`}
+          {achievement === null ? "Target not configured" : `${Math.round(achievement)}%`}
         </span>
       </div>
       <div className="flex items-end justify-between gap-3">
         <p className="kmm-tabular text-[22px] font-semibold leading-none tracking-normal text-[var(--text-primary)]">
           {formatCompact(actual)}{" "}
           <span className="text-sm font-medium text-[var(--text-secondary)]">
-            / {target === null ? "N/A" : formatCompact(target)} Unit
+            / {target === null ? "Target not configured" : `${formatCompact(target)} Unit`}
           </span>
         </p>
       </div>
       <p className="mt-3 text-xs font-normal text-[var(--text-secondary)]">
-        Remaining {remaining === null ? "N/A" : formatCompact(remaining)} Unit
+        Remaining {remaining === null ? "Target not configured" : `${formatCompact(remaining)} Unit`}
       </p>
       <div className="mt-3 h-2 rounded-full bg-[var(--divider)]">
         <div
@@ -1125,13 +991,10 @@ function TargetProgress({
 }) {
   const filteredSales = filterForCharts(data.sales, filters);
   const filteredStock = filterForCharts(data.stock, filters);
-  const salesActual = filterByProductGroups(
-    filteredSales,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  ).length;
+  const salesActual = getSalesKpis(filteredSales).salesUnit;
   const bookingActual = getOpenBookingUnit(data.booking, filters);
   const landingActual = getStockUnit(filteredStock);
-  const salesTarget = targetValue(data, filters);
+  const salesTarget = getTargetAvailability(filters, null).available ? targetValue(data, filters) : null;
 
   return (
     <Card className="min-h-[420px] min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
@@ -1175,30 +1038,21 @@ function ChartsSection({
   const trendSales = filterForCharts(data.sales, trendFilters);
   const trendStock = filterForCharts(data.stock, trendFilters);
   const filteredSales = filterForCharts(data.sales, filters);
-  const filteredStock = filterForCharts(data.stock, filters);
-  const salesUnitRows = filterByProductGroups(
-    trendSales,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  );
-  const salesValueRows = filterByProductGroups(
-    trendSales,
-    PRODUCT_GROUPS.VALUE_PRODUCTS,
-  );
   const bookingRows = getOpenBookingUnitRows(data.booking, trendFilters);
   const stockRows = getCurrentStockRows(trendStock).filter((row) =>
     STOCK_UNIT_PRODUCTS.includes(
       normalizeProductType(row) as (typeof STOCK_UNIT_PRODUCTS)[number],
     ),
   );
-  const salesUnitTrendRows = salesUnitRows.map((row) => ({
+  const salesUnitTrendRows = trendSales.map((row) => ({
     year: row.year,
     month: row.month,
-    value: 1,
+    value: isEngineUnitProduct(row) ? salesTransactionQuantity(row) : 0,
   }));
-  const salesValueTrendRows = salesValueRows.map((row) => ({
+  const salesValueTrendRows = trendSales.map((row) => ({
     year: row.year,
     month: row.month,
-    value: row.finalReceived,
+    value: row.finalReceived ?? 0,
   }));
   const bookingUnitTrendRows = bookingRows.map((row) => ({
     year: row.year,
@@ -1218,29 +1072,19 @@ function ChartsSection({
   const stockValueTrendRows = stockRows.map((row) => ({
     year: row.year,
     month: row.month,
-    value: row.msrp,
+    value: row.msrp ?? 0,
   }));
-  const salesUnitRowsForAnalysis = filterByProductGroups(
-    filteredSales,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-  );
-  const salesByBranch = topGroups(
-    salesUnitRowsForAnalysis,
-    (row) => row.branch,
-  );
-  const productMix = productSeries(
-    salesUnitRowsForAnalysis,
-    PRODUCT_GROUPS.UNIT_PRODUCTS,
-    () => 1,
-  );
-  const bookingByProduct = getBookingByProduct(data.booking, filters)
+  const salesByBranch = getBranchSummary(filteredSales);
+  const productMix = getProductSummary(filteredSales);
+  const operationalBusiness = getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch });
+  const bookingByProduct = operationalBusiness.booking.byProduct
     .filter((item) =>
       (PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[]).includes(
         item.product,
       ),
     )
     .map((item) => ({ label: item.product, value: item.unit }));
-  const stockByProduct = getStockByProduct(filteredStock)
+  const stockByProduct = operationalBusiness.stock.byProduct
     .filter((item) =>
       STOCK_UNIT_PRODUCTS.includes(
         item.product as (typeof STOCK_UNIT_PRODUCTS)[number],
@@ -1249,17 +1093,65 @@ function ChartsSection({
     .map((item) => ({ label: item.product, value: item.unit }));
 
   return (
-    <section className="space-y-5" aria-label="Executive charts">
-      <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
+    <section className="space-y-8" aria-label="Executive charts">
+      <section className="space-y-3" aria-labelledby="dashboard-primary-trend">
+        <div>
+          <h2 id="dashboard-primary-trend" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+            Sales trajectory
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Current sales performance and target variance for the active scope.
+          </p>
+        </div>
+        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
         <YearTrendChart
           title="Sales Trend"
           unitRows={salesUnitTrendRows}
           valueRows={salesValueTrendRows}
           unitLabel="Sales Unit"
+          height={460}
+          className="shadow-[var(--shadow-hover)]"
         />
         <TargetProgress data={data} filters={filters} />
-      </div>
+        </div>
+      </section>
 
+      <section className="space-y-3" aria-labelledby="dashboard-rankings">
+        <div>
+          <h2 id="dashboard-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+            Rankings
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Branch performance ranked within the active filter scope.
+          </p>
+        </div>
+        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
+          <ChartCard
+            className="min-w-0 shadow-[var(--shadow-hover)] [&_h2]:tracking-normal"
+            title="Sales by Branch"
+            subtitle="Sales Unit by branch"
+          >
+            <HorizontalBarChart data={salesByBranch} />
+          </ChartCard>
+          <ChartCard
+            className="min-w-0 [&_h2]:tracking-normal"
+            title="Product Mix"
+            subtitle="Sales Unit by product group"
+          >
+            <DonutChart data={productMix} />
+          </ChartCard>
+        </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="dashboard-secondary-analysis">
+        <div>
+          <h2 id="dashboard-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+            Secondary analysis
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Booking, stock, and product context for operational follow-up.
+          </p>
+        </div>
       <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-2">
         <YearTrendChart
           title="Booking Trend"
@@ -1275,32 +1167,23 @@ function ChartsSection({
         />
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
         <ChartCard
-          className="border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
-          title="Sales by Branch"
-        >
-          <HorizontalBarChart data={salesByBranch} />
-        </ChartCard>
-        <ChartCard
-          className="border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
-          title="Product Mix"
-        >
-          <DonutChart data={productMix} />
-        </ChartCard>
-        <ChartCard
-          className="border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+          className="min-w-0 [&_h2]:tracking-normal"
           title="Booking by Product"
+          subtitle="Open booking units by product group"
         >
           <HorizontalBarChart data={bookingByProduct} />
         </ChartCard>
         <ChartCard
-          className="border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal"
+          className="min-w-0 [&_h2]:tracking-normal"
           title="Stock by Product"
+          subtitle="Current stock units by product group"
         >
           <HorizontalBarChart data={stockByProduct} color="#4B5563" />
         </ChartCard>
       </div>
+      </section>
     </section>
   );
 }
@@ -1379,14 +1262,14 @@ export function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (!response.ok)
-        throw new Error(
-          `Unable to load dashboard-data.json (${response.status})`,
-        );
-      setDashboardData(await response.json());
+      const [liveSales, liveOperations, fallbackResponse] = await Promise.all([
+        loadLiveSalesData(),
+        loadLiveOperationalData(),
+        fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      if (!fallbackResponse.ok) throw new Error(`Unable to load Dashboard fallback (${fallbackResponse.status})`);
+      const fallback = await fallbackResponse.json() as DashboardData;
+      setDashboardData({ ...fallback, sales: liveSales.sales, booking: liveOperations.booking, stock: liveOperations.stock, meta: { ...fallback.meta, sourceUpdatedAt: liveSales.meta.sourceUpdatedAt, sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"] } });
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -1400,16 +1283,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     let ignore = false;
-    fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok)
-          throw new Error(
-            `Unable to load dashboard-data.json (${response.status})`,
-          );
-        return response.json() as Promise<DashboardData>;
-      })
-      .then((data) => {
-        if (!ignore) setDashboardData(data);
+    Promise.all([
+      loadLiveSalesData(),
+      loadLiveOperationalData(),
+      fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }).then((response) => { if (!response.ok) throw new Error(`Unable to load Dashboard fallback (${response.status})`); return response.json() as Promise<DashboardData>; }),
+    ])
+      .then(([liveSales, liveOperations, fallback]) => {
+        if (!ignore) setDashboardData({ ...fallback, sales: liveSales.sales, booking: liveOperations.booking, stock: liveOperations.stock, meta: { ...fallback.meta, sourceUpdatedAt: liveSales.meta.sourceUpdatedAt, sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"] } });
       })
       .catch((loadError: unknown) => {
         if (!ignore)
@@ -1423,8 +1303,11 @@ export function DashboardPage() {
         if (!ignore) setLoading(false);
       });
 
+    const refreshAfterImport = () => { void loadDashboardData(); };
+    window.addEventListener("kmm:sales-imported", refreshAfterImport);
     return () => {
       ignore = true;
+      window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
   }, []);
 
@@ -1483,14 +1366,18 @@ export function DashboardPage() {
                   Sales, booking, stock, and target performance
                 </p>
               </div>
-              {dashboardData && (
-                <p className="text-xs font-normal text-[var(--text-tertiary)]">
-                  Source updated{" "}
-                  <span className="kmm-tabular">
-                    {dashboardData.meta.sourceUpdatedAt}
-                  </span>
-                </p>
-              )}
+              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+                {dashboardData && (
+                  <FreshnessIndicator timestamp={dashboardData.meta.sourceUpdatedAt} className="font-normal" />
+                )}
+                <ActiveFilterSummary
+                  filters={filters}
+                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson" }}
+                  onChange={updateFilter}
+                  onReset={() => setFilters(defaultFilters)}
+                  className="mt-0 max-w-full justify-start sm:justify-end"
+                />
+              </div>
             </section>
 
             <section aria-label="Dashboard filters">
@@ -1519,6 +1406,7 @@ export function DashboardPage() {
             {error && !loading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                role="alert"
                 aria-live="assertive"
               >
                 <ErrorState message={error} onRetry={loadDashboardData} />

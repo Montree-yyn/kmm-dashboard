@@ -2,6 +2,8 @@ import type {
   DataFieldDefinition,
   DataSourceDefinition,
   ImportRow,
+  DuplicateRule,
+  QuantityRule,
   ValidationIssue,
   ValidationSummary,
 } from "./types";
@@ -35,10 +37,28 @@ function comparableValue(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function exactSalesTransactionKey(
+  source: DataSourceDefinition,
+  headers: string[],
+  row: ImportRow,
+) {
+  // Compare only canonical fields that are actually present in this import.
+  // Optional blank values remain part of the signature so two otherwise exact
+  // rows are still caught without promoting invoice_no to a guessed unique key.
+  const fields = source.fields
+    .map((field) => field.key)
+    .filter((field) => headers.includes(field));
+  if (fields.length === 0) return null;
+  return JSON.stringify(
+    fields.map((field) => [field, comparableValue(row[field])]),
+  );
+}
+
 export function validateImportRows(
   source: DataSourceDefinition,
   headers: string[],
   rows: ImportRow[],
+  options: { quantityRule?: QuantityRule; duplicateRule?: DuplicateRule; sourceRowNumbers?: number[]; sourceRowSignatures?: string[] } = {},
 ): ValidationSummary {
   const requiredFields = source.fields.filter((field) => field.required);
   const missingColumns = requiredFields
@@ -49,6 +69,14 @@ export function validateImportRows(
     column,
     message: `Missing required column: ${column}`,
   }));
+  if (source.id === "stock" && !["branch", "branch_code", "branch_name"].some((column) => headers.includes(column))) {
+    missingColumns.push("branch / branch_code / branch_name");
+    issues.push({ code: "missing_column", column: "branch", message: "Missing required stock branch identifier." });
+  }
+  if (source.id === "stock" && !["product", "product_type", "product_model"].some((column) => headers.includes(column))) {
+    missingColumns.push("product / product_type / product_model");
+    issues.push({ code: "missing_column", column: "product", message: "Missing required stock product identifier." });
+  }
   const invalidRows = new Set<number>();
   let emptyCells = 0;
   let wrongTypeCells = 0;
@@ -56,7 +84,7 @@ export function validateImportRows(
   let warningCells = 0;
 
   rows.forEach((row, index) => {
-    const displayRow = index + 2;
+    const displayRow = options.sourceRowNumbers?.[index] ?? index + 2;
     source.fields.forEach((field) => {
       if (!headers.includes(field.key)) return;
       const value = row[field.key];
@@ -86,21 +114,44 @@ export function validateImportRows(
         });
       }
     });
+    if (source.id === "sales" && !isEmpty(row.employee_code) && isEmpty(row.salesperson_code) && isEmpty(row.salesperson_name)) {
+      warningCells += 1;
+      issues.push({ code: "unmapped_employee", row: displayRow, column: "employee_code", severity: "warning", message: `Row ${displayRow}: employee code has no canonical salesperson mapping` });
+    }
   });
 
   const duplicateKeys = new Map<string, number>();
   rows.forEach((row, index) => {
-    const values = source.duplicateKey.map((key) => row[key]);
-    if (values.some(isEmpty)) return;
-    const key = values.map(comparableValue).join("\u001f");
+    if (options.duplicateRule === "booking_source_rows_are_transactions") return;
+    let key: string | null;
+    if (options.duplicateRule === "current_stock_physical_identifier") {
+      if (!isCurrentStockRow(row)) return;
+      key = physicalStockIdentifier(row);
+      if (!key) return;
+    } else if (source.id === "sales") {
+      // Prefer the pre-mapping full-source fingerprint. The real CPI workbook
+      // contains separate machines whose mapped financial fields are equal but
+      // whose REF_CODE/chassis/detail fields differ. Falling back to the exact
+      // canonical row keeps direct validator callers and simple formats safe.
+      key = options.sourceRowSignatures?.[index]
+        ?? exactSalesTransactionKey(source, headers, row);
+      if (!key) return;
+    } else {
+      const values = source.duplicateKey.map((field) => row[field]);
+      if (values.some(isEmpty)) return;
+      key = values.map(comparableValue).join("\u001f");
+    }
     const firstRow = duplicateKeys.get(key);
     if (firstRow !== undefined) {
       duplicateRows += 1;
-      invalidRows.add(index);
+      const warning = options.duplicateRule === "current_stock_physical_identifier";
+      if (warning) warningCells += 1;
+      else invalidRows.add(index);
       issues.push({
         code: "duplicate",
-        row: index + 2,
-        message: `Row ${index + 2}: duplicates row ${firstRow + 2}`,
+        row: options.sourceRowNumbers?.[index] ?? index + 2,
+        severity: warning ? "warning" : undefined,
+        message: `Row ${options.sourceRowNumbers?.[index] ?? index + 2}: duplicates row ${options.sourceRowNumbers?.[firstRow] ?? firstRow + 2}`,
       });
       return;
     }
@@ -120,6 +171,26 @@ export function validateImportRows(
     warningCells,
     missingColumns,
     issues,
-    canImport: rows.length > 0 && missingColumns.length === 0 && issues.length === 0,
+    canImport: rows.length > 0 && missingColumns.length === 0 && issues.every((issue) => issue.severity === "warning"),
   };
+}
+
+function isCurrentStockRow(row: ImportRow) {
+  const kmm = String(row.kmm_flag ?? "").trim();
+  const status = String(row.stock_status ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+  return kmm === "1" && status === "FREE STOCK";
+}
+
+function physicalStockIdentifier(row: ImportRow) {
+  const fields: Array<[string, unknown]> = [
+    ["chassis", row.chassis_number],
+    ["engine", row.engine_number],
+    ["serial", row.serial_number],
+    ["stock", row.stock_number],
+  ];
+  for (const [label, value] of fields) {
+    const normalized = String(value ?? "").trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, "");
+    if (normalized && normalized !== "-") return `${label}:${normalized}`;
+  }
+  return null;
 }

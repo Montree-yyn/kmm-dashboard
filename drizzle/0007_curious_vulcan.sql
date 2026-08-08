@@ -1,0 +1,1 @@
+ALTER TABLE `booking_transactions` ADD `booking_number` text;

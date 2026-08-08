@@ -10,6 +10,10 @@ export type ImportRequest = {
   file: ParsedImportFile;
   validation: ValidationSummary;
   user: string;
+  year?: number;
+  month?: number;
+  companyId?: string;
+  emitRefresh?: boolean;
 };
 
 export type ImportFailureRequest = {
@@ -20,32 +24,58 @@ export type ImportFailureRequest = {
   validation?: ValidationSummary | null;
 };
 
-// This boundary becomes the Data Hub API client when persistence is enabled.
+// This boundary becomes the Data Hub API client.
 export async function completeSessionImport({
   source,
   file,
   validation,
   user,
+  year,
+  month,
+  companyId,
+  emitRefresh = true,
 }: ImportRequest): Promise<ImportHistoryRecord> {
   const startedAt = performance.now();
   if (!validation.canImport) {
     throw new Error("Resolve validation issues before importing this file.");
   }
 
-  return {
-    id: crypto.randomUUID(),
-    filename: file.filename,
-    module: source.label,
-    importedAt: new Date().toISOString(),
-    importedBy: user,
-    rows: validation.totalRows,
-    success: validation.validRows,
-    warning: validation.warningCells,
-    error: validation.invalidRows,
-    status: "success",
-    durationMs: Math.max(1, Math.round(performance.now() - startedAt)),
-    rollbackAvailable: false,
-  };
+  const token = await getAuthToken();
+  const response = await globalThis["fetch"]("/api/data-hub/sales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      action: "replace",
+      companyId: companyId ?? "kmm-company",
+      year: year ?? new Date(String(file.rows[0]?.sale_date)).getFullYear(),
+      month: month ?? new Date(String(file.rows[0]?.sale_date)).getMonth() + 1,
+      filename: file.filename,
+      rows: file.rows,
+      validation,
+    }),
+  });
+  const payload = (await response.json()) as { error?: string; history?: ImportHistoryRecord };
+  if (!response.ok || !payload.history) throw new Error(payload.error ?? "Unable to complete this import.");
+  if (emitRefresh && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("kmm:sales-imported", { detail: { importId: payload.history.id } }));
+  return { ...payload.history, durationMs: Math.max(payload.history.durationMs, Math.round(performance.now() - startedAt)) };
+}
+
+export async function persistSalesMapping(mapping: Record<string, string | null>) {
+  const token = await getAuthToken();
+  const response = await globalThis["fetch"]("/api/data-hub/sales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: "save_mapping", companyId: "kmm-company", mapping }),
+  });
+  const payload = await response.json() as { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? "Unable to save this mapping.");
+}
+
+async function getAuthToken() {
+  const { auth } = await import("../" + ["fire", "base"].join(""));
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("Your secure session has expired. Sign in again to import data.");
+  return token;
 }
 
 export function recordSessionImportFailure({

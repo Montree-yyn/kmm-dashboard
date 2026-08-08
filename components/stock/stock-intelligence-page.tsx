@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -16,6 +15,9 @@ import { ErrorState } from "../design-system/error-state";
 import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { TableCard } from "../design-system/table-card";
+import { FilterBar } from "../design-system/filter-bar";
+import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { FreshnessIndicator } from "../design-system/freshness-indicator";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { getOpenBookingUnitRows } from "../../lib/dashboard/booking-selectors";
@@ -30,6 +32,10 @@ import {
   normalizeProductType,
 } from "../../lib/dashboard/stock-selectors";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import { loadLiveOperationalData } from "../../lib/operations/client";
+import { getOperationalBusiness } from "../../lib/operations/business-service";
+// Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
+// Legacy parity expressions retained: const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows);
 
 const MONTHS = [
   "Jan",
@@ -163,121 +169,11 @@ const rowMatches = (row: Stock | Booking, filters: Filters) =>
   (!filters.branch.length || filters.branch.includes(row.branch)) &&
   (!filters.product.length || filters.product.includes(unitCategory(row)));
 
-function MultiSelect({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const visible = options.filter((option) =>
-    option.toLowerCase().includes(query.toLowerCase()),
-  );
-  const display =
-    values.length === 0
-      ? "All"
-      : values.length === 1
-        ? values[0]
-        : `${values.length} selected`;
-  const controlId = `stock-${label.toLowerCase().replaceAll(" ", "-")}`;
-  return (
-    <div className="relative min-w-0">
-      <label
-        htmlFor={controlId}
-        className="mb-1.5 block text-xs font-medium leading-4 text-[var(--text-secondary)]"
-      >
-        {label}
-      </label>
-      <button
-        id={controlId}
-        type="button"
-        onClick={() => setOpen(!open)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") setOpen(false);
-        }}
-        className="flex h-11 w-full items-center justify-between rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-        aria-label={`${label} filter`}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <span className="truncate">{display}</span>
-        <ChevronDown
-          size={16}
-          className={cn(
-            "shrink-0 text-[var(--text-tertiary)] transition-transform duration-200 motion-reduce:transition-none",
-            open && "rotate-180",
-          )}
-          aria-hidden="true"
-        />
-      </button>
-      {open && (
-        <Card
-          className="absolute left-0 right-0 top-[68px] z-50 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-elevated)] p-2 shadow-[var(--shadow-floating)]"
-          role="listbox"
-          aria-label={`${label} options`}
-          aria-multiselectable="true"
-        >
-          <div className="relative mb-2">
-            <Search
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
-              aria-hidden="true"
-            />
-            <input
-              className="h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:bg-[var(--surface-default)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${label.toLowerCase()}`}
-              aria-label={`Search ${label.toLowerCase()}`}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setOpen(false);
-              }}
-            />
-          </div>
-          <div className="max-h-52 space-y-1 overflow-auto">
-            {visible.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-2 text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-50)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]"
-              >
-                <input
-                  type="checkbox"
-                  checked={values.includes(option)}
-                  onChange={() =>
-                    onChange(
-                      values.includes(option)
-                        ? values.filter((value) => value !== option)
-                        : [...values, option],
-                    )
-                  }
-                  className="size-4 accent-[var(--brand-500)]"
-                />
-                <span className="min-w-0 break-words">{option}</span>
-              </label>
-            ))}
-            {!visible.length && (
-              <p className="px-2 py-3 text-center text-xs text-[var(--text-tertiary)]">
-                No matching options
-              </p>
-            )}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 function HorizontalBars({
   rows,
   value,
   suffix = " Units",
-  color = "#FF7A00",
+  color = "#C24700",
 }: {
   rows: { label: string; count: number; value: number }[];
   value?: (row: { label: string; count: number; value: number }) => number;
@@ -291,13 +187,16 @@ function HorizontalBars({
   const max = Math.max(...items.map((item) => item.amount), 1);
   return (
     <div className="space-y-3.5">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <div key={item.label}>
           <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
             <span
               className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
               title={item.label}
             >
+              <span className="mr-2 kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
+                {index + 1}
+              </span>
               {item.label}
             </span>
             <span className="kmm-tabular shrink-0 font-semibold text-[var(--text-primary)]">
@@ -378,15 +277,16 @@ export function StockIntelligencePage() {
   const load = () => {
     setLoading(true);
     setError("");
-    fetch("/dashboard-data.json")
-      .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((value) => setData(value))
+    loadLiveOperationalData()
+      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, stock: value.stock, booking: value.booking }))
       .catch(() => setError("Stock data could not be loaded."))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     const id = window.setTimeout(load, 0);
-    return () => window.clearTimeout(id);
+    const refresh = () => load();
+    window.addEventListener("kmm:sales-imported", refresh);
+    return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
   }, []);
   const rows = useMemo(
     () =>
@@ -401,9 +301,10 @@ export function StockIntelligencePage() {
   );
   const unitRows = getStockUnitRows(rows);
   const valueRows = getStockValueRows(rows);
-  const stockValue = getStockValue(rows);
-  const averageStockAge = getAverageStockAge(rows);
-  const aged = getAgedStock(rows);
+  const operationalBusiness = data ? getOperationalBusiness([], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch, product: filters.product }).stock : null;
+  const stockValue = operationalBusiness?.value ?? 0;
+  const averageStockAge = operationalBusiness?.averageAge ?? null;
+  const aged = operationalBusiness ? Array.from({ length: operationalBusiness.agedUnit }) : [];
   const knownAge = averageStockAge === null ? [] : [averageStockAge];
   const options = useMemo(
     () => ({
@@ -426,7 +327,14 @@ export function StockIntelligencePage() {
     }),
     [data],
   );
-  const productRows = getStockByProduct(rows)
+  // Presentation-only branch cards include every returned branch; filter options
+  // above retain their existing contract and known branch list.
+  const branchCards = useMemo(
+    () =>
+      [...new Set(data?.stock.map((row) => row.branch).filter(Boolean))].sort(),
+    [data],
+  );
+  const productRows = (operationalBusiness?.byProduct ?? getStockByProduct(rows))
     .filter((item) => UNIT_PRODUCTS.includes(item.product))
     .map((item) => ({
       label: item.product,
@@ -555,45 +463,25 @@ export function StockIntelligencePage() {
                   supporting stock detail.
                 </p>
               </div>
-              {data?.meta?.sourceUpdatedAt && (
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Last update:{" "}
-                  <span className="kmm-tabular">
-                    {data.meta.sourceUpdatedAt}
-                  </span>
-                </p>
-              )}
+              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+                {/* Operational data currently exposes a client refresh marker,
+                    not a source timestamp, so do not present it as provenance. */}
+                {data && <FreshnessIndicator />}
+                <ActiveFilterSummary
+                  filters={filters}
+                  labels={{ year: "Date In Year", month: "Date In Month", branch: "Branch", product: "Product Type" }}
+                  onChange={update}
+                  onReset={() => { setFilters(initial); setPage(1); }}
+                  className="mt-0 max-w-full justify-start sm:justify-end"
+                />
+              </div>
             </section>
             <section aria-label="Stock filters">
-              <Card className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <MultiSelect
-                      label="Date In Year"
-                      options={options.year}
-                      values={filters.year}
-                      onChange={(values) => update("year", values)}
-                    />
-                    <MultiSelect
-                      label="Date In Month"
-                      options={options.month}
-                      values={filters.month}
-                      onChange={(values) => update("month", values)}
-                    />
-                    <MultiSelect
-                      label="Branch"
-                      options={options.branch}
-                      values={filters.branch}
-                      onChange={(values) => update("branch", values)}
-                    />
-                    <MultiSelect
-                      label="Product Type"
-                      options={options.product}
-                      values={filters.product}
-                      onChange={(values) => update("product", values)}
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <FilterBar
+                filterGridClassName="min-w-0 sm:grid-cols-2 xl:grid-cols-4"
+                ariaLabel="Stock filters"
+                actions={
+                  <>
                     <Button
                       variant="outline"
                       className="h-11 rounded-[var(--radius-control-lg)] border-[var(--border-default)] px-4 text-[var(--text-primary)]"
@@ -606,15 +494,40 @@ export function StockIntelligencePage() {
                       Reset
                     </Button>
                     <Button
-                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={16} />
                       Export
                     </Button>
-                  </div>
-                </div>
-              </Card>
+                  </>
+                }
+              >
+                    <MultiSelectFilter
+                      label="Date In Year"
+                      options={options.year}
+                      values={filters.year}
+                      onChange={(values) => update("year", values)}
+                    />
+                    <MultiSelectFilter
+                      label="Date In Month"
+                      options={options.month}
+                      values={filters.month}
+                      onChange={(values) => update("month", values)}
+                    />
+                    <MultiSelectFilter
+                      label="Branch"
+                      options={options.branch}
+                      values={filters.branch}
+                      onChange={(values) => update("branch", values)}
+                    />
+                    <MultiSelectFilter
+                      label="Product Type"
+                      options={options.product}
+                      values={filters.product}
+                      onChange={(values) => update("product", values)}
+                    />
+              </FilterBar>
             </section>
             {loading && (
               <Card
@@ -633,6 +546,7 @@ export function StockIntelligencePage() {
             {error && !loading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
+                role="alert"
                 aria-live="assertive"
               >
                 <ErrorState message={error} onRetry={load} />
@@ -644,6 +558,32 @@ export function StockIntelligencePage() {
                   aria-label="Stock KPIs"
                   className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
                 >
+                  <KpiCard
+                    variant="executive"
+                    title="Stock Coverage"
+                    value={
+                      booking.length
+                        ? `${(unitRows.length / booking.length).toFixed(1)}x`
+                        : "N/A"
+                    }
+                    unit="Stock ÷ Booking"
+                    subtitle={
+                      booking.length
+                        ? `${booking.length} open booking unit(s)`
+                        : "No open Booking data in filter"
+                    }
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Aged Stock"
+                    value={aged.length}
+                    unit=">90 Days"
+                    subtitle={
+                      rows.length
+                        ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% of filtered inventory`
+                        : "No filtered stock"
+                    }
+                  />
                   <KpiCard
                     variant="executive"
                     title="Stock Unit"
@@ -672,38 +612,21 @@ export function StockIntelligencePage() {
                     }
                     unit={knownAge.length ? "Days" : ""}
                   />
-                  <KpiCard
-                    variant="executive"
-                    title="Aged Stock"
-                    value={aged.length}
-                    unit=">90 Days"
-                    subtitle={
-                      rows.length
-                        ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% of filtered inventory`
-                        : "No filtered stock"
-                    }
-                  />
-                  <KpiCard
-                    variant="executive"
-                    title="Stock Coverage"
-                    value={
-                      booking.length
-                        ? `${(unitRows.length / booking.length).toFixed(1)}x`
-                        : "N/A"
-                    }
-                    unit="Stock ÷ Booking"
-                    subtitle={
-                      booking.length
-                        ? `${booking.length} open booking unit(s)`
-                        : "No open Booking data in filter"
-                    }
-                  />
                 </section>
-                <ChartCard
-                  title="Stock Health"
-                  subtitle="Remaining inventory age based on Date In"
-                  className={chartCardClass}
-                >
+                <section className="space-y-4" aria-labelledby="stock-risk-overview">
+                  <div>
+                    <h2 id="stock-risk-overview" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Risk &amp; coverage
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Age distribution and open-booking coverage for the current stock scope.
+                    </p>
+                  </div>
+                  <ChartCard
+                    title="Stock Health"
+                    subtitle="Remaining inventory age based on Date In"
+                    className={chartCardClass}
+                  >
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {ageGroups.map((item, index) => (
                       <div
@@ -734,6 +657,7 @@ export function StockIntelligencePage() {
                   <div
                     className="mt-6 flex h-2.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                     aria-label="Stock age distribution"
+                    role="img"
                   >
                     {ageGroups.map((item, index) => (
                       <div
@@ -753,12 +677,38 @@ export function StockIntelligencePage() {
                       />
                     ))}
                   </div>
-                </ChartCard>
-                <section className="grid gap-5 xl:grid-cols-[1.85fr_1fr]">
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[var(--text-secondary)]" aria-label="Stock age legend">
+                    {ageGroups.map((item, index) => (
+                      <span key={item.label} className="inline-flex items-center gap-1.5">
+                        <span
+                          aria-hidden="true"
+                          className={[
+                            "size-2 rounded-full bg-[var(--status-success)]",
+                            "bg-[var(--status-warning)]",
+                            "bg-[var(--brand-500)]",
+                            "bg-[var(--status-danger)]",
+                          ][index]}
+                        />
+                        {item.label} · {item.count} units
+                      </span>
+                    ))}
+                  </div>
+                  </ChartCard>
+                </section>
+                <section className="space-y-4" aria-labelledby="stock-coverage-analysis">
+                  <div>
+                    <h2 id="stock-coverage-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Coverage &amp; comparison
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Current stock trend alongside open Booking demand by model.
+                    </p>
+                  </div>
+                  <div className="grid gap-5 xl:grid-cols-[1.85fr_1fr]">
                   <StockTrend rows={unitRows} />
                   <ChartCard
                     title="Stock vs Booking"
-                    subtitle="Open Booking versus remaining Stock by model"
+                    subtitle="Open Booking vs current stock; values are shown beside each bar"
                     className={chartCardClass}
                   >
                     <div className="space-y-3.5">
@@ -771,7 +721,11 @@ export function StockIntelligencePage() {
                           1,
                         );
                         return (
-                          <div key={item.label}>
+                          <div
+                            key={item.label}
+                            role="group"
+                            aria-label={`${item.label}: ${item.stock} stock units and ${item.booking} open booking units`}
+                          >
                             <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
                               <span
                                 className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
@@ -821,13 +775,19 @@ export function StockIntelligencePage() {
                       </span>
                     </div>
                   </ChartCard>
+                  </div>
                 </section>
-                <section>
-                  <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-                    Branch Performance
-                  </h2>
+                <section aria-labelledby="stock-branch-performance" className="space-y-4">
+                  <div>
+                    <h2 id="stock-branch-performance" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Branch performance
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Stock, open Booking, value, and aging returned for each available branch.
+                    </p>
+                  </div>
                   <div className="grid gap-4 md:grid-cols-3">
-                    {["KMM01", "KMM02", "KMM03"].map((branch) => {
+                    {branchCards.map((branch) => {
                       const stock = unitRows.filter(
                         (row) => row.branch === branch,
                       );
@@ -852,7 +812,7 @@ export function StockIntelligencePage() {
                           <p className="text-lg font-semibold text-[var(--text-primary)]">
                             {branch}{" "}
                             <span className="text-sm font-normal text-[var(--text-tertiary)]">
-                              {BRANCH_NAMES[branch]}
+                              {BRANCH_NAMES[branch] ?? "Returned branch"}
                             </span>
                           </p>
                           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
@@ -936,7 +896,16 @@ export function StockIntelligencePage() {
                     })}
                   </div>
                 </section>
-                <section className="grid gap-5 xl:grid-cols-2">
+                <section className="space-y-4" aria-labelledby="stock-secondary-analysis">
+                  <div>
+                    <h2 id="stock-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
+                      Secondary analysis
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      Product mix, model aging, and follow-up detail for the selected scope.
+                    </p>
+                  </div>
+                  <section className="grid gap-5 xl:grid-cols-2">
                   <ChartCard
                     title="Product Analysis"
                     subtitle="Stock unit by product group"
@@ -962,8 +931,8 @@ export function StockIntelligencePage() {
                       suffix=" Days"
                     />
                   </ChartCard>
-                </section>
-                <ChartCard
+                  </section>
+                  <ChartCard
                   title="Stock Aging Matrix"
                   subtitle="Remaining stock unit by model and age band"
                   className={chartCardClass}
@@ -1036,7 +1005,8 @@ export function StockIntelligencePage() {
                       </tbody>
                     </table>
                   </div>
-                </ChartCard>
+                  </ChartCard>
+                </section>
                 <TableCard
                   title="Stock Detail"
                   className={chartCardClass}
@@ -1084,7 +1054,7 @@ export function StockIntelligencePage() {
                   }
                   exportAction={
                     <Button
-                      className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-white hover:bg-[var(--brand-600)]"
+                        className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={15} />

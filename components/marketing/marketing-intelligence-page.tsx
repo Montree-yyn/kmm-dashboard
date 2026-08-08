@@ -54,6 +54,12 @@ import {
   type GeographyFailure,
 } from "../../lib/marketing/township-geography";
 import { cn } from "../../lib/utils";
+import {
+  getEngineUnitSalesRows,
+  getSalesKpis,
+  isEngineUnitProduct,
+  salesTransactionQuantity,
+} from "../../lib/sales/business-service";
 import { useLocale } from "../../src/hooks/useLocale";
 import { MyanmarMarketingMap } from "./myanmar-marketing-map";
 import townshipMaster from "../../data/master-townships.json";
@@ -99,8 +105,6 @@ const REGIONS = [
   { label: "Bago West", source: "Bago (West)" },
   { label: "Shan State", source: "Shan (North)" },
 ];
-const UNIT_PRODUCTS = ["TT", "CH", "EX", "TP", "MAX"];
-const VALUE_PRODUCTS = [...UNIT_PRODUCTS, "IM", "IMO", "OT"];
 const COLORS = ["#FFF7ED", "#FFEDD5", "#FDBA74", "#F97316", "#C2410C"];
 const ZERO_SALES_COLOR = "#F3F4F6";
 const NO_DATA_COLOR = "#F8FAFC";
@@ -126,8 +130,10 @@ type SalesRow = {
   area: string;
   productType: string;
   model: string;
+  quantity?: number;
   finalReceived: number;
   gp1: number;
+  expense: number | null;
 };
 type MarketingRow = {
   date: string;
@@ -345,7 +351,9 @@ function aggregateTownshipSales(
       gpValue: 0,
       gpPercent: null,
     };
-    total.salesUnit += 1;
+    if (isEngineUnitProduct(row)) {
+      total.salesUnit += salesTransactionQuantity(row);
+    }
     total.salesValue += row.finalReceived;
     total.gpValue += row.gp1;
     totals.set(key, total);
@@ -2594,16 +2602,17 @@ export function MarketingIntelligencePage() {
       const resolved = resolveTownship(row.township, row.stateRegion);
       if (!resolved.key) return;
       const category = productGroup(row.productType);
-      {
-        salesUnits.set(resolved.key, (salesUnits.get(resolved.key) ?? 0) + 1);
+      if (isEngineUnitProduct(row)) {
+        const quantity = salesTransactionQuantity(row);
+        salesUnits.set(resolved.key, (salesUnits.get(resolved.key) ?? 0) + quantity);
         if (row.salesperson.trim()) {
           const counts =
             salespeople.get(resolved.key) ?? new Map<string, number>();
-          counts.set(row.salesperson, (counts.get(row.salesperson) ?? 0) + 1);
+          counts.set(row.salesperson, (counts.get(row.salesperson) ?? 0) + quantity);
           salespeople.set(resolved.key, counts);
         }
         const detail = salesByProduct.get(resolved.key) ?? blankProducts();
-        detail[productKey(category)] += 1;
+        detail[productKey(category)] += quantity;
         salesByProduct.set(resolved.key, detail);
       }
       {
@@ -2862,28 +2871,24 @@ export function MarketingIntelligencePage() {
             operationalShowroomForBranch(row.branch)?.code === showroom.code &&
             row.status !== "Cancelled",
         );
-        const unit = sales.filter((row) =>
-          UNIT_PRODUCTS.includes(productGroup(row.productType)),
-        );
-        const value = sales.filter((row) =>
-          VALUE_PRODUCTS.includes(productGroup(row.productType)),
-        );
+        const unit = getEngineUnitSalesRows(sales);
+        const kpis = getSalesKpis(sales);
         const cost = sum(activity, (row) => row.expense);
-        const revenue = sum(value, (row) => row.finalReceived);
+        const revenue = kpis.salesValue ?? 0;
         const months = MONTHS.map((label, index) => ({
           label,
           cost: sum(
             activity.filter((row) => row.month === index + 1),
             (row) => row.expense,
           ),
-          unit: unit.filter((row) => row.month === index + 1).length,
+          unit: getSalesKpis(unit.filter((row) => row.month === index + 1)).salesUnit,
         }));
         return {
           showroom,
           activities: activity.length,
-          unit: unit.length,
+          unit: kpis.salesUnit,
           value: revenue,
-          gp: sum(value, (row) => row.gp1),
+          gp: kpis.grossProfit ?? 0,
           cost,
           booking: bookings.length,
           roi: cost ? revenue / cost : null,

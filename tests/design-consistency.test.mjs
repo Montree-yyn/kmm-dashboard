@@ -36,20 +36,78 @@ test("Dashboard and Sales use the same executive page hierarchy", async () => {
   }
 });
 
-test("Dashboard and Sales filters share accessible control geometry", async () => {
-  const [dashboard, sales] = await Promise.all([
+test("all operational pages use the shared filter presentation", async () => {
+  const [filterBar, controls, dashboard, sales, booking, stock] = await Promise.all([
+    read("components/design-system/filter-bar.tsx"),
+    read("components/design-system/data-controls.tsx"),
     read("components/dashboard/dashboard-page.tsx"),
     read("components/sales/sales-page.tsx"),
+    read("components/booking/booking-intelligence-page.tsx"),
+    read("components/stock/stock-intelligence-page.tsx"),
   ]);
 
-  for (const page of [dashboard, sales]) {
-    assert.match(page, /aria-haspopup="listbox"/);
-    assert.match(page, /aria-label=\{`\$\{label\} filter`\}/);
-    assert.match(page, /role="listbox"/);
-    assert.match(page, /event\.key === "Escape"/);
-    assert.match(page, /flex h-11 w-full/);
-    assert.match(page, /focus-visible:ring-4/);
+  assert.match(filterBar, /summary\?: ReactNode/);
+  assert.match(filterBar, /filterGridClassName\?: string/);
+  assert.match(controls, /export function MultiSelectFilter/);
+  assert.match(controls, /aria-haspopup="listbox"/);
+  assert.match(controls, /role="listbox"/);
+  assert.match(controls, /event\.key === "Escape"/);
+  assert.match(controls, /pointerdown/);
+  assert.match(controls, /flex h-11 w-full/);
+  assert.match(controls, /focus-visible:ring-4/);
+  assert.match(controls, /activeSelectionCount/);
+
+  for (const page of [dashboard, sales, booking, stock]) {
+    assert.match(page, /import \{ FilterBar \}/);
+    assert.match(page, /import \{ ActiveFilterSummary, MultiSelectFilter \}/);
+    assert.doesNotMatch(page, /function (MultiSelectFilter|ActiveFilterSummary|Select|MultiSelect)\(/);
   }
+});
+
+test("shared filter presentation preserves page-specific selection contracts", async () => {
+  const [dashboard, sales, booking, stock, controls] = await Promise.all([
+    read("components/dashboard/dashboard-page.tsx"),
+    read("components/sales/sales-page.tsx"),
+    read("components/booking/booking-intelligence-page.tsx"),
+    read("components/stock/stock-intelligence-page.tsx"),
+    read("components/design-system/data-controls.tsx"),
+  ]);
+
+  assert.match(dashboard, /function updateFilter\(key: FilterKey, values: string\[\]\)/);
+  assert.match(sales, /key === "branch"/);
+  assert.match(sales, /salesperson: \[\]/);
+  assert.match(sales, /getNextValues=\{\(option, current\) =>/);
+  assert.match(sales, /return next\.length \? next : \["All Products"\]/);
+  assert.match(booking, /onChange=\{update\}/);
+  assert.match(stock, /onChange=\{update\}/);
+  assert.match(controls, /clearValues\?: Partial<Record<Key, string\[\]>>/);
+});
+
+test("shared states, freshness, and responsive table primitives expose accessible contracts", async () => {
+  const [freshness, status, error, loading, empty, table, chart, booking] = await Promise.all([
+    read("components/design-system/freshness-indicator.tsx"),
+    read("components/design-system/status-message.tsx"),
+    read("components/design-system/error-state.tsx"),
+    read("components/design-system/loading-skeleton.tsx"),
+    read("components/design-system/empty-state.tsx"),
+    read("components/design-system/responsive-data-table.tsx"),
+    read("components/design-system/chart-card.tsx"),
+    read("components/booking/booking-intelligence-page.tsx"),
+  ]);
+
+  assert.match(freshness, /View refreshed/);
+  assert.match(freshness, /RelativeTimeFormat/);
+  assert.match(status, /status: StatusMessageKind/);
+  assert.match(status, /aria-live=\{role === "alert" \? "assertive" : "polite"\}/);
+  assert.match(error, /StatusMessage/);
+  assert.match(loading, /role="status"/);
+  assert.match(empty, /role="status"/);
+  assert.match(table, /overflow-x-auto/);
+  assert.match(table, /tabIndex=\{0\}/);
+  assert.match(booking, /ResponsiveDataTable/);
+  assert.match(booking, /ariaLabel="Booking detail table"/);
+  assert.match(chart, /toolbar\?: ReactNode/);
+  assert.match(chart, /role="region"/);
 });
 
 test("Dashboard and Sales analytics share card and chart contracts", async () => {
@@ -69,6 +127,45 @@ test("Dashboard and Sales analytics share card and chart contracts", async () =>
   assert.match(kpiCard, /min-h-\[160px\]/);
   assert.match(kpiCard, /shadow-\[var\(--shadow-card\)\]/);
   assert.match(kpiCard, /hover:shadow-\[var\(--shadow-hover\)\]/);
+});
+
+test("Sprint 4 page refinement keeps an executive hierarchy without changing data contracts", async () => {
+  const [dashboard, sales, booking, stock] = await Promise.all([
+    read("components/dashboard/dashboard-page.tsx"),
+    read("components/sales/sales-page.tsx"),
+    read("components/booking/booking-intelligence-page.tsx"),
+    read("components/stock/stock-intelligence-page.tsx"),
+  ]);
+
+  assert.match(dashboard, /aria-labelledby="dashboard-primary-trend"/);
+  assert.match(dashboard, /Sales trajectory/);
+  assert.match(dashboard, /Rankings/);
+  assert.match(dashboard, /height=\{460\}/);
+
+  assert.match(sales, /Sales trajectory/);
+  assert.match(sales, /Rankings &amp; mix/);
+  assert.match(sales, /Transactions/);
+  assert.match(sales, /<ResponsiveDataTable/);
+  assert.match(sales, /ariaLabel="Sales transaction table"/);
+
+  assert.match(booking, /aria-labelledby="booking-observed-pipeline"/);
+  assert.match(booking, /Branch pressure/);
+  assert.match(booking, /Not supplied by source/);
+  assert.match(booking, /aria-labelledby="booking-secondary-analysis"/);
+
+  assert.match(stock, /aria-labelledby="stock-risk-overview"/);
+  assert.match(stock, /aria-labelledby="stock-coverage-analysis"/);
+  assert.match(stock, /aria-label="Stock age legend"/);
+  assert.match(stock, /Stock vs Booking/);
+  assert.match(stock, /branchCards\.map/);
+  assert.match(stock, /aria-labelledby="stock-secondary-analysis"/);
+
+  for (const page of [dashboard, sales, booking, stock]) {
+    assert.match(page, /FreshnessIndicator/);
+    assert.match(page, /ActiveFilterSummary/);
+    assert.match(page, /sm:/);
+    assert.match(page, /xl:/);
+  }
 });
 
 test("Marketing retains the approved compact workspace exception", async () => {

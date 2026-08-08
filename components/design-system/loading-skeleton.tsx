@@ -1,9 +1,12 @@
 import { Skeleton } from "../ui/skeleton";
 
-type LoadingSkeletonProps = { variant?: "kpi" | "chart" | "table" };
+type LoadingSkeletonProps = { variant?: "kpi" | "chart" | "table"; label?: string };
 
-export function LoadingSkeleton({ variant = "chart" }: LoadingSkeletonProps) {
-  if (variant === "kpi") return <Skeleton className="h-10 w-28" />;
-  if (variant === "table") return <Skeleton className="h-44 w-full" />;
-  return <Skeleton className="h-[260px] w-full" />;
+export function LoadingSkeleton({ variant = "chart", label = "Loading" }: LoadingSkeletonProps) {
+  const skeleton = variant === "kpi"
+    ? <Skeleton className="h-10 w-28" />
+    : variant === "table"
+      ? <Skeleton className="h-44 w-full" />
+      : <Skeleton className="h-[260px] w-full" />;
+  return <div role="status" aria-live="polite" aria-label={label}>{skeleton}</div>;
 }

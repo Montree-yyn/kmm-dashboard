@@ -2,14 +2,14 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
-const buttonVariants = cva("inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all disabled:pointer-events-none disabled:opacity-50", {
+const buttonVariants = cva("inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-[background-color,border-color,box-shadow,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50", {
   variants: {
     variant: {
-      default: "bg-[#FF8615] text-white shadow-[0_4px_14px_rgba(255,134,21,0.22)] hover:bg-[#E9760B]",
-      outline: "border border-[#E0E2E5] bg-white text-[#55565A] hover:border-[#C9CCD1] hover:bg-[#F8FAFC]",
-      ghost: "text-[#606168] hover:bg-[#F3F4F6] hover:text-[#1F2937]",
+      default: "bg-[var(--brand-500)] text-[var(--text-primary)] shadow-[0_4px_14px_rgb(245_102_0_/_22%)] hover:bg-[var(--brand-400)]",
+      outline: "border border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:border-[var(--text-disabled)] hover:bg-[var(--surface-subtle)]",
+      ghost: "text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]",
     },
-    size: { default: "h-10 px-4", sm: "h-8 px-3 text-xs", lg: "h-11 px-5" },
+    size: { default: "px-4", sm: "px-3 text-xs", lg: "px-5" },
   },
   defaultVariants: { variant: "default", size: "default" },
 });

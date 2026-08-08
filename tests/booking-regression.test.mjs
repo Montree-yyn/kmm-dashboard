@@ -41,7 +41,10 @@ test("Booking aging thresholds and status rules are unchanged", async () => {
 });
 
 test("Booking filters retain all dimensions and accessible 44px controls", async () => {
-  const page = await read("components/booking/booking-intelligence-page.tsx");
+  const [page, controls] = await Promise.all([
+    read("components/booking/booking-intelligence-page.tsx"),
+    read("components/design-system/data-controls.tsx"),
+  ]);
   for (const label of [
     "Year",
     "Month",
@@ -52,10 +55,11 @@ test("Booking filters retain all dimensions and accessible 44px controls", async
   ]) {
     assert.match(page, new RegExp(`label="${label}"`));
   }
-  assert.match(page, /aria-label=\{`\$\{label\} filter`\}/);
-  assert.match(page, /aria-haspopup="listbox"/);
-  assert.match(page, /if \(event\.key === "Escape"\) setOpen\(false\)/);
-  assert.match(page, /className="flex h-11 w-full/);
+  assert.match(page, /import \{ ActiveFilterSummary, MultiSelectFilter \}/);
+  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.match(controls, /aria-haspopup="listbox"/);
+  assert.match(controls, /if \(event\.key === "Escape"\) setOpen\(false\)/);
+  assert.match(controls, /flex h-11 w-full/);
 });
 
 test("Booking charts preserve their existing library and data inputs", async () => {
@@ -111,7 +115,8 @@ test("Booking funnel and detail table preserve all operational information", asy
   ]) {
     assert.match(page, new RegExp(`"${column}"`));
   }
-  assert.match(page, /max-h-\[480px\] overflow-auto/);
+  assert.match(page, /ResponsiveDataTable/);
+  assert.match(page, /max-h-\[480px\]/);
   assert.match(page, /Math\.ceil\(table\.length \/ 10\)/);
   assert.match(page, /link\.download = "kmm-booking-detail\.csv"/);
 });

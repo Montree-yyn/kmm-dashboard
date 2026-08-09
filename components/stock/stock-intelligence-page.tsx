@@ -34,6 +34,7 @@ import {
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { canonicalModelName } from "../../lib/dashboard/model-normalization";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expressions retained: const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows);
 
@@ -351,7 +352,7 @@ export function StockIntelligencePage() {
   });
   const modelMap = new Map<string, Stock[]>();
   unitRows.forEach((row) => {
-    const key = row.model || "Unknown model";
+    const key = canonicalModelName(row.model) || "Unknown model";
     modelMap.set(key, [...(modelMap.get(key) ?? []), row]);
   });
   const models = [...modelMap.entries()]
@@ -369,8 +370,8 @@ export function StockIntelligencePage() {
   const bookingByModel = new Map<string, number>();
   booking.forEach((row) =>
     bookingByModel.set(
-      row.model || "Unknown model",
-      (bookingByModel.get(row.model || "Unknown model") ?? 0) + 1,
+      canonicalModelName(row.model) || "Unknown model",
+      (bookingByModel.get(canonicalModelName(row.model) || "Unknown model") ?? 0) + 1,
     ),
   );
   const comparedModels = [

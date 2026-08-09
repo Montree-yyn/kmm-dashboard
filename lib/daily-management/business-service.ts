@@ -16,6 +16,7 @@ import {
 import type { CanonicalSalesRow } from "../sales/types";
 import type { BookingAdapterRow, StockAdapterRow } from "../operations/types";
 import type { DailyManagementSnapshot } from "./types";
+import { canonicalModelName } from "../dashboard/model-normalization";
 
 type DailyManagementInput = {
   sales: CanonicalSalesRow[];
@@ -25,12 +26,7 @@ type DailyManagementInput = {
 
 const unavailable = (reason: string) => ({ available: false, reason });
 const dateKey = (value: string | null | undefined) => String(value ?? "").slice(0, 10);
-export function canonicalDailyModel(value: string | null | undefined) {
-  const model = String(value ?? "").trim().replace(/\s+/g, " ");
-  const key = model.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (key === "DC70GPRO") return "DC70G PRO";
-  return model;
-}
+export const canonicalDailyModel = canonicalModelName;
 
 function latestDate(values: Array<string | null | undefined>) {
   return values.map(dateKey).filter(Boolean).sort().at(-1) ?? null;

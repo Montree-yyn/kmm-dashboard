@@ -22,6 +22,7 @@ import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { canonicalModelName } from "../../lib/dashboard/model-normalization";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
 // Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getAverageBookingAge(data.booking, filters); getBookingConversionRate(data.booking, filters).
@@ -356,7 +357,7 @@ export function BookingIntelligencePage() {
       metric: item.unit,
     }))
     .filter((item) => item.metric > 0);
-  const models = group(open, (r) => r.model || "Unknown model").slice(0, 10);
+  const models = group(open, (r) => canonicalModelName(r.model) || "Unknown model").slice(0, 10);
   const people = group(open, (r) => r.salesperson || "Unassigned").slice(0, 10);
   const payments = group(openValue, (r) => r.paymentType || "Unavailable");
   const table = open.filter((row) =>

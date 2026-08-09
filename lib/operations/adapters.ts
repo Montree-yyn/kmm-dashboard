@@ -1,4 +1,5 @@
 import type { BookingAdapterRow, StockAdapterRow } from "./types";
+import { canonicalModelName } from "../dashboard/model-normalization";
 
 const numberOrNull = (value: unknown) => {
   if (value === null || value === undefined || String(value).trim() === "") return null;
@@ -17,7 +18,7 @@ export function adaptBookingRow(row: Record<string, unknown>): BookingAdapterRow
     branch: stringOrEmpty(row.branchName ?? row.branchCode ?? row.branch),
     salesperson: stringOrEmpty(row.salespersonName ?? row.salespersonCode ?? row.salesperson),
     productType: stringOrEmpty(row.productType ?? row.product ?? "Unknown"),
-    model: stringOrEmpty(row.productModel ?? row.model ?? ""),
+    model: canonicalModelName(row.productModel ?? row.model ?? ""),
     price: numberOrNull(row.bookingPrice ?? row.price),
     bookingNo: stringOrEmpty(row.bookingNumber ?? row.bookingNo ?? row.booking_no),
     customer: stringOrEmpty(row.customerName ?? row.customer ?? ""),
@@ -42,7 +43,7 @@ export function adaptStockRow(row: Record<string, unknown>): StockAdapterRow {
     kmm: typeof row.kmmFlag === "number" || typeof row.kmmFlag === "string" ? row.kmmFlag : typeof row.kmm === "number" || typeof row.kmm === "string" ? row.kmm : null,
     productType: stringOrEmpty(row.productType ?? row.product ?? "Unknown"),
     productGroup: stringOrEmpty(row.productGroup ?? row.productType ?? row.product ?? "Unknown"),
-    model: stringOrEmpty(row.productModel ?? row.model ?? ""),
+    model: canonicalModelName(row.productModel ?? row.model ?? ""),
     ageBucket: ageBucket(ageDays),
     ageDays,
     snapshotDate: stringOrEmpty(row.snapshotDate ?? date),

@@ -1,5 +1,6 @@
 import { filterByProductGroups } from "../dashboard/product-groups";
 import type { SalesBusinessRow, SalesFilterInput, SalesKpis, SalesSummary } from "./types";
+import { canonicalModelName } from "../dashboard/model-normalization";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const ENGINE_UNIT_PRODUCT_GROUPS = ["TT", "CH", "EX", "TP"] as const;
@@ -136,7 +137,7 @@ export function getProductSummary(rows: readonly SalesBusinessRow[], filters: Sa
 }
 
 export function getModelSummary(rows: readonly SalesBusinessRow[], filters: SalesFilterInput = {}): SalesSummary {
-  return getUnitSummary(filterSalesRows(rows, filters), (row) => row.model || "N/A");
+  return getUnitSummary(filterSalesRows(rows, filters), (row) => canonicalModelName(row.model) || "N/A");
 }
 
 export function getMonthlyTrend(rows: readonly SalesBusinessRow[], filters: SalesFilterInput = {}) {

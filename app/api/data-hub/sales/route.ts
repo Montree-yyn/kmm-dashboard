@@ -17,6 +17,7 @@ import {
   executeAtomicD1Batch,
 } from "../../../../lib/data-hub/d1-batching";
 import { AuthError, verifyFirebaseRequest } from "../../../../lib/server/firebase-auth";
+import { canonicalModelName } from "../../../../lib/dashboard/model-normalization";
 
 export const dynamic = "force-dynamic";
 const WRITE_ROLES = new Set<CompanyRole>(["super_admin", "company_admin", "manager"]);
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
       const salespersonName = String(row.salesperson_name ?? "").trim();
       const master = (employeeCode ? masterByEmployee.get(employeeCode.toUpperCase()) : undefined) || (salespersonCode ? masterByCode.get(salespersonCode.toUpperCase()) : undefined);
       if ((employeeCode || salespersonCode) && !master) unmappedEmployeeRows += 1;
-      return { id: crypto.randomUUID(), tenantId: TENANT_ID, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: String(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? String(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
+      return { id: crypto.randomUUID(), tenantId: TENANT_ID, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
     });
     const history = { id: importId, tenantId: TENANT_ID, companyId, module: "sales", importYear: year, importMonth: month, filename: payload.filename || "sales-import.xlsx", status: "success", totalRows: rows.length, validRows: rows.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: 0, importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
     // Sales CPI is a full current-state dataset. Each approved import replaces

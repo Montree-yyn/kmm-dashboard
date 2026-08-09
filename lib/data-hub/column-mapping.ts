@@ -16,6 +16,11 @@ export type ColumnMapping = {
 
 type SavedMapping = Record<string, string | null>;
 
+function canonicalModelValue(value: unknown) {
+  const model = String(value ?? "").trim().replace(/\s+/g, " ");
+  return model.toUpperCase().replace(/[^A-Z0-9]/g, "") === "DC70GPRO" ? "DC70G PRO" : model;
+}
+
 const aliases: Record<string, string[]> = {
   sale_date: ["sale date", "sales date", "delivery date", "date", "transaction date"],
   booking_date: ["booking date", "date"],
@@ -217,6 +222,9 @@ function normalizeCanonicalValue(fieldKey: string, value: unknown) {
   }
   if (fieldKey === "purchase_status" || fieldKey === "stock_status") {
     return String(value ?? "").trim().replace(/\s+/g, " ");
+  }
+  if (["model", "model_code", "product_model"].includes(fieldKey)) {
+    return canonicalModelValue(value);
   }
   if (fieldKey === "month_out") {
     return value === null || value === undefined || String(value).trim() === "" ? value : String(value).trim();

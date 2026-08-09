@@ -1,4 +1,5 @@
 import { auth } from "../firebase";
+import { canonicalModelName } from "../dashboard/model-normalization";
 
 export type LiveSalesPayload = {
   source: "d1" | "local-fallback";
@@ -20,5 +21,5 @@ export async function loadLiveSalesData(options: { allowFallback?: boolean } = {
   const fallback = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" });
   if (!fallback.ok) throw new Error(`Unable to load Sales fallback (${fallback.status}).`);
   const data = await fallback.json() as LiveSalesPayload;
-  return { ...data, source: "local-fallback", meta: { ...data.meta, sources: [...data.meta.sources, "Local QA fallback"] } };
+  return { ...data, source: "local-fallback", sales: data.sales.map((row) => ({ ...row, model: canonicalModelName(row.model) })), meta: { ...data.meta, sources: [...data.meta.sources, "Local QA fallback"] } };
 }

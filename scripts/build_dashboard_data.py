@@ -31,6 +31,12 @@ def as_text(value: Any) -> str:
     return str(value).strip()
 
 
+def canonical_model(value: Any) -> str:
+    model = " ".join(as_text(value).split())
+    key = re.sub(r"[^A-Z0-9]", "", model.upper())
+    return "DC70G PRO" if key == "DC70GPRO" else model
+
+
 def identifier_key(value: Any) -> str:
     return re.sub(r"[\u200B-\u200D\uFEFF]", "", as_text(value).upper())
 
@@ -255,7 +261,7 @@ def load_sales() -> list[dict[str, Any]]:
                 "village": as_text(cell(row, headers, "Village")),
                 "area": as_text(cell(row, headers, "Area")),
                 "productType": as_text(cell(row, headers, "TYPE")),
-                "model": as_text(cell(row, headers, "MODEL")),
+                "model": canonical_model(cell(row, headers, "MODEL")),
                 "finalReceived": as_number(cell(row, headers, "Final Received")),
                 "netReceived": as_number(cell(row, headers, "Net Received")),
                 "gp1": as_number(cell(row, headers, "GP1")),
@@ -307,7 +313,7 @@ def load_booking() -> list[dict[str, Any]]:
                 "branch": branch,
                 "salesperson": salesperson,
                 "productType": product_type,
-                "model": as_text(cell(row, headers, "Model")),
+                "model": canonical_model(cell(row, headers, "Model")),
                 "price": optional_number(cell(row, headers, "Price")),
                 "bookingNo": booking_no,
                 "customer": as_text(cell(row, headers, "CS NAME")),
@@ -381,7 +387,7 @@ def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         status_is_free = normalize_status_pd(status_pd) == "free stock"
         kmm_one_rows += kmm_is_one
         free_stock_rows += status_is_free
-        sample = {"excelRow": excel_row, "stockId": as_text(cell(row, headers, "STOCK CODE")) or None, "serialNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None, "engineNumber": as_text(cell(row, headers, "ENGINE NUMBER")) or None, "model": as_text(cell(row, headers, "MODEL")), "productType": as_text(cell(row, headers, "TYPE")), "kmm": as_text(kmm), "statusPd": status_pd, "branch": normalize_branch(cell(row, headers, "BRANCH")) or "Missing"}
+        sample = {"excelRow": excel_row, "stockId": as_text(cell(row, headers, "STOCK CODE")) or None, "serialNumber": as_text(cell(row, headers, "CHASSIS NUMBER")) or None, "engineNumber": as_text(cell(row, headers, "ENGINE NUMBER")) or None, "model": canonical_model(cell(row, headers, "MODEL")), "productType": as_text(cell(row, headers, "TYPE")), "kmm": as_text(kmm), "statusPd": status_pd, "branch": normalize_branch(cell(row, headers, "BRANCH")) or "Missing"}
         if not kmm_is_one:
             excluded_kmm[as_text(kmm) or "<blank>"] += 1
             if len(excluded_samples["kmmNotOne"]) < 3:
@@ -398,7 +404,7 @@ def load_stock() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         date_in = iso_date(cell(row, headers, "DAY IN"))
         year, month = year_month_from_date(cell(row, headers, "DAY IN"))
         raw_type = as_text(cell(row, headers, "TYPE"))
-        model = as_text(cell(row, headers, "MODEL"))
+        model = canonical_model(cell(row, headers, "MODEL"))
         rows.append(
             {
                 "date": date_in,

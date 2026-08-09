@@ -1,6 +1,7 @@
 import { auth } from "../firebase";
 import type { BookingAdapterRow, OperationalBusiness, StockAdapterRow } from "./types";
 import { getOperationalBusiness } from "./business-service";
+import { adaptBookingRow, adaptStockRow } from "./adapters";
 
 export type LiveOperationalData = { booking: BookingAdapterRow[]; stock: StockAdapterRow[]; business: OperationalBusiness };
 
@@ -17,6 +18,8 @@ export async function loadLiveOperationalData(options: { allowFallback?: boolean
     const fallback = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" });
     if (!fallback.ok) throw error;
     const data = await fallback.json() as { booking: BookingAdapterRow[]; stock: StockAdapterRow[] };
-    return { booking: data.booking, stock: data.stock, business: getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], data.stock as unknown as Record<string, unknown>[]) };
+    const booking = data.booking.map((row) => adaptBookingRow(row as unknown as Record<string, unknown>));
+    const stock = data.stock.map((row) => adaptStockRow(row as unknown as Record<string, unknown>));
+    return { booking, stock, business: getOperationalBusiness(booking as unknown as Record<string, unknown>[], stock as unknown as Record<string, unknown>[]) };
   }
 }

@@ -162,11 +162,12 @@ test("Daily Management route stays read-only and mockup presentation is explicit
   assert.match(navigation, /Daily Report/);
   assert.match(shell, /daily-management/);
   assert.match(page, /Mockup · Sample Data/);
-  assert.match(page, /min-w-\[1120px\] grid-cols-7/);
+  assert.match(page, /grid-cols-2 gap-px/);
+  assert.match(page, /Booking pipeline distribution/);
+  assert.doesNotMatch(page, /overflow-x-auto|min-w-\[/);
   assert.match(page, /\/daily-management\/input/);
   assert.match(page, /loadPublishedDailyManagementInput/);
-  assert.match(page, /Booking Cancel Today/);
-  assert.match(page, /clipPath: "polygon/);
+  assert.match(page, /Cancellation Today/);
   assert.match(mockData, /DC70G PRO/);
   assert.doesNotMatch(mockData, /DC-70G PRO/);
   assert.match(mockData, /Wait Approve/);

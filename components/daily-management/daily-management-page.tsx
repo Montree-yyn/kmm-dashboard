@@ -26,22 +26,24 @@ import { ExportButton } from "../design-system/export-button";
 import { StatusBadge } from "../design-system/status-badge";
 
 const icons: Record<string, ReactNode> = {
-  salesToday: <ShoppingCart size={20} />,
-  salesMtd: <CalendarDays size={20} />,
-  target: <Target size={20} />,
-  bookingToday: <ClipboardCheck size={20} />,
-  activeBooking: <ClipboardList size={20} />,
-  stockEngine: <Boxes size={20} />,
-  stockValue: <WalletCards size={20} />,
+  salesToday: <ShoppingCart size={17} />,
+  salesMtd: <CalendarDays size={17} />,
+  target: <Target size={17} />,
+  bookingToday: <ClipboardCheck size={17} />,
+  activeBooking: <ClipboardList size={17} />,
+  stockEngine: <Boxes size={17} />,
+  stockValue: <WalletCards size={17} />,
 };
 
 const tones = {
-  green: "text-[#218739] bg-[#EDF8EF]",
-  blue: "text-[#2F7ED8] bg-[#EDF5FF]",
-  teal: "text-[#138F8B] bg-[#EAF8F7]",
-  purple: "text-[#7C3FA0] bg-[#F5EEFA]",
-  orange: "text-[var(--brand-600)] bg-[var(--brand-50)]",
+  green: "text-[#18813A] bg-[#EAF7EE]",
+  blue: "text-[#246FC7] bg-[#EAF3FD]",
+  teal: "text-[#087F7B] bg-[#E7F7F5]",
+  purple: "text-[#704197] bg-[#F3ECF8]",
+  orange: "text-[#C45100] bg-[#FFF1E6]",
 } as const;
+
+const panelClass = "min-w-0 overflow-hidden border-[#E8E9ED] shadow-[0_8px_24px_rgba(27,31,42,0.06)]";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -69,10 +71,10 @@ function downloadMockup() {
 
 function PanelHeader({ index, title, action }: { index: string; title: string; action?: ReactNode }) {
   return (
-    <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--divider)] px-3.5 py-2">
+    <div className="flex min-h-11 items-center justify-between gap-3 border-b border-[var(--divider)] bg-[color-mix(in_srgb,var(--surface-default)_96%,var(--surface-subtle))] px-3.5 py-2">
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-[var(--brand-500)] text-[10px] font-bold text-white">{index}</span>
-        <h2 className="truncate text-[13px] font-bold tracking-[-0.01em] text-[var(--text-primary)] sm:text-sm">{title}</h2>
+        <span className="grid size-6 shrink-0 place-items-center rounded-[8px] bg-[#FFF0E4] text-[10px] font-bold text-[#C45100]">{index}</span>
+        <h2 className="truncate text-[13px] font-semibold tracking-[-0.012em] text-[var(--text-primary)] sm:text-sm">{title}</h2>
       </div>
       {action}
     </div>
@@ -84,22 +86,20 @@ function KpiStrip({ input }: { input: DailyManagementInputSnapshot }) {
   const achievement = input.target.mtdTarget ? `${((salesMtd / input.target.mtdTarget) * 100).toFixed(1)}%` : "—";
   const items = report.kpis.map((item) => item.key === "target" ? { ...item, value: String(input.target.mtdTarget), detail: `${achievement} achievement · ${salesMtd - input.target.expectedPace} vs pace` } : item);
   return (
-    <Card className="overflow-hidden" role="region" aria-label="Daily management mockup KPIs">
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[1120px] grid-cols-7 divide-x divide-[var(--divider)]">
-          {items.map((item) => (
-            <div key={item.key} className="group relative min-w-0 px-3 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]">
-              <div className="flex items-center gap-2">
-                <span className={`grid size-7 shrink-0 place-items-center rounded-[8px] ${tones[item.tone]}`}>{icons[item.key]}</span>
-                <p className="truncate text-[10px] font-bold uppercase tracking-[0.045em] text-[var(--text-secondary)]">{item.label}</p>
-              </div>
-              <p className="kmm-tabular mt-1.5 flex items-baseline gap-1.5 text-[24px] font-semibold leading-none tracking-[-0.03em]">
-                {item.value}<span className="truncate text-[10px] font-semibold tracking-normal text-[var(--text-secondary)]">{item.unit}</span>
-              </p>
-              <p className={`mt-1.5 truncate text-[10px] ${item.key === "stockValue" || item.key === "target" ? "font-semibold text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{item.detail}</p>
+    <Card className={`${panelClass} bg-[var(--divider)]`} role="region" aria-label="Daily management mockup KPIs">
+      <div className="grid grid-cols-2 gap-px sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+        {items.map((item) => (
+          <div key={item.key} className="group min-w-0 bg-[var(--surface-default)] px-3 py-2.5 transition-colors hover:bg-[#FCFCFD]">
+            <div className="flex items-center gap-2">
+              <span className={`grid size-7 shrink-0 place-items-center rounded-[9px] ${tones[item.tone]}`}>{icons[item.key]}</span>
+              <p className="truncate text-[9px] font-bold uppercase tracking-[0.05em] text-[var(--text-secondary)]">{item.label}</p>
             </div>
-          ))}
-        </div>
+            <p className="kmm-tabular mt-1.5 flex min-w-0 items-baseline gap-1.5 text-[22px] font-semibold leading-none tracking-[-0.03em] sm:text-[24px]">
+              <span className="truncate">{item.value}</span><span className="truncate text-[9px] font-semibold tracking-normal text-[var(--text-secondary)]">{item.unit}</span>
+            </p>
+            <p className={`mt-1.5 truncate text-[9px] ${item.key === "stockValue" || item.key === "target" ? "font-semibold text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`} title={item.detail}>{item.detail}</p>
+          </div>
+        ))}
       </div>
     </Card>
   );
@@ -107,13 +107,13 @@ function KpiStrip({ input }: { input: DailyManagementInputSnapshot }) {
 
 function PerformerList({ title, rows, attention = false }: { title: string; rows: readonly { name: string; result: string; achievement: string }[]; attention?: boolean }) {
   return (
-    <div>
-      <h3 className={`text-xs font-bold ${attention ? "text-[var(--status-danger)]" : "text-[var(--text-primary)]"}`}>{title}</h3>
-      <ol className="mt-2 divide-y divide-[var(--divider)]">
+    <div className="min-w-0">
+      <h3 className={`text-[10px] font-bold uppercase tracking-[0.04em] ${attention ? "text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{title}</h3>
+      <ol className="mt-1.5 divide-y divide-[var(--divider)]">
         {rows.map((row, index) => (
-          <li key={row.name} className="grid grid-cols-[16px_minmax(0,1fr)_38px] items-center gap-1.5 py-1.5 text-[11px]">
-            <span className={attention ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}>{index + 1}</span>
-            <span className="min-w-0"><span className="block truncate font-medium">{row.name}</span><span className="kmm-tabular text-[9px] text-[var(--text-tertiary)]">{row.result}</span></span>
+          <li key={row.name} className="grid grid-cols-[16px_minmax(0,1fr)_36px] items-center gap-1.5 py-1.5 text-[10px]">
+            <span className={`grid size-4 place-items-center rounded-full text-[8px] font-bold ${attention ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[var(--status-success-bg)] text-[var(--status-success)]"}`}>{index + 1}</span>
+            <span className="min-w-0"><span className="block truncate font-medium" title={row.name}>{row.name}</span><span className="kmm-tabular text-[8px] text-[var(--text-tertiary)]">{row.result}</span></span>
             <span className={`kmm-tabular text-right font-semibold ${attention ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}`}>{row.achievement}</span>
           </li>
         ))}
@@ -124,52 +124,41 @@ function PerformerList({ title, rows, attention = false }: { title: string; rows
 
 function SalesPerformance() {
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={panelClass}>
       <PanelHeader index="1" title="Sales Performance" />
-      <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(350px,0.95fr)]">
-        <div className="overflow-x-auto rounded-[var(--radius-control)] border border-[var(--border-default)]">
-          <table className="w-full min-w-[520px] text-left text-xs">
-            <thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2.5">Branch</th><th className="px-3 py-2.5 text-right">Sales</th><th className="px-3 py-2.5 text-right">Target</th><th className="px-3 py-2.5 text-right">Ach.</th><th className="px-3 py-2.5 text-right">vs Pace</th></tr></thead>
-            <tbody className="divide-y divide-[var(--divider)]">
-              {report.salesPerformance.branches.map((row) => <tr key={row.branch}><td className="px-3 py-2.5 font-medium">{row.branch}</td><td className="kmm-tabular px-3 py-2.5 text-right font-semibold">{row.sales}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.target}</td><td className="kmm-tabular px-3 py-2.5 text-right font-semibold">{row.achievement}</td><td className={`kmm-tabular px-3 py-2.5 text-right font-semibold ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</td></tr>)}
-              <tr className="bg-[var(--surface-subtle)] font-bold"><td className="px-3 py-2.5">Total</td><td className="kmm-tabular px-3 py-2.5 text-right">10</td><td className="kmm-tabular px-3 py-2.5 text-right">48</td><td className="kmm-tabular px-3 py-2.5 text-right">20.8%</td><td className="kmm-tabular px-3 py-2.5 text-right text-[var(--status-danger)]">-4</td></tr>
-            </tbody>
-          </table>
+      <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+        <div className="min-w-0">
+          <div role="table" aria-label="Branch sales performance" className="hidden text-[10px] sm:block">
+            <div role="row" className="grid grid-cols-[minmax(100px,1.5fr)_repeat(4,minmax(34px,0.6fr))] gap-1 rounded-t-[10px] bg-[var(--surface-subtle)] px-2 py-2 font-semibold text-[var(--text-secondary)]"><span>Branch</span><span className="text-right">Sales</span><span className="text-right">Target</span><span className="text-right">Ach.</span><span className="text-right">Pace</span></div>
+            {report.salesPerformance.branches.map((row) => <div role="row" key={row.branch} className="grid grid-cols-[minmax(100px,1.5fr)_repeat(4,minmax(34px,0.6fr))] items-center gap-1 border-b border-[var(--divider)] px-2 py-2"><span className="truncate font-medium" title={row.branch}>{row.branch}</span><strong className="kmm-tabular text-right">{row.sales}</strong><span className="kmm-tabular text-right">{row.target}</span><strong className="kmm-tabular text-right">{row.achievement}</strong><strong className={`kmm-tabular text-right ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</strong></div>)}
+            <div role="row" className="grid grid-cols-[minmax(100px,1.5fr)_repeat(4,minmax(34px,0.6fr))] gap-1 rounded-b-[10px] bg-[#FAFAFB] px-2 py-2 font-bold"><span>Total</span><span className="kmm-tabular text-right">10</span><span className="kmm-tabular text-right">48</span><span className="kmm-tabular text-right">20.8%</span><span className="kmm-tabular text-right text-[var(--status-danger)]">-4</span></div>
+          </div>
+          <div className="grid gap-2 sm:hidden">{report.salesPerformance.branches.map((row) => <div key={row.branch} className="rounded-[10px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-center justify-between gap-2"><strong className="truncate text-[11px]">{row.branch}</strong><span className={`text-[10px] font-bold ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</span></div><div className="mt-2 grid grid-cols-3 gap-2 text-center text-[9px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.sales}</strong></span><span>Target<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.target}</strong></span><span>Ach.<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.achievement}</strong></span></div></div>)}</div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <PerformerList title="Top Performers (MTD)" rows={report.salesPerformance.top} />
-          <PerformerList title="Need Attention" rows={report.salesPerformance.attention} attention />
-        </div>
+        <div className="grid min-w-0 grid-cols-2 gap-3"><PerformerList title="Top Performers" rows={report.salesPerformance.top} /><PerformerList title="Need Attention" rows={report.salesPerformance.attention} attention /></div>
       </div>
     </Card>
   );
 }
 
 function BookingPipeline({ input }: { input: DailyManagementInputSnapshot }) {
-  const lifecycleValues: Record<string, number> = {
-    "Wait Approve": input.bookingLifecycle.waitApprove,
-    "Wait Delivery": input.bookingLifecycle.waitDelivery,
-    "Delivered Today": input.bookingLifecycle.deliveredToday,
-  };
+  const lifecycleValues: Record<string, number> = { "Wait Approve": input.bookingLifecycle.waitApprove, "Wait Delivery": input.bookingLifecycle.waitDelivery, "Delivered Today": input.bookingLifecycle.deliveredToday };
   const stages = report.bookingPipeline.map((stage) => ({ ...stage, value: lifecycleValues[stage.label] ?? stage.value }));
+  const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
   return (
-    <Card className="min-w-0 overflow-hidden">
-      <PanelHeader index="2" title="Booking Pipeline" action={<span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--status-danger)]"><AlertTriangle size={14} />Cancel {input.bookingLifecycle.cancelUnits}</span>} />
-      <div className="grid gap-3 p-3 lg:grid-cols-[minmax(280px,1fr)_minmax(220px,0.8fr)]">
-        <ol className="mx-auto grid w-full max-w-[430px] gap-1" aria-label="Booking funnel stages">
+    <Card className={panelClass}>
+      <PanelHeader index="2" title="Booking Pipeline" action={<span className="flex items-center gap-1 rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[9px] font-bold text-[var(--status-danger)]"><AlertTriangle size={12} />{input.bookingLifecycle.cancelUnits} cancel</span>} />
+      <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_180px]">
+        <div className="space-y-2" role="img" aria-label="Booking pipeline distribution">
           {stages.map((stage) => (
-            <li key={stage.label} className="grid grid-cols-[minmax(160px,1fr)_104px] items-center gap-2">
-              <div className="mx-auto grid h-7 place-items-center text-xs font-bold text-white shadow-sm" style={{ width: `${stage.width}%`, backgroundColor: stage.color, clipPath: "polygon(6% 0, 94% 0, 86% 100%, 14% 100%)" }}>{stage.value}</div>
-              <span className="text-[11px] font-semibold text-[var(--text-primary)]">{stage.label}</span>
-            </li>
+            <div key={stage.label} className="grid grid-cols-[82px_minmax(0,1fr)_28px] items-center gap-2">
+              <span className="truncate text-[9px] font-semibold text-[var(--text-secondary)]" title={stage.label}>{stage.label}</span>
+              <div className="h-5 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="flex h-full min-w-5 items-center justify-end rounded-full pr-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]" style={{ width: `${Math.max(7, (stage.value / maxValue) * 100)}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${stage.color} 68%, white), ${stage.color})` }}><span className="text-[8px] font-bold text-white">{stage.value}</span></div></div>
+              <strong className="kmm-tabular text-right text-[10px]">{stage.value}</strong>
+            </div>
           ))}
-        </ol>
-        <div className="self-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
-          <h3 className="border-b border-[var(--divider)] px-3 py-2.5 text-xs font-bold">Booking Cancel Today</h3>
-          <div className="grid grid-cols-[1fr_52px] bg-[var(--surface-subtle)] px-3 py-2 text-[11px] font-semibold"><span>Reason</span><span className="text-right">Units</span></div>
-          <div className="grid grid-cols-[1fr_52px] gap-2 px-3 py-2.5 text-xs"><span>{input.bookingLifecycle.cancelReason || "No cancellation"}</span><strong className="kmm-tabular text-right">{input.bookingLifecycle.cancelUnits}</strong></div>
-          <div className="grid grid-cols-[1fr_52px] border-t border-[var(--divider)] px-3 py-2.5 text-xs font-bold text-[var(--status-danger)]"><span>Total</span><span className="kmm-tabular text-right">{input.bookingLifecycle.cancelUnits}</span></div>
         </div>
+        <div className="rounded-[12px] bg-[#FFF6F3] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[#A3422D]">Cancellation Today</p><p className="kmm-tabular mt-2 text-2xl font-semibold text-[var(--status-danger)]">{input.bookingLifecycle.cancelUnits}<span className="ml-1 text-[9px]">unit</span></p><p className="mt-2 text-[9px] leading-4 text-[#75483E]">{input.bookingLifecycle.cancelReason || "No cancellation"}</p></div>
       </div>
     </Card>
   );
@@ -177,34 +166,28 @@ function BookingPipeline({ input }: { input: DailyManagementInputSnapshot }) {
 
 function TodayDetail() {
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={panelClass}>
       <PanelHeader index="3" title="Today’s Sales & Booking Detail" />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[830px] text-left text-xs">
-          <thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2.5">No.</th><th className="px-3 py-2.5">Branch</th><th className="px-3 py-2.5">Salesperson</th><th className="px-3 py-2.5">Model</th><th className="px-3 py-2.5 text-right">Sales Today</th><th className="px-3 py-2.5 text-right">Sales MTD</th><th className="px-3 py-2.5 text-right">A HOT</th><th className="px-3 py-2.5 text-right">B HOT</th><th className="px-3 py-2.5">Status</th></tr></thead>
-          <tbody className="divide-y divide-[var(--divider)]">
-            {report.todayDetail.map((row, index) => <tr key={`${row.salesperson}-${row.model}`}><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2">{row.branch}</td><td className="px-3 py-2 font-medium">{row.salesperson}</td><td className="px-3 py-2 font-medium">{row.model}</td><td className="kmm-tabular px-3 py-2 text-right">{row.salesToday}</td><td className="kmm-tabular px-3 py-2 text-right">{row.salesMtd}</td><td className="kmm-tabular px-3 py-2 text-right">{row.aHot}</td><td className="kmm-tabular px-3 py-2 text-right">{row.bHot}</td><td className="px-3 py-2"><StatusBadge status={row.tone}>{row.status}</StatusBadge></td></tr>)}
-          </tbody>
-        </table>
+      <div role="table" aria-label="Today's sales and booking detail" className="hidden text-[9px] sm:block">
+        <div role="row" className="grid grid-cols-[50px_minmax(95px,0.8fr)_minmax(125px,1.3fr)_58px_62px_86px] gap-2 bg-[var(--surface-subtle)] px-3 py-2 font-semibold text-[var(--text-secondary)]"><span>Branch</span><span>Salesperson</span><span>Model</span><span className="text-center">Sales<br />T / MTD</span><span className="text-center">Booking<br />A / B</span><span>Status</span></div>
+        {report.todayDetail.map((row) => <div role="row" key={`${row.salesperson}-${row.model}`} className="grid grid-cols-[50px_minmax(95px,0.8fr)_minmax(125px,1.3fr)_58px_62px_86px] items-center gap-2 border-b border-[var(--divider)] px-3 py-2"><span>{row.branch}</span><span className="truncate font-medium" title={row.salesperson}>{row.salesperson}</span><span className="truncate font-medium" title={row.model}>{row.model}</span><span className="kmm-tabular text-center">{row.salesToday} / {row.salesMtd}</span><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><StatusBadge status={row.tone} className="min-h-0 max-w-full truncate px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}
       </div>
+      <div className="grid gap-2 p-3 sm:hidden">{report.todayDetail.map((row) => <div key={`${row.salesperson}-${row.model}`} className="rounded-[11px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><span className="min-w-0"><strong className="block truncate text-[11px]">{row.salesperson}</strong><span className="mt-0.5 block truncate text-[9px] text-[var(--text-secondary)]">{row.branch} · {row.model}</span></span><StatusBadge status={row.tone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 flex gap-4 text-[9px]"><span>Sales <strong>{row.salesToday}/{row.salesMtd}</strong></span><span>Booking <strong>{row.aHot}/{row.bHot}</strong></span></div></div>)}</div>
     </Card>
   );
 }
 
 function StockHealth() {
   const maxLocation = Math.max(...report.stock.locations.map((row) => row.units));
-  const agingGradient = `conic-gradient(${report.stock.aging.map((row, index) => {
-    const start = report.stock.aging.slice(0, index).reduce((sum, item) => sum + item.percent, 0);
-    return `${row.color} ${start}% ${start + row.percent}%`;
-  }).join(", ")})`;
+  const agingGradient = `conic-gradient(${report.stock.aging.map((row, index) => { const start = report.stock.aging.slice(0, index).reduce((sum, item) => sum + item.percent, 0); return `${row.color} ${start}% ${start + row.percent}%`; }).join(", ")})`;
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={panelClass}>
       <PanelHeader index="4" title="Stock Health Overview" />
       <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2">
-        <div className="bg-[var(--surface-default)] p-3"><h3 className="text-[10px] font-bold text-[#3C6E25]">STOCK VALUE</h3><p className="kmm-tabular mt-2 text-2xl font-semibold">{report.stock.value}<span className="ml-2 text-[10px]">M MMK</span></p><p className="mt-2 text-[11px] text-[var(--text-secondary)]">vs Jul-26 <strong className="ml-2 text-[var(--status-danger)]">{report.stock.previousMonthChange} ↓</strong></p></div>
-        <div className="bg-[var(--surface-default)] p-3"><h3 className="text-[10px] font-bold text-[#3C6E25]">PSI (ENGINE)</h3><div className="mt-2 flex items-end justify-between gap-3"><dl className="space-y-1 text-[10px]"><div className="flex gap-3"><dt>Sales MTD</dt><dd className="font-semibold">10</dd></div><div className="flex gap-3"><dt>Booking</dt><dd className="font-semibold">79</dd></div><div className="flex gap-3"><dt>Stock</dt><dd className="font-semibold">83</dd></div></dl><p className="text-[10px] font-semibold">PSI <strong className="kmm-tabular ml-1 text-xl text-[var(--brand-600)]">{report.stock.psi}</strong> mo.</p></div></div>
-        <div className="bg-[var(--surface-default)] p-3"><h3 className="text-[10px] font-bold text-[#3C6E25]">LOCATION OF STOCK</h3><div className="mt-2 space-y-1.5">{report.stock.locations.map((row) => <div key={row.label} className="grid grid-cols-[96px_minmax(45px,1fr)_22px] items-center gap-1.5 text-[10px]"><span className="truncate">{row.label}</span><div className="h-2 bg-[var(--surface-muted)]"><div className="h-full bg-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
-        <div className="bg-[var(--surface-default)] p-3"><h3 className="text-[10px] font-bold text-[#3C6E25]">AGING STOCK (ENGINE)</h3><div className="mt-2 flex items-center gap-3"><div className="relative size-20 shrink-0 rounded-full" style={{ background: agingGradient }}><div className="absolute inset-[17px] grid place-items-center rounded-full bg-[var(--surface-default)] text-center"><strong className="kmm-tabular text-base">83</strong><span className="-mt-2 text-[8px]">Units</span></div></div><ul className="min-w-0 flex-1 space-y-1">{report.stock.aging.map((row) => <li key={row.label} className="flex items-center gap-1.5 text-[9px]"><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} /><span className="min-w-0 flex-1">{row.label}</span><strong className="kmm-tabular">{row.units} ({row.percent}%)</strong></li>)}</ul></div><p className="mt-2 rounded-[var(--radius-control)] bg-[#FFF0EE] px-2 py-1.5 text-center text-[10px] font-bold text-[var(--status-danger)]">33 Units &gt; 90 Days</p></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 text-[22px] font-semibold tracking-[-0.025em]">{report.stock.value}<span className="ml-1.5 text-[9px]">M MMK</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[9px] font-bold text-[var(--status-danger)]">{report.stock.previousMonthChange} vs Jul</p></div>
+        <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">PSI Engine</p><strong className="kmm-tabular text-xl text-[var(--brand-600)]">{report.stock.psi}<span className="ml-1 text-[8px] text-[var(--text-secondary)]">mo.</span></strong></div><div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-subtle)] p-2 text-center text-[8px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">10</strong></span><span>Booking<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">79</strong></span><span>Stock<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">83</strong></span></div></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{report.stock.locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFA45C] to-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Aging</p><div className="mt-2 flex items-center gap-3"><div className="relative size-20 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]" style={{ background: agingGradient }}><div className="absolute inset-[13px] grid place-items-center rounded-full bg-white shadow-[0_2px_8px_rgba(27,31,42,0.08)]"><span className="text-center"><strong className="kmm-tabular block text-base">83</strong><span className="text-[7px] text-[var(--text-secondary)]">units</span></span></div></div><ul className="min-w-0 flex-1 space-y-1">{report.stock.aging.map((row) => <li key={row.label} className="flex items-center gap-1.5 text-[8px]"><span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} /><span className="min-w-0 flex-1 truncate">{row.label}</span><strong className="kmm-tabular">{row.units} · {row.percent}%</strong></li>)}</ul></div></div>
       </div>
     </Card>
   );
@@ -212,65 +195,49 @@ function StockHealth() {
 
 function BookingStock() {
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={panelClass}>
       <PanelHeader index="5" title="Booking × Stock Intelligence" />
-      <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2">Model</th><th className="px-3 py-2 text-right">A HOT</th><th className="px-3 py-2 text-right">B HOT</th><th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-right">Stock</th><th className="px-3 py-2 text-right">Coverage</th><th className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y divide-[var(--divider)]">{report.bookingStock.map((row) => <tr key={row.model}><td className="px-3 py-2.5 font-medium">{row.model}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.aHot}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.bHot}</td><td className="kmm-tabular px-3 py-2.5 text-right font-semibold">{row.total}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.stock}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.coverage}</td><td className="px-3 py-2.5"><StatusBadge status={row.tone}>{row.status}</StatusBadge></td></tr>)}</tbody></table></div>
+      <div role="table" aria-label="Booking and stock intelligence" className="hidden text-[9px] sm:block"><div role="row" className="grid grid-cols-[minmax(100px,1.4fr)_54px_60px_70px_minmax(84px,0.9fr)] gap-1 bg-[var(--surface-subtle)] px-3 py-2 font-semibold text-[var(--text-secondary)]"><span>Model</span><span className="text-center">A / B</span><span className="text-center">Book / Stock</span><span className="text-center">Coverage</span><span>Status</span></div>{report.bookingStock.map((row) => <div role="row" key={row.model} className="grid grid-cols-[minmax(100px,1.4fr)_54px_60px_70px_minmax(84px,0.9fr)] items-center gap-1 border-b border-[var(--divider)] px-3 py-2"><strong className="truncate" title={row.model}>{row.model}</strong><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><span className="kmm-tabular text-center">{row.total} / {row.stock}</span><span className="kmm-tabular text-center">{row.coverage}</span><StatusBadge status={row.tone} className="min-h-0 max-w-full truncate px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}</div>
+      <div className="grid gap-2 p-3 sm:hidden">{report.bookingStock.map((row) => <div key={row.model} className="rounded-[10px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><strong className="text-[10px]">{row.model}</strong><StatusBadge status={row.tone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 grid grid-cols-3 text-center text-[8px] text-[var(--text-secondary)]"><span>A/B<strong className="block text-[10px] text-[var(--text-primary)]">{row.aHot}/{row.bHot}</strong></span><span>Book/Stock<strong className="block text-[10px] text-[var(--text-primary)]">{row.total}/{row.stock}</strong></span><span>Coverage<strong className="block text-[10px] text-[var(--text-primary)]">{row.coverage}</strong></span></div></div>)}</div>
     </Card>
   );
 }
 
 function ActionRequired({ input }: { input: DailyManagementInputSnapshot }) {
   return (
-    <Card className="min-w-0 overflow-hidden">
-      <PanelHeader index="6" title="Action Required" action={<span className="rounded-[var(--radius-pill)] bg-[var(--status-danger-bg)] px-2 py-1 text-[10px] font-bold text-[var(--status-danger)]">3 priorities</span>} />
-      <div className="divide-y divide-[var(--divider)] px-4">
-        {input.actions.map((item) => <div key={item.title} className="grid grid-cols-[20px_minmax(0,1fr)_70px] gap-2 py-2.5 text-[11px]"><AlertTriangle size={16} className={item.priority === "critical" ? "text-[var(--status-danger)]" : "text-[var(--status-warning)]"} /><div><p className="font-semibold">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">{item.detail} · Owner: {item.owner}</p></div><span className="self-center rounded-[var(--radius-control)] border border-[var(--border-default)] px-2 py-1 text-center text-[10px] font-semibold">{item.nextStep}</span></div>)}
-      </div>
+    <Card className={panelClass}>
+      <PanelHeader index="6" title="Action Required" action={<span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">{input.actions.length} priorities</span>} />
+      <div className="divide-y divide-[var(--divider)] px-3">{input.actions.map((item) => <div key={item.title} className="grid grid-cols-[18px_minmax(0,1fr)] gap-2 py-2.5"><span className={`mt-0.5 grid size-4 place-items-center rounded-full ${item.priority === "critical" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[var(--status-warning-bg)] text-[var(--status-warning)]"}`}><AlertTriangle size={10} /></span><div className="min-w-0"><p className="truncate text-[10px] font-semibold" title={item.title}>{item.title}</p><p className="mt-0.5 truncate text-[8px] text-[var(--text-secondary)]" title={`${item.detail} · Owner: ${item.owner}`}>{item.detail} · {item.owner}</p><span className="mt-1 inline-flex rounded-full bg-[var(--surface-subtle)] px-2 py-0.5 text-[8px] font-semibold">{item.nextStep}</span></div></div>)}</div>
     </Card>
   );
 }
 
 function ManagementNotes({ input }: { input: DailyManagementInputSnapshot }) {
-  const noteColumns = [
-    { title: "Today’s Situation", items: input.notes.situation.split("\n").filter(Boolean) },
-    { title: "Management Decision", items: input.notes.decision.split("\n").filter(Boolean) },
-    { title: "Tomorrow Focus", items: input.notes.tomorrowFocus.split("\n").filter(Boolean) },
-  ];
+  const noteColumns = [{ title: "Situation", items: input.notes.situation.split("\n").filter(Boolean) }, { title: "Decision", items: input.notes.decision.split("\n").filter(Boolean) }, { title: "Tomorrow", items: input.notes.tomorrowFocus.split("\n").filter(Boolean) }];
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={panelClass}>
       <PanelHeader index="7" title="Daily Management Note" />
-      <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-3">
-        {noteColumns.map((column) => <div key={column.title} className="bg-[var(--surface-default)] p-3"><h3 className="rounded-[var(--radius-control)] bg-[#EDF6FA] px-2 py-1.5 text-[10px] font-bold">{column.title}</h3><ul className="mt-2 space-y-1 pl-3 text-[10px] leading-4">{column.items.map((item) => <li key={item} className="list-disc">{item}</li>)}</ul></div>)}
-      </div>
+      <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-3">{noteColumns.map((column) => <div key={column.title} className="min-w-0 bg-[var(--surface-default)] p-3"><h3 className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">{column.title}</h3><ul className="mt-2 space-y-1.5 text-[8px] leading-3.5">{column.items.map((item) => <li key={item} className="flex gap-1.5"><span className="mt-1 size-1 shrink-0 rounded-full bg-[var(--brand-500)]" /><span className="line-clamp-2" title={item}>{item}</span></li>)}</ul></div>)}</div>
     </Card>
   );
 }
 
 export function DailyManagementPage() {
   const [input, setInput] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
-
-  useEffect(() => {
-    const refresh = () => setInput(loadPublishedDailyManagementInput());
-    refresh();
-    window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
-    return () => window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
-  }, []);
-
+  useEffect(() => { const refresh = () => setInput(loadPublishedDailyManagementInput()); refresh(); window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); return () => window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); }, []);
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
+    <div className="min-h-[calc(100vh-72px)] bg-[#F6F7F9] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1900px] p-3 sm:p-4 xl:px-5 xl:py-4">
         <div className="space-y-3">
           <section className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between" aria-labelledby="daily-management-title">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[24px] font-semibold leading-tight tracking-[-0.025em] sm:text-[27px]">KMM Daily Management Report</h1><span className="rounded-[var(--radius-pill)] bg-[#FFF1DD] px-2.5 py-1 text-[10px] font-bold text-[#8B4600]">Mockup · Sample Data</span></div><p className="mt-0.5 text-xs text-[var(--text-secondary)]">Daily Sales, Booking & Stock Overview · ตัวเลขยังไม่ใช่ข้อมูล Production</p></div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]"><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2"><CalendarDays size={13} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2">Updated {input.publishedAt ? new Date(input.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : report.lastUpdated}</span><Link href="/daily-management/input" className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={15} />Update Inputs</Link><ExportButton onClick={downloadMockup} /></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[23px] font-semibold leading-tight tracking-[-0.025em] sm:text-[26px]">KMM Daily Management Report</h1><span className="rounded-full bg-[#FFF0E4] px-2.5 py-1 text-[9px] font-bold text-[#9D4300]">Mockup · Sample Data</span></div><p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">Daily Sales, Booking & Stock Overview · ตัวเลขยังไม่ใช่ข้อมูล Production</p></div>
+            <div className="flex flex-wrap items-center gap-2 text-[10px]"><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2"><CalendarDays size={12} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2">Updated {input.publishedAt ? new Date(input.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : report.lastUpdated}</span><Link href="/daily-management/input" className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] bg-white px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={14} />Update Inputs</Link><ExportButton onClick={downloadMockup} /></div>
           </section>
-
           <KpiStrip input={input} />
           <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><SalesPerformance /><BookingPipeline input={input} /></div>
           <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail /><StockHealth /></div>
-          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.8fr_1.12fr]"><BookingStock /><ActionRequired input={input} /><ManagementNotes input={input} /></div>
-
-          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[9px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Mockup sample · replace with governed sources before release</span><span className="flex items-center gap-1"><PackageCheck size={11} />KMM Sales Division</span></footer>
+          <div className="grid gap-3 2xl:grid-cols-[1.08fr_0.78fr_1.14fr]"><BookingStock /><ActionRequired input={input} /><ManagementNotes input={input} /></div>
+          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Mockup sample · replace with governed sources before release</span><span className="flex items-center gap-1"><PackageCheck size={10} />KMM Sales Division</span></footer>
         </div>
       </main>
     </div>

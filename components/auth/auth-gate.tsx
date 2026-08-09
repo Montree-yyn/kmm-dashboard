@@ -2,18 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { auth } from "../../lib/firebase";
+import { loginPathFor } from "../../lib/auth/return-path";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [allowed, setAllowed] = useState(false);
+  const search = searchParams.toString();
 
   useEffect(() => {
+    const returnTo = `${pathname}${search ? `?${search}` : ""}`;
+    const loginPath = loginPathFor(returnTo);
     let settled = false;
     const fallback = window.setTimeout(() => {
       if (!settled) {
-        router.replace("/login");
+        router.replace(loginPath);
       }
     }, 5000);
 
@@ -24,7 +30,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         window.clearTimeout(fallback);
 
         if (!user) {
-          router.replace("/login");
+          router.replace(loginPath);
           return;
         }
 
@@ -33,7 +39,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       () => {
         settled = true;
         window.clearTimeout(fallback);
-        router.replace("/login");
+        router.replace(loginPath);
       },
     );
 
@@ -42,7 +48,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       window.clearTimeout(fallback);
       unsubscribe();
     };
-  }, [router]);
+  }, [pathname, router, search]);
 
   if (!allowed) {
     return (

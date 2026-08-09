@@ -9,10 +9,11 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { auth } from "../../lib/firebase";
+import { safeAppReturnPath } from "../../lib/auth/return-path";
 
 function getAuthErrorMessage(error: unknown) {
   if (typeof error === "object" && error && "code" in error) {
@@ -30,6 +31,8 @@ function getAuthErrorMessage(error: unknown) {
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = safeAppReturnPath(searchParams.get("returnTo"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -54,7 +57,7 @@ export function LoginForm() {
         window.clearTimeout(fallback);
 
         if (user) {
-          router.replace("/dashboard");
+          router.replace(returnTo);
           return;
         }
 
@@ -72,7 +75,7 @@ export function LoginForm() {
       window.clearTimeout(fallback);
       unsubscribe();
     };
-  }, [router]);
+  }, [returnTo, router]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,8 +86,8 @@ export function LoginForm() {
     try {
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      setSuccess("Login successful. Redirecting to dashboard...");
-      router.replace("/dashboard");
+      setSuccess("Login successful. Returning to your previous page...");
+      router.replace(returnTo);
     } catch (loginError) {
       setError(getAuthErrorMessage(loginError));
     } finally {

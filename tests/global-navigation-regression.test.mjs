@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { tsImport } from "tsx/esm/api";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const returnPath = await tsImport("../lib/auth/return-path.ts", import.meta.url);
+
+test("refresh authentication restores the exact safe application route", async () => {
+  const [authGate, loginForm] = await Promise.all([
+    read("components/auth/auth-gate.tsx"),
+    read("components/auth/login-form.tsx"),
+  ]);
+
+  assert.equal(returnPath.safeAppReturnPath("/daily-management?branch=KMM02"), "/daily-management?branch=KMM02");
+  assert.equal(returnPath.safeAppReturnPath("https://evil.example/steal"), "/dashboard");
+  assert.equal(returnPath.safeAppReturnPath("//evil.example/steal"), "/dashboard");
+  assert.equal(returnPath.safeAppReturnPath("/login"), "/dashboard");
+  assert.equal(returnPath.loginPathFor("/stock?page=2"), "/login?returnTo=%2Fstock%3Fpage%3D2");
+  assert.match(authGate, /loginPathFor\(returnTo\)/);
+  assert.match(loginForm, /router\.replace\(returnTo\)/);
+  assert.doesNotMatch(loginForm, /router\.replace\("\/dashboard"\)/);
+});
 
 test("all application routes share one persistent shell", async () => {
   const [layout, shell, sidebar, header] = await Promise.all([

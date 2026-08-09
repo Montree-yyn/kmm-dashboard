@@ -1,20 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import {
   ArrowLeft,
-  BarChart3,
-  CalendarDays,
-  CheckCircle2,
-  ClipboardCheck,
+  Check,
+  ChevronDown,
   Database,
-  FilePenLine,
+  Download,
+  FileSpreadsheet,
+  RotateCcw,
   Save,
   Send,
-  ShieldCheck,
-  Target,
-  Tractor,
+  UploadCloud,
 } from "lucide-react";
 import {
   defaultDailyManagementInput,
@@ -23,43 +21,14 @@ import {
   saveDailyManagementDraft,
   type DailyManagementInputSnapshot,
 } from "../../lib/daily-management/input-storage";
+import { parseDailyManagementWorkbook } from "../../lib/daily-management/parse-input-workbook";
 import { Card } from "../ui/card";
 
-const inputClass = "h-11 w-full rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]";
-const textareaClass = "min-h-24 w-full resize-y rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2.5 text-sm leading-5 text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]";
+const inputClass = "h-10 w-full min-w-0 rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[11px] outline-none transition focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]";
+const textareaClass = `${inputClass} min-h-20 resize-y py-2 leading-4`;
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return <label className="block min-w-0"><span className="mb-1.5 block text-xs font-semibold text-[var(--text-secondary)]">{label}</span>{children}{hint && <span className="mt-1.5 block text-[10px] leading-4 text-[var(--text-tertiary)]">{hint}</span>}</label>;
-}
-
-function FormSection({ icon, title, description, children }: { icon: ReactNode; title: string; description: string; children: ReactNode }) {
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-start gap-3 border-b border-[var(--divider)] px-4 py-3.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--brand-50)] text-[var(--brand-600)]">{icon}</span>
-        <div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{description}</p></div>
-      </div>
-      <div className="p-4">{children}</div>
-    </Card>
-  );
-}
-
-const sourceChannels = [
-  { title: "Sales", description: "Transactions and MTD sales", icon: <BarChart3 size={18} />, href: "/data-hub", state: "Data Hub" },
-  { title: "Booking", description: "Booking transactions and HOT status", icon: <ClipboardCheck size={18} />, href: "/data-hub", state: "Data Hub" },
-  { title: "Stock", description: "Engine stock, value and aging", icon: <Tractor size={18} />, href: "/data-hub", state: "Data Hub" },
-] as const;
-
-function SourceChannels() {
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-col gap-2 border-b border-[var(--divider)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Input Channels</h2><p className="mt-0.5 text-xs text-[var(--text-secondary)]">เลือกช่องทางตามเจ้าของข้อมูล ไม่กรอกยอดธุรกรรมซ้ำในฟอร์มนี้</p></div><span className="text-[10px] font-semibold text-[var(--status-success)]">4 governed channels</span></div>
-      <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2 xl:grid-cols-4">
-        {sourceChannels.map((channel) => <Link key={channel.title} href={channel.href} className="group flex min-h-24 items-start gap-3 bg-[var(--surface-default)] p-4 transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--surface-muted)] text-[var(--text-secondary)] group-hover:text-[var(--brand-600)]">{channel.icon}</span><span className="min-w-0"><span className="block text-xs font-semibold">{channel.title}</span><span className="mt-1 block text-[10px] leading-4 text-[var(--text-tertiary)]">{channel.description}</span><span className="mt-2 block text-[10px] font-semibold text-[var(--brand-600)]">Open {channel.state} →</span></span></Link>)}
-        <div className="flex min-h-24 items-start gap-3 bg-[#FFF8EE] p-4"><span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-white text-[var(--brand-600)]"><FilePenLine size={18} /></span><span><span className="block text-xs font-semibold">Management Input</span><span className="mt-1 block text-[10px] leading-4 text-[#79522D]">Target, cancel, actions and daily notes</span><span className="mt-2 block text-[10px] font-semibold text-[var(--status-success)]">Current form</span></span></div>
-      </div>
-    </Card>
-  );
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <label className="block min-w-0"><span className="mb-1 block text-[9px] font-semibold text-[var(--text-secondary)]">{label}</span>{children}</label>;
 }
 
 function lines(value: string) {
@@ -71,6 +40,11 @@ export function DailyManagementInputPage() {
   const [savedDraft, setSavedDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [importCounts, setImportCounts] = useState<{ actions: number; notes: number } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -89,7 +63,7 @@ export function DailyManagementInputPage() {
     if (!draft.preparedBy.trim()) errors.push("ระบุ Prepared by");
     if (draft.bookingLifecycle.cancelUnits > 0 && !draft.bookingLifecycle.cancelReason.trim()) errors.push("ระบุ Cancel reason");
     draft.actions.forEach((action, index) => {
-      if (!action.title.trim() || !action.owner.trim()) errors.push(`กรอก Action priority ${index + 1} ให้ครบ`);
+      if (!action.title.trim() || !action.owner.trim()) errors.push(`Action ${index + 1} ยังไม่ครบ`);
     });
     return errors;
   }, [draft]);
@@ -99,84 +73,101 @@ export function DailyManagementInputPage() {
     setMessage("");
   }
 
-  function patchAction(index: number, key: keyof DailyManagementInputSnapshot["actions"][number], value: string) {
+  function patchAction(index: number, key: "title" | "detail" | "owner" | "nextStep", value: string) {
     setDraft((current) => ({ ...current, actions: current.actions.map((action, actionIndex) => actionIndex === index ? { ...action, [key]: value } : action) }));
     setMessage("");
+  }
+
+  async function importWorkbook(file: File) {
+    setUploading(true);
+    setMessage("");
+    try {
+      const result = await parseDailyManagementWorkbook(file, draft);
+      setDraft(result.snapshot);
+      setFileName(file.name);
+      setImportCounts({ actions: result.counts.actions, notes: result.counts.notes });
+      setMessage("นำเข้าข้อมูลแล้ว · ตรวจ Preview ก่อน Publish");
+    } catch (error) {
+      setFileName("");
+      setImportCounts(null);
+      setMessage(error instanceof Error ? error.message : "อ่านไฟล์ไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const file = event.dataTransfer.files[0];
+    if (file) void importWorkbook(file);
   }
 
   function saveDraft() {
     const saved = saveDailyManagementDraft(draft);
     setDraft(saved);
     setSavedDraft(structuredClone(saved));
-    setMessage("บันทึก Draft ในเครื่องนี้แล้ว");
+    setMessage("บันทึก Draft แล้ว");
   }
 
   function publishPreview() {
-    if (validation.length) {
-      setMessage(validation[0]);
-      return;
-    }
+    if (validation.length) return setMessage(validation[0]);
     const published = publishDailyManagementInput(draft);
     setDraft(published);
     setSavedDraft(structuredClone(published));
-    setMessage("Publish เข้า Daily Report Preview แล้ว");
+    setMessage("อัปเดต Daily Report Preview แล้ว");
   }
 
+  const noteCount = lines(draft.notes.situation).length + lines(draft.notes.decision).length + lines(draft.notes.tomorrowFocus).length;
+
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
-      <main className="mx-auto max-w-[1540px] p-4 sm:p-5 xl:p-6">
-        <div className="space-y-4">
-          <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div><Link href="/daily-management" className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-600)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><ArrowLeft size={15} />Back to Daily Report</Link><h1 className="mt-2 text-[28px] font-semibold tracking-[-0.025em]">Daily Management Inputs</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">กรอกเฉพาะข้อมูลบริหารที่ไม่มีใน Sales, Booking และ Stock Data Hub</p></div>
-            <div className="flex items-center gap-2"><span className="rounded-[var(--radius-pill)] bg-[#FFF1DD] px-3 py-1.5 text-[10px] font-bold text-[#8B4600]">Local Prototype</span>{draft.publishedAt && <span className="text-[10px] text-[var(--text-tertiary)]">Published {new Date(draft.publishedAt).toLocaleString()}</span>}</div>
-          </header>
+    <div className="min-h-[calc(100vh-72px)] bg-[#F5F6F8] text-[var(--text-primary)]">
+      <main className="mx-auto max-w-[1460px] p-4 sm:p-5 xl:p-6">
+        <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div><Link href="/daily-management" className="inline-flex min-h-9 items-center gap-2 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-600)]"><ArrowLeft size={14} />Daily Report</Link><h1 className="mt-1 text-[26px] font-semibold tracking-[-0.025em]">Update Daily Management</h1><p className="mt-1 text-[11px] text-[var(--text-secondary)]">Excel-first workflow · อัปโหลด ตรวจสอบ แล้ว Publish</p></div>
+          <Link href="/data-hub" className="inline-flex min-h-10 items-center gap-2 self-start rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[10px] font-semibold text-[var(--text-secondary)] lg:self-auto"><Database size={14} />Sales · Booking · Stock Data Hub</Link>
+        </header>
 
-          <SourceChannels />
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="space-y-4">
-              <FormSection icon={<CalendarDays size={18} />} title="Report Scope" description="กำหนดวันที่ ขอบเขตสาขา และผู้จัดทำข้อมูลชุดนี้">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Field label="Report date"><input type="date" value={draft.reportDate} onChange={(event) => patch({ reportDate: event.target.value })} className={inputClass} /></Field>
-                  <Field label="Branch"><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option>All Branches</option><option>KMM01 · Hpa-an</option><option>KMM02 · Mawlamyine</option><option>KMM03 · Tharyarwaddy</option></select></Field>
-                  <Field label="Prepared by"><input value={draft.preparedBy} onChange={(event) => patch({ preparedBy: event.target.value })} className={inputClass} placeholder="Name or division" /></Field>
-                </div>
-              </FormSection>
-
-              <FormSection icon={<Target size={18} />} title="Target & Booking Lifecycle" description="ข้อมูลควบคุมที่ใช้คำนวณ Pace และขั้นตอนหลังการจอง">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="MTD Target"><input type="number" min="0" value={draft.target.mtdTarget} onChange={(event) => patch({ target: { ...draft.target, mtdTarget: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Expected Pace"><input type="number" min="0" value={draft.target.expectedPace} onChange={(event) => patch({ target: { ...draft.target, expectedPace: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Wait Approve"><input type="number" min="0" value={draft.bookingLifecycle.waitApprove} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, waitApprove: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Wait Delivery"><input type="number" min="0" value={draft.bookingLifecycle.waitDelivery} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, waitDelivery: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Delivered Today"><input type="number" min="0" value={draft.bookingLifecycle.deliveredToday} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, deliveredToday: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Cancel Units"><input type="number" min="0" value={draft.bookingLifecycle.cancelUnits} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, cancelUnits: Number(event.target.value) } })} className={inputClass} /></Field>
-                  <Field label="Cancel reason" hint="Required when Cancel Units > 0"><input value={draft.bookingLifecycle.cancelReason} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, cancelReason: event.target.value } })} className={inputClass} placeholder="Reason" /></Field>
-                </div>
-              </FormSection>
-
-              <FormSection icon={<ShieldCheck size={18} />} title="Action Required" description="Top priorities ที่ต้องมี Owner และ Next step ชัดเจน">
-                <div className="space-y-3">
-                  {draft.actions.map((action, index) => <fieldset key={index} className="rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-subtle)] p-3"><legend className="px-1 text-[10px] font-bold text-[var(--brand-600)]">PRIORITY {index + 1}</legend><div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_150px_130px]"><Field label="Issue"><input value={action.title} onChange={(event) => patchAction(index, "title", event.target.value)} className={inputClass} /></Field><Field label="Detail"><input value={action.detail} onChange={(event) => patchAction(index, "detail", event.target.value)} className={inputClass} /></Field><Field label="Owner"><input value={action.owner} onChange={(event) => patchAction(index, "owner", event.target.value)} className={inputClass} /></Field><Field label="Next step"><input value={action.nextStep} onChange={(event) => patchAction(index, "nextStep", event.target.value)} className={inputClass} /></Field></div></fieldset>)}
-                </div>
-              </FormSection>
-
-              <FormSection icon={<FilePenLine size={18} />} title="Daily Management Note" description="หนึ่งบรรทัดต่อหนึ่งหัวข้อ ระบบจะแปลงเป็น bullet ในรายงาน">
-                <div className="grid gap-4 lg:grid-cols-3">
-                  <Field label="Today’s Situation"><textarea value={draft.notes.situation} onChange={(event) => patch({ notes: { ...draft.notes, situation: event.target.value } })} className={textareaClass} /></Field>
-                  <Field label="Management Decision"><textarea value={draft.notes.decision} onChange={(event) => patch({ notes: { ...draft.notes, decision: event.target.value } })} className={textareaClass} /></Field>
-                  <Field label="Tomorrow Focus"><textarea value={draft.notes.tomorrowFocus} onChange={(event) => patch({ notes: { ...draft.notes, tomorrowFocus: event.target.value } })} className={textareaClass} /></Field>
-                </div>
-              </FormSection>
+        <Card className="mt-4 overflow-hidden border-0 shadow-[0_14px_38px_rgba(27,31,42,0.09)]">
+          <div className="grid bg-[#202124] text-white lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="border-white/10 p-5 lg:border-r">
+              <p className="text-[11px] font-semibold">3 steps to update</p>
+              <ol className="mt-5 space-y-5">
+                {["Download template", "Drop Excel file", "Review & publish"].map((step, index) => <li key={step} className="flex items-center gap-3"><span className={`grid size-7 place-items-center rounded-full text-[10px] font-bold ${index === 1 && !fileName ? "bg-[var(--brand-500)] text-white" : fileName || index === 0 ? "bg-white text-[#202124]" : "bg-white/10 text-white/60"}`}>{fileName && index < 2 ? <Check size={13} /> : index + 1}</span><span className={`text-[10px] font-medium ${index === 1 && !fileName ? "text-white" : "text-white/65"}`}>{step}</span></li>)}
+              </ol>
+              <a href="/KMM_Daily_Management_Input_Template.xlsx" download className="mt-6 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-white px-3 text-[10px] font-bold text-[#202124] transition hover:bg-[#FFF1E6]"><Download size={14} />Download Excel Template</a>
             </div>
 
-            <aside className="space-y-3 xl:sticky xl:top-24 xl:self-start">
-              <Card className="p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Publish Readiness</h2><span className={`size-2.5 rounded-full ${validation.length ? "bg-[var(--status-warning)]" : "bg-[var(--status-success)]"}`} /></div><dl className="mt-4 space-y-2.5 text-xs"><div className="flex justify-between"><dt className="text-[var(--text-secondary)]">Report date</dt><dd className="font-semibold">{draft.reportDate || "—"}</dd></div><div className="flex justify-between"><dt className="text-[var(--text-secondary)]">Scope</dt><dd className="max-w-36 truncate font-semibold">{draft.branch}</dd></div><div className="flex justify-between"><dt className="text-[var(--text-secondary)]">Actions</dt><dd className="font-semibold">{draft.actions.length}</dd></div><div className="flex justify-between"><dt className="text-[var(--text-secondary)]">Note items</dt><dd className="font-semibold">{lines(draft.notes.situation).length + lines(draft.notes.decision).length + lines(draft.notes.tomorrowFocus).length}</dd></div></dl>{validation.length ? <ul className="mt-4 space-y-1.5 rounded-[var(--radius-control)] bg-[var(--status-warning-bg)] p-3 text-[10px] text-[var(--status-warning)]">{validation.map((error) => <li key={error}>• {error}</li>)}</ul> : <p className="mt-4 flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--status-success-bg)] p-3 text-[10px] font-semibold text-[var(--status-success)]"><CheckCircle2 size={14} />Ready to publish preview</p>}</Card>
-              <Card className="p-4"><h2 className="text-sm font-semibold">Data Boundary</h2><p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">ฟอร์มนี้ไม่แก้ Sales, Booking หรือ Stock transactions และยังไม่เขียนเข้า Production database</p><Link href="/data-hub" className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[var(--brand-600)]"><Database size={15} />Open Data Hub</Link></Card>
-            </aside>
+            <div className="p-4 sm:p-5">
+              <input ref={fileInput} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkbook(file); event.target.value = ""; }} />
+              <div onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`flex min-h-44 flex-col items-center justify-center rounded-[14px] border border-dashed p-6 text-center transition ${dragging ? "border-[var(--brand-400)] bg-[#3A2A1F]" : fileName ? "border-[#4B7C5B] bg-[#24372A]" : "border-white/25 bg-white/[0.04]"}`}>
+                <span className={`grid size-11 place-items-center rounded-[13px] ${fileName ? "bg-[#DFF4E5] text-[#267145]" : "bg-white/10 text-white"}`}>{uploading ? <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : fileName ? <FileSpreadsheet size={20} /> : <UploadCloud size={21} />}</span>
+                <strong className="mt-3 text-[13px]">{uploading ? "Reading workbook…" : fileName || "Drop Excel file here"}</strong>
+                <span className="mt-1 text-[9px] text-white/55">{fileName ? `${importCounts?.actions ?? 0} actions · ${importCounts?.notes ?? 0} notes imported` : ".xlsx or .xls · maximum 10 MB"}</span>
+                <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="mt-3 min-h-9 rounded-[9px] border border-white/20 px-4 text-[10px] font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">{fileName ? "Replace file" : "Choose file"}</button>
+              </div>
+            </div>
           </div>
 
-          <div className="sticky bottom-0 z-20 flex flex-col gap-3 rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-elevated)] p-3 shadow-[var(--shadow-overlay)] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold">{dirty ? "Unsaved changes" : "Draft is saved"}</p><p aria-live="polite" className="mt-0.5 text-[10px] text-[var(--text-secondary)]">{message || (ready ? "Save Draft before publishing" : "Loading draft...")}</p></div><div className="grid grid-cols-3 gap-2 sm:flex"><button type="button" disabled={!dirty || !ready} onClick={() => setDraft(structuredClone(savedDraft))} className="min-h-11 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-45">Reset</button><button type="button" disabled={!dirty || !ready} onClick={saveDraft} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control-lg)] border border-[var(--brand-500)] bg-[var(--brand-50)] px-3 text-xs font-semibold text-[var(--brand-600)] disabled:opacity-45"><Save size={15} />Save Draft</button><button type="button" disabled={!ready || validation.length > 0} onClick={publishPreview} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-xs font-semibold text-white disabled:opacity-45"><Send size={15} />Publish Preview</button></div></div>
+          <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2 lg:grid-cols-4" aria-label="Imported data preview">
+            {[{ label: "Report date", value: draft.reportDate }, { label: "Scope", value: draft.branch }, { label: "Actions", value: String(draft.actions.length) }, { label: "Note items", value: String(noteCount) }].map((item) => <div key={item.label} className="min-w-0 bg-white px-4 py-3"><span className="block text-[8px] font-bold uppercase tracking-[0.05em] text-[var(--text-tertiary)]">{item.label}</span><strong className="mt-1 block break-words text-[11px]">{item.value || "—"}</strong></div>)}
+          </div>
+        </Card>
+
+        <details className="group mt-3 overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-white">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[11px] font-semibold marker:hidden"><span>Manual adjustments <span className="ml-2 font-normal text-[var(--text-tertiary)]">ใช้เมื่อแก้ข้อมูลเล็กน้อยหลัง Import</span></span><ChevronDown size={15} className="transition group-open:rotate-180" /></summary>
+          <div className="border-t border-[var(--divider)] p-4">
+            <section><h2 className="text-[11px] font-semibold">Report & lifecycle</h2><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><Field label="Report date"><input type="date" value={draft.reportDate} onChange={(event) => patch({ reportDate: event.target.value })} className={inputClass} /></Field><Field label="Branch"><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option>All Branches</option><option>KMM01 · Hpa-an</option><option>KMM02 · Mawlamyine</option><option>KMM03 · Tharyarwaddy</option></select></Field><Field label="Prepared by"><input value={draft.preparedBy} onChange={(event) => patch({ preparedBy: event.target.value })} className={inputClass} /></Field><Field label="MTD Target"><input type="number" min="0" value={draft.target.mtdTarget} onChange={(event) => patch({ target: { ...draft.target, mtdTarget: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Expected Pace"><input type="number" min="0" value={draft.target.expectedPace} onChange={(event) => patch({ target: { ...draft.target, expectedPace: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Wait Approve"><input type="number" min="0" value={draft.bookingLifecycle.waitApprove} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, waitApprove: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Wait Delivery"><input type="number" min="0" value={draft.bookingLifecycle.waitDelivery} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, waitDelivery: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Delivered Today"><input type="number" min="0" value={draft.bookingLifecycle.deliveredToday} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, deliveredToday: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Cancel Units"><input type="number" min="0" value={draft.bookingLifecycle.cancelUnits} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, cancelUnits: Number(event.target.value) } })} className={inputClass} /></Field><Field label="Cancel Reason"><input value={draft.bookingLifecycle.cancelReason} onChange={(event) => patch({ bookingLifecycle: { ...draft.bookingLifecycle, cancelReason: event.target.value } })} className={inputClass} /></Field></div></section>
+
+            <section className="mt-5 border-t border-[var(--divider)] pt-4"><h2 className="text-[11px] font-semibold">Actions</h2><div className="mt-2 space-y-2">{draft.actions.map((action, index) => <div key={index} className="grid gap-2 lg:grid-cols-[24px_1.3fr_1fr_140px_120px]"><span className="grid size-6 place-items-center self-end rounded-full bg-[#FFF0E4] text-[8px] font-bold text-[#B94D00]">{index + 1}</span><Field label="Issue"><input value={action.title} onChange={(event) => patchAction(index, "title", event.target.value)} className={inputClass} /></Field><Field label="Detail"><input value={action.detail} onChange={(event) => patchAction(index, "detail", event.target.value)} className={inputClass} /></Field><Field label="Owner"><input value={action.owner} onChange={(event) => patchAction(index, "owner", event.target.value)} className={inputClass} /></Field><Field label="Next step"><input value={action.nextStep} onChange={(event) => patchAction(index, "nextStep", event.target.value)} className={inputClass} /></Field></div>)}</div></section>
+
+            <section className="mt-5 border-t border-[var(--divider)] pt-4"><h2 className="text-[11px] font-semibold">Management notes</h2><div className="mt-3 grid gap-3 lg:grid-cols-3"><Field label="Situation"><textarea value={draft.notes.situation} onChange={(event) => patch({ notes: { ...draft.notes, situation: event.target.value } })} className={textareaClass} /></Field><Field label="Decision"><textarea value={draft.notes.decision} onChange={(event) => patch({ notes: { ...draft.notes, decision: event.target.value } })} className={textareaClass} /></Field><Field label="Tomorrow Focus"><textarea value={draft.notes.tomorrowFocus} onChange={(event) => patch({ notes: { ...draft.notes, tomorrowFocus: event.target.value } })} className={textareaClass} /></Field></div></section>
+          </div>
+        </details>
+
+        <div className="sticky bottom-0 z-20 mt-3 flex flex-col gap-3 rounded-[14px] border border-[var(--border-default)] bg-white/95 p-3 shadow-[0_12px_32px_rgba(27,31,42,0.14)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0"><p className="text-[10px] font-semibold">{validation.length ? `${validation.length} issue${validation.length > 1 ? "s" : ""} to fix` : dirty ? "Ready to save" : "Draft saved"}</p><p aria-live="polite" className={`mt-0.5 text-[9px] ${message && validation.length ? "text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{message || (validation[0] ?? "Changes remain local until Publish Preview")}</p></div>
+          <div className="flex gap-2"><button type="button" disabled={!dirty || !ready} onClick={() => setDraft(structuredClone(savedDraft))} className="inline-flex min-h-10 items-center gap-2 rounded-[10px] border border-[var(--border-default)] px-3 text-[10px] font-semibold disabled:opacity-40"><RotateCcw size={13} />Reset</button><button type="button" disabled={!dirty || !ready} onClick={saveDraft} className="inline-flex min-h-10 items-center gap-2 rounded-[10px] border border-[var(--brand-500)] bg-[var(--brand-50)] px-3 text-[10px] font-semibold text-[var(--brand-600)] disabled:opacity-40"><Save size={13} />Save Draft</button><button type="button" disabled={!ready || validation.length > 0} onClick={publishPreview} className="inline-flex min-h-10 items-center gap-2 rounded-[10px] bg-[var(--brand-500)] px-4 text-[10px] font-semibold text-white shadow-[0_6px_16px_rgba(245,102,0,0.2)] disabled:opacity-40"><Send size={13} />Publish Preview</button></div>
         </div>
       </main>
     </div>

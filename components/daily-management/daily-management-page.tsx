@@ -8,7 +8,6 @@ import {
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
-  CircleX,
   FilePenLine,
   PackageCheck,
   ShoppingCart,
@@ -34,7 +33,6 @@ const icons: Record<string, ReactNode> = {
   activeBooking: <ClipboardList size={17} />,
   stockEngine: <Boxes size={17} />,
   stockValue: <WalletCards size={17} />,
-  cancelToday: <CircleX size={17} />,
 };
 
 const tones = {
@@ -96,48 +94,45 @@ function KpiStrip({ input }: { input: DailyManagementInputSnapshot }) {
   const salesMtd = Number(report.kpis.find((item) => item.key === "salesMtd")?.value ?? 0);
   const achievement = input.target.mtdTarget ? `${((salesMtd / input.target.mtdTarget) * 100).toFixed(1)}%` : "—";
   const items: KpiMetricItem[] = report.kpis.map((item) => item.key === "target" ? { ...item, value: String(input.target.mtdTarget), detail: `${achievement} achievement · ${salesMtd - input.target.expectedPace} vs pace` } : item);
-  const dailyItems: KpiMetricItem[] = [
-    items.find((item) => item.key === "salesToday"),
-    items.find((item) => item.key === "bookingToday"),
-    { key: "cancelToday", label: "Cancel Today", value: String(input.bookingLifecycle.cancelUnits), unit: "Units", detail: input.bookingLifecycle.cancelReason || "No cancellation", tone: "orange" as const },
-  ].filter((item): item is KpiMetricItem => Boolean(item));
-  const cumulativeItems = items.filter((item) => !["salesToday", "bookingToday"].includes(item.key));
-
-  const metrics = (metricItems: KpiMetricItem[]) => metricItems.map((item) => (
-    <div key={item.key} className="group min-w-0 bg-[var(--surface-default)] px-3 py-2.5 transition-colors hover:bg-[#FCFCFD]">
-      <div className="flex items-center gap-2">
-        <span className={`grid size-7 shrink-0 place-items-center rounded-[9px] ${tones[item.tone]}`}>{icons[item.key]}</span>
-        <p className="text-[9px] font-bold uppercase tracking-[0.05em] text-[var(--text-secondary)]">{item.label}</p>
-      </div>
-      <p className="kmm-tabular mt-1.5 flex min-w-0 items-baseline gap-1.5 text-[22px] font-semibold leading-none tracking-[-0.03em] sm:text-[24px]">
-        <span>{item.value}</span><span className="text-[9px] font-semibold tracking-normal text-[var(--text-secondary)]">{item.unit}</span>
-      </p>
-      <p className={`mt-1.5 min-h-3 text-[9px] leading-3 ${item.key === "stockValue" || item.key === "target" || item.key === "cancelToday" ? "font-semibold text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{item.detail}</p>
-    </div>
-  ));
+  const kpis = items.filter((item) => item.key !== "stockValue");
+  const sparkPaths: Record<string, string> = {
+    salesToday: "M2 24 C15 22 19 12 31 15 S49 5 62 9 S77 3 94 6",
+    bookingToday: "M2 22 C14 18 23 21 34 13 S52 16 63 8 S79 12 94 4",
+    salesMtd: "M2 25 C18 24 21 18 34 19 S50 11 64 13 S80 5 94 7",
+    target: "M2 22 C16 22 25 19 36 18 S55 14 66 11 S81 8 94 3",
+    activeBooking: "M2 8 C16 12 25 8 37 14 S55 19 66 13 S82 18 94 10",
+    stockEngine: "M2 12 C14 10 25 13 36 9 S53 10 65 7 S80 9 94 5",
+  };
 
   return (
-    <Card className={panelClass} role="region" aria-label="Daily and cumulative management KPIs">
-      <div className="grid gap-px bg-[var(--divider)] md:grid-cols-[116px_minmax(0,1fr)]">
-        <div className="flex items-center justify-between gap-3 bg-[#F4FBF7] px-3 py-2.5 md:block"><span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#267145]">Daily Pulse</span><span className="mt-1 hidden text-[8px] leading-3 text-[#5D7967] md:block">Today’s operating movement</span></div>
-        <div className="grid grid-cols-1 gap-px bg-[var(--divider)] sm:grid-cols-3">{metrics(dailyItems)}</div>
-        <div className="flex items-center justify-between gap-3 bg-[#FFF7F0] px-3 py-2.5 md:block"><span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#A34A09]">Cumulative</span><span className="mt-1 hidden text-[8px] leading-3 text-[#806653] md:block">MTD and current position</span></div>
-        <div className="grid grid-cols-1 gap-px bg-[var(--divider)] sm:grid-cols-2 xl:grid-cols-5">{metrics(cumulativeItems)}</div>
-      </div>
-    </Card>
+    <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" aria-label="Daily management KPIs">
+      {kpis.map((item) => {
+        const urgent = item.key === "target";
+        const stroke = item.tone === "green" ? "#2B9B52" : item.tone === "blue" ? "#347FD1" : item.tone === "teal" ? "#119B96" : item.tone === "purple" ? "#8359AA" : "#E56A16";
+        return (
+          <Card key={item.key} className={`${panelClass} group relative isolate min-h-[122px] overflow-hidden bg-gradient-to-br from-white via-white to-[#F8F9FB] p-3 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(27,31,42,0.11)]`}>
+            <span className="absolute inset-x-0 top-0 h-0.5 opacity-80" style={{ background: `linear-gradient(90deg, ${stroke}, transparent 82%)` }} />
+            <div className="flex items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--text-secondary)]">{item.label}</p><span className={`grid size-7 shrink-0 place-items-center rounded-[9px] ring-1 ring-inset ring-black/[0.03] ${tones[item.tone]}`}>{icons[item.key]}</span></div>
+            <p className="kmm-tabular mt-2 flex min-w-0 items-baseline gap-1.5 text-[25px] font-semibold leading-none tracking-[-0.035em]"><span>{item.value}</span><span className="text-[8px] font-semibold tracking-normal text-[var(--text-secondary)]">{item.unit}</span></p>
+            <p className={`relative z-10 mt-2 min-h-6 text-[8px] font-medium leading-3 ${urgent ? "text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{item.detail}</p>
+            <svg viewBox="0 0 96 30" aria-hidden="true" className="absolute bottom-1 right-2 h-8 w-[45%] opacity-20 transition-opacity duration-300 group-hover:opacity-35"><defs><linearGradient id={`fade-${item.key}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={stroke} stopOpacity=".5"/><stop offset="1" stopColor={stroke} stopOpacity="0"/></linearGradient></defs><path d={`${sparkPaths[item.key]} L94 30 L2 30 Z`} fill={`url(#fade-${item.key})`}/><path d={sparkPaths[item.key]} fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round"/></svg>
+          </Card>
+        );
+      })}
+    </section>
   );
 }
 
-function PerformerList({ title, rows, attention = false }: { title: string; rows: readonly { name: string; result: string; achievement: string }[]; attention?: boolean }) {
+function PerformerList({ title, rows }: { title: string; rows: readonly { name: string; result: string; achievement: string }[] }) {
   return (
     <div className="min-w-0">
-      <h3 className={`text-[10px] font-bold uppercase tracking-[0.04em] ${attention ? "text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{title}</h3>
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">{title}</h3>
       <ol className="mt-1.5 divide-y divide-[var(--divider)]">
         {rows.map((row, index) => (
           <li key={row.name} className="grid grid-cols-[16px_minmax(0,1fr)_36px] items-center gap-1.5 py-1.5 text-[10px]">
-            <span className={`grid size-4 place-items-center rounded-full text-[8px] font-bold ${attention ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[var(--status-success-bg)] text-[var(--status-success)]"}`}>{index + 1}</span>
+            <span className="grid size-4 place-items-center rounded-full bg-[var(--status-success-bg)] text-[8px] font-bold text-[var(--status-success)]">{index + 1}</span>
             <span className="min-w-0"><span className="block break-words font-medium leading-3">{row.name}</span><span className="kmm-tabular text-[8px] text-[var(--text-tertiary)]">{row.result}</span></span>
-            <span className={`kmm-tabular text-right font-semibold ${attention ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}`}>{row.achievement}</span>
+            <span className="kmm-tabular text-right font-semibold text-[var(--status-success)]">{row.achievement}</span>
           </li>
         ))}
       </ol>
@@ -146,19 +141,17 @@ function PerformerList({ title, rows, attention = false }: { title: string; rows
 }
 
 function SalesPerformance() {
+  const branches = report.salesPerformance.branches.map((row) => ({ ...row, percent: row.target ? Math.min(100, (row.sales / row.target) * 100) : 0 }));
   return (
     <Card className={panelClass}>
-      <PanelHeader index="1" title="Sales Performance" />
-      <div className="grid gap-4 p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.85fr)]">
-        <div className="min-w-0">
-          <div role="table" aria-label="Branch sales performance" className="hidden text-[10px] sm:block">
-            <div role="row" className="grid grid-cols-[minmax(120px,1.6fr)_repeat(4,minmax(36px,0.6fr))] gap-1 rounded-t-[10px] bg-[var(--surface-subtle)] px-2 py-2 font-semibold text-[var(--text-secondary)]"><span>Branch</span><span className="text-right">Sales</span><span className="text-right">Target</span><span className="text-right">Ach.</span><span className="text-right">Pace</span></div>
-            {report.salesPerformance.branches.map((row) => <div role="row" key={row.branch} className="grid grid-cols-[minmax(120px,1.6fr)_repeat(4,minmax(36px,0.6fr))] items-center gap-1 border-b border-[var(--divider)] px-2 py-2"><span className="break-words font-medium leading-3">{row.branch}</span><strong className="kmm-tabular text-right">{row.sales}</strong><span className="kmm-tabular text-right">{row.target}</span><strong className="kmm-tabular text-right">{row.achievement}</strong><strong className={`kmm-tabular text-right ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</strong></div>)}
-            <div role="row" className="grid grid-cols-[minmax(120px,1.6fr)_repeat(4,minmax(36px,0.6fr))] gap-1 rounded-b-[10px] bg-[#FAFAFB] px-2 py-2 font-bold"><span>Total</span><span className="kmm-tabular text-right">10</span><span className="kmm-tabular text-right">48</span><span className="kmm-tabular text-right">20.8%</span><span className="kmm-tabular text-right text-[var(--status-danger)]">-4</span></div>
-          </div>
-          <div className="grid gap-2 sm:hidden">{report.salesPerformance.branches.map((row) => <div key={row.branch} className="rounded-[10px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-center justify-between gap-2"><strong className="truncate text-[11px]">{row.branch}</strong><span className={`text-[10px] font-bold ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</span></div><div className="mt-2 grid grid-cols-3 gap-2 text-center text-[9px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.sales}</strong></span><span>Target<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.target}</strong></span><span>Ach.<strong className="mt-0.5 block text-xs text-[var(--text-primary)]">{row.achievement}</strong></span></div></div>)}</div>
+      <PanelHeader index="1" title="Sales Performance" action={<span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">20.8% of target</span>} />
+      <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+        <div className="min-w-0 rounded-[14px] border border-[#ECEEF2] bg-gradient-to-br from-[#FCFCFD] to-white p-3" role="img" aria-label="Branch sales achievement against target">
+          <div className="mb-3 flex items-center justify-between gap-3"><span className="text-[9px] font-bold uppercase tracking-[0.05em] text-[var(--text-secondary)]">Branch achievement</span><span className="text-[8px] text-[var(--text-tertiary)]">Sales / Target</span></div>
+          <div className="space-y-3">{branches.map((row) => <div key={row.branch} className="grid grid-cols-[minmax(110px,0.85fr)_minmax(110px,1.4fr)_50px] items-center gap-3"><span className="min-w-0 text-[9px] font-semibold leading-3">{row.branch}</span><div className="relative h-3 overflow-hidden rounded-full bg-[#ECEEF2]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFB06F] via-[#FF833A] to-[#F25C05] shadow-[0_2px_8px_rgba(242,92,5,0.25)]" style={{ width: `${Math.max(4, row.percent)}%` }} /><span className="absolute inset-y-0 right-0 w-px bg-[#A9ADB5]" /></div><span className="kmm-tabular text-right text-[9px]"><strong>{row.sales}</strong><span className="text-[var(--text-tertiary)]"> / {row.target}</span></span><span className="col-start-2 flex items-center justify-between text-[8px]"><span className="font-semibold text-[var(--text-secondary)]">{row.achievement}</span><span className={`rounded-full px-1.5 py-0.5 font-bold ${row.pace.startsWith("+") ? "bg-[var(--status-success-bg)] text-[var(--status-success)]" : "bg-[var(--status-danger-bg)] text-[var(--status-danger)]"}`}>{row.pace} pace</span></span></div>)}</div>
+          <div className="mt-3 flex items-center justify-between border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-secondary)]"><span>MTD total <strong className="kmm-tabular text-[var(--text-primary)]">10 / 48 units</strong></span><span>Expected pace <strong className="kmm-tabular text-[var(--status-danger)]">14 · gap -4</strong></span></div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-3"><PerformerList title="Top Performers" rows={report.salesPerformance.top} /><PerformerList title="Need Attention" rows={report.salesPerformance.attention} attention /></div>
+        <div className="min-w-0 rounded-[14px] bg-[#F8FBF9] p-3"><PerformerList title="Top Performers" rows={report.salesPerformance.top} /></div>
       </div>
     </Card>
   );

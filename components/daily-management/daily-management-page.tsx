@@ -1,192 +1,167 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
   CalendarDays,
+  ClipboardCheck,
   ClipboardList,
   Database,
-  RefreshCw,
+  PackageCheck,
   ShoppingCart,
   Target,
+  WalletCards,
 } from "lucide-react";
-import { loadDailyManagementReport } from "../../lib/daily-management/client";
-import type { DailyManagementPayload, DailyManagementSnapshot } from "../../lib/daily-management/types";
-import { Button } from "../ui/button";
+import { dailyManagementMock as report } from "../../lib/daily-management/mock-data";
 import { Card } from "../ui/card";
-import { ErrorState } from "../design-system/error-state";
 import { ExportButton } from "../design-system/export-button";
-import { KpiCard } from "../design-system/kpi-card";
-import { LoadingSkeleton } from "../design-system/loading-skeleton";
-import { SectionHeader } from "../design-system/section-header";
 import { StatusBadge } from "../design-system/status-badge";
 
-const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
-const dateFormat = new Intl.DateTimeFormat("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  timeZone: "Asia/Yangon",
-});
+const icons: Record<string, ReactNode> = {
+  salesToday: <ShoppingCart size={20} />,
+  salesMtd: <CalendarDays size={20} />,
+  target: <Target size={20} />,
+  bookingToday: <ClipboardCheck size={20} />,
+  activeBooking: <ClipboardList size={20} />,
+  stockEngine: <Boxes size={20} />,
+  stockValue: <WalletCards size={20} />,
+};
 
-function displayDate(value: string | null) {
-  if (!value) return "Not available";
-  return dateFormat.format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatMoney(value: number | null) {
-  if (value === null) return "N/A";
-  if (Math.abs(value) >= 1_000_000_000) return `${number.format(value / 1_000_000_000)}B`;
-  if (Math.abs(value) >= 1_000_000) return `${number.format(value / 1_000_000)}M`;
-  return number.format(value);
-}
+const tones = {
+  green: "text-[#218739] bg-[#EDF8EF]",
+  blue: "text-[#2F7ED8] bg-[#EDF5FF]",
+  teal: "text-[#138F8B] bg-[#EAF8F7]",
+  purple: "text-[#7C3FA0] bg-[#F5EEFA]",
+  orange: "text-[var(--brand-600)] bg-[var(--brand-50)]",
+} as const;
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function downloadReport(snapshot: DailyManagementSnapshot) {
+function downloadMockup() {
   const rows = [
-    ["Type", "Date", "Branch", "Salesperson", "Model", "Units / Status"],
-    ...snapshot.sales.today.map((row) => ["Sales", row.date, row.branch, row.salesperson, row.model, row.quantity]),
-    ...snapshot.booking.today.map((row) => ["Booking", row.date, row.branch, row.salesperson, row.model, row.purchaseStatus]),
+    ["MOCKUP DATA — NOT FOR OPERATIONAL USE"],
+    ["Report Date", report.reportDate],
+    [],
+    ["KPI", "Value", "Unit", "Detail"],
+    ...report.kpis.map((item) => [item.label, item.value, item.unit, item.detail]),
+    [],
+    ["Branch", "Sales MTD", "Target", "Achievement", "vs Pace"],
+    ...report.salesPerformance.branches.map((item) => [item.branch, item.sales, item.target, item.achievement, item.pace]),
   ];
   const blob = new Blob([rows.map((row) => row.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `kmm-daily-management-${snapshot.asOfDate}.csv`;
+  link.download = `kmm-daily-management-mockup-${report.reportDate}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-function SourceDates({ snapshot }: { snapshot: DailyManagementSnapshot }) {
+function SectionBar({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]" aria-label="Source dates">
-      <span className="rounded-[var(--radius-pill)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-1.5">Sales through {displayDate(snapshot.sourceDates.sales)}</span>
-      <span className="rounded-[var(--radius-pill)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-1.5">Booking through {displayDate(snapshot.sourceDates.booking)}</span>
-      <span className="rounded-[var(--radius-pill)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-1.5">Stock snapshot {displayDate(snapshot.sourceDates.stock)}</span>
+    <div className="flex min-h-10 items-center justify-between gap-3 rounded-t-[var(--radius-card)] bg-[var(--brand-500)] px-4 py-2 text-white">
+      <h2 className="text-sm font-bold sm:text-[15px]">{title}</h2>
+      {action}
     </div>
   );
 }
 
-function ReportFilters({
-  date,
-  branch,
-  branches,
-  loading,
-  onDateChange,
-  onBranchChange,
-  onApply,
-  onRefresh,
-  onExport,
-}: {
-  date: string;
-  branch: string;
-  branches: string[];
-  loading: boolean;
-  onDateChange: (value: string) => void;
-  onBranchChange: (value: string) => void;
-  onApply: () => void;
-  onRefresh: () => void;
-  onExport: () => void;
-}) {
+function KpiStrip() {
   return (
-    <Card className="flex flex-col gap-4 p-4 lg:flex-row lg:items-end lg:justify-between">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <label className="grid gap-1.5 text-xs font-semibold text-[var(--text-secondary)]">
-          Report date
-          <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} className="h-11 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--brand-100)]" />
-        </label>
-        <label className="grid gap-1.5 text-xs font-semibold text-[var(--text-secondary)]">
-          Branch
-          <select value={branch} onChange={(event) => onBranchChange(event.target.value)} className="h-11 min-w-48 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--brand-100)]">
-            <option value="">All branches</option>
-            {branches.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={onApply} disabled={loading}>Apply</Button>
-        <Button variant="outline" onClick={onRefresh} disabled={loading} aria-label="Refresh Daily Management Report"><RefreshCw size={16} />Refresh</Button>
-        <ExportButton onClick={onExport} disabled={loading} />
-      </div>
-    </Card>
-  );
-}
-
-function KpiStrip({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  return (
-    <section aria-label="Daily management KPIs" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-      <KpiCard variant="executive" title="Sales Today" value={snapshot.sales.todayUnits} unit="Units" subtitle={`Report date ${displayDate(snapshot.asOfDate)}`} icon={<ShoppingCart size={18} />} />
-      <KpiCard variant="executive" title="Sales MTD" value={snapshot.sales.mtdUnits} unit="Units" subtitle="Engine-unit sales through report date" icon={<CalendarDays size={18} />} />
-      <KpiCard variant="executive" title="MTD Target" value="N/A" subtitle="Branch and salesperson targets are not in D1" icon={<Target size={18} />} empty />
-      <KpiCard variant="executive" title="Booking Today" value={snapshot.booking.newToday} unit="Units" subtitle="New booking transactions" icon={<ClipboardList size={18} />} />
-      <KpiCard variant="executive" title="Active Booking" value={snapshot.booking.activeUnits} unit="Units" subtitle="A/B/C HOT current pipeline" icon={<Database size={18} />} />
-      <KpiCard variant="executive" title="Stock (Engine)" value={snapshot.stock.engineUnits} unit="Units" subtitle={`Value ${formatMoney(snapshot.stock.value)} MMK`} icon={<Boxes size={18} />} />
+    <section aria-label="Daily management mockup KPIs" className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+      {report.kpis.map((item) => (
+        <Card key={item.key} className="min-h-[122px] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">{item.label}</p>
+            <span className={`grid size-9 shrink-0 place-items-center rounded-[10px] ${tones[item.tone]}`}>{icons[item.key]}</span>
+          </div>
+          <p className="kmm-tabular mt-1 flex items-baseline gap-2 text-[30px] font-semibold leading-none tracking-[-0.03em]">
+            {item.value}<span className="text-[11px] font-semibold tracking-normal text-[var(--text-secondary)]">{item.unit}</span>
+          </p>
+          <p className={`mt-3 text-[11px] ${item.key === "stockValue" || item.key === "target" ? "font-semibold text-[var(--status-danger)]" : "text-[var(--text-secondary)]"}`}>{item.detail}</p>
+        </Card>
+      ))}
     </section>
   );
 }
 
-function SalesPerformance({ snapshot }: { snapshot: DailyManagementSnapshot }) {
+function PerformerList({ title, rows, attention = false }: { title: string; rows: readonly { name: string; result: string; achievement: string }[]; attention?: boolean }) {
   return (
-    <Card className="min-w-0 p-5">
-      <SectionHeader title="1. Sales Performance" description="Actual MTD engine-unit sales; granular targets remain unavailable." />
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
-        <div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
-          <table className="w-full min-w-[460px] text-left text-sm">
-            <thead className="bg-[var(--surface-subtle)] text-xs text-[var(--text-secondary)]"><tr><th className="px-3 py-3">Branch</th><th className="px-3 py-3 text-right">MTD Units</th><th className="px-3 py-3">Target</th><th className="px-3 py-3">Achievement</th></tr></thead>
+    <div>
+      <h3 className={`text-xs font-bold ${attention ? "text-[var(--status-danger)]" : "text-[var(--text-primary)]"}`}>{title}</h3>
+      <ol className="mt-2 divide-y divide-[var(--divider)]">
+        {rows.map((row, index) => (
+          <li key={row.name} className="grid grid-cols-[22px_minmax(0,1fr)_48px_42px] items-center gap-2 py-2 text-xs">
+            <span className={attention ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}>{index + 1}</span>
+            <span className="truncate font-medium">{row.name}</span>
+            <span className="kmm-tabular text-right">{row.result}</span>
+            <span className={`kmm-tabular text-right font-semibold ${attention ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}`}>{row.achievement}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function SalesPerformance() {
+  return (
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="1. SALES PERFORMANCE" />
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(230px,0.75fr)]">
+        <div className="overflow-x-auto rounded-[var(--radius-control)] border border-[var(--border-default)]">
+          <table className="w-full min-w-[520px] text-left text-xs">
+            <thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2.5">Branch</th><th className="px-3 py-2.5 text-right">Sales</th><th className="px-3 py-2.5 text-right">Target</th><th className="px-3 py-2.5 text-right">Ach.</th><th className="px-3 py-2.5 text-right">vs Pace</th></tr></thead>
             <tbody className="divide-y divide-[var(--divider)]">
-              {snapshot.sales.byBranch.length ? snapshot.sales.byBranch.map((row) => <tr key={row.branch}><td className="px-3 py-3 font-medium">{row.branch}</td><td className="kmm-tabular px-3 py-3 text-right font-semibold">{row.units}</td><td className="px-3 py-3 text-[var(--text-tertiary)]">N/A</td><td className="px-3 py-3"><StatusBadge status="inactive">Waiting for target</StatusBadge></td></tr>) : <tr><td colSpan={4} className="px-3 py-8 text-center text-[var(--text-tertiary)]">No MTD sales for this scope.</td></tr>}
+              {report.salesPerformance.branches.map((row) => <tr key={row.branch}><td className="px-3 py-3 font-medium">{row.branch}</td><td className="kmm-tabular px-3 py-3 text-right font-semibold">{row.sales}</td><td className="kmm-tabular px-3 py-3 text-right">{row.target}</td><td className="kmm-tabular px-3 py-3 text-right font-semibold">{row.achievement}</td><td className={`kmm-tabular px-3 py-3 text-right font-semibold ${row.pace.startsWith("+") ? "text-[var(--status-success)]" : "text-[var(--status-danger)]"}`}>{row.pace}</td></tr>)}
+              <tr className="bg-[var(--surface-subtle)] font-bold"><td className="px-3 py-3">Total</td><td className="kmm-tabular px-3 py-3 text-right">10</td><td className="kmm-tabular px-3 py-3 text-right">48</td><td className="kmm-tabular px-3 py-3 text-right">20.8%</td><td className="kmm-tabular px-3 py-3 text-right text-[var(--status-danger)]">-4</td></tr>
             </tbody>
           </table>
         </div>
-        <div>
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Top performers (MTD)</h3>
-          <ol className="mt-3 space-y-2">
-            {snapshot.sales.topSalespeople.length ? snapshot.sales.topSalespeople.map((row, index) => <li key={`${row.salesperson}-${index}`} className="flex items-center justify-between rounded-[var(--radius-control)] bg-[var(--surface-subtle)] px-3 py-2.5 text-sm"><span className="min-w-0 truncate"><span className="mr-2 text-[var(--text-tertiary)]">{index + 1}</span>{row.salesperson}</span><strong className="kmm-tabular ml-3">{row.units}</strong></li>) : <li className="rounded-[var(--radius-control)] bg-[var(--surface-subtle)] px-3 py-5 text-center text-sm text-[var(--text-tertiary)]">No performer data.</li>}
-          </ol>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <PerformerList title="Top Performers (MTD)" rows={report.salesPerformance.top} />
+          <PerformerList title="Need Attention" rows={report.salesPerformance.attention} attention />
         </div>
       </div>
     </Card>
   );
 }
 
-function BookingPipeline({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  const stages = [
-    { label: "New Today", value: snapshot.booking.newToday, tone: "bg-[var(--status-success)]" },
-    { label: "A HOT", value: snapshot.booking.aHot, tone: "bg-[#E0A400]" },
-    { label: "B HOT", value: snapshot.booking.bHot, tone: "bg-[var(--brand-500)]" },
-    { label: "C HOT", value: snapshot.booking.cHot, tone: "bg-[var(--status-info)]" },
-  ];
-  const max = Math.max(...stages.map((stage) => stage.value), 1);
+function BookingPipeline() {
   return (
-    <Card className="min-w-0 p-5">
-      <SectionHeader title="2. Booking Pipeline" description="Current A/B/C HOT pipeline plus new bookings on the selected date." />
-      <div className="mt-5 space-y-3">
-        {stages.map((stage) => <div key={stage.label} className="grid grid-cols-[92px_minmax(0,1fr)_44px] items-center gap-3 text-sm"><span className="font-medium text-[var(--text-secondary)]">{stage.label}</span><div className="h-8 overflow-hidden rounded-[var(--radius-control)] bg-[var(--surface-muted)]"><div className={`grid h-full min-w-8 place-items-center rounded-[var(--radius-control)] text-xs font-bold text-white ${stage.tone}`} style={{ width: `${Math.max(8, (stage.value / max) * 100)}%` }}>{stage.value}</div></div><strong className="kmm-tabular text-right">{stage.value}</strong></div>)}
-      </div>
-      <div className="mt-5 grid gap-2 sm:grid-cols-3">
-        {["Wait Approve", "Wait Delivery", "Cancel reason"].map((label) => <div key={label} className="rounded-[var(--radius-control)] border border-dashed border-[var(--border-default)] bg-[var(--surface-subtle)] p-3"><p className="text-xs font-semibold text-[var(--text-secondary)]">{label}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">Waiting for governed source</p></div>)}
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="2. BOOKING PIPELINE" action={<span className="flex items-center gap-1.5 text-xs font-semibold"><AlertTriangle size={15} />Cancel Today: {report.cancellation.total} Unit</span>} />
+      <div className="grid gap-5 p-4 lg:grid-cols-[minmax(300px,1fr)_minmax(240px,0.85fr)]">
+        <ol className="mx-auto grid w-full max-w-[430px] gap-1" aria-label="Booking funnel stages">
+          {report.bookingPipeline.map((stage) => (
+            <li key={stage.label} className="grid grid-cols-[minmax(170px,1fr)_120px] items-center gap-3">
+              <div className="mx-auto grid h-9 place-items-center text-sm font-bold text-white shadow-sm" style={{ width: `${stage.width}%`, backgroundColor: stage.color, clipPath: "polygon(6% 0, 94% 0, 86% 100%, 14% 100%)" }}>{stage.value}</div>
+              <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="self-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
+          <h3 className="border-b border-[var(--divider)] px-3 py-2.5 text-xs font-bold">Booking Cancel Today</h3>
+          <div className="grid grid-cols-[1fr_52px] bg-[var(--surface-subtle)] px-3 py-2 text-[11px] font-semibold"><span>Reason</span><span className="text-right">Units</span></div>
+          <div className="grid grid-cols-[1fr_52px] gap-2 px-3 py-3 text-xs"><span>{report.cancellation.reason}</span><strong className="kmm-tabular text-right">1</strong></div>
+          <div className="grid grid-cols-[1fr_52px] border-t border-[var(--divider)] px-3 py-2.5 text-xs font-bold text-[var(--status-danger)]"><span>Total</span><span className="kmm-tabular text-right">1</span></div>
+        </div>
       </div>
     </Card>
   );
 }
 
-function TodayDetail({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  const rows = [
-    ...snapshot.sales.today.map((row) => ({ ...row, type: "Sale", status: `${row.quantity} unit${row.quantity === 1 ? "" : "s"}` })),
-    ...snapshot.booking.today.map((row) => ({ ...row, type: "Booking", quantity: null, status: row.purchaseStatus })),
-  ];
+function TodayDetail() {
   return (
-    <Card className="min-w-0 p-5">
-      <SectionHeader title="3. Today’s Sales & Booking Detail" description="Transactions recorded on the selected report date." />
-      <div className="mt-5 overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="bg-[var(--surface-subtle)] text-xs text-[var(--text-secondary)]"><tr><th className="px-3 py-3">Type</th><th className="px-3 py-3">Branch</th><th className="px-3 py-3">Salesperson</th><th className="px-3 py-3">Model</th><th className="px-3 py-3">Status</th></tr></thead>
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="3. TODAY’S SALES & BOOKING DETAIL" />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[830px] text-left text-xs">
+          <thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2.5">No.</th><th className="px-3 py-2.5">Branch</th><th className="px-3 py-2.5">Salesperson</th><th className="px-3 py-2.5">Model</th><th className="px-3 py-2.5 text-right">Sales Today</th><th className="px-3 py-2.5 text-right">Sales MTD</th><th className="px-3 py-2.5 text-right">A HOT</th><th className="px-3 py-2.5 text-right">B HOT</th><th className="px-3 py-2.5">Status</th></tr></thead>
           <tbody className="divide-y divide-[var(--divider)]">
-            {rows.length ? rows.map((row, index) => <tr key={`${row.type}-${row.branch}-${row.salesperson}-${row.model}-${index}`}><td className="px-3 py-3"><StatusBadge status={row.type === "Sale" ? "positive" : "warning"}>{row.type}</StatusBadge></td><td className="px-3 py-3">{row.branch}</td><td className="px-3 py-3">{row.salesperson}</td><td className="px-3 py-3 font-medium">{row.model}</td><td className="px-3 py-3">{row.status}</td></tr>) : <tr><td colSpan={5} className="px-3 py-10 text-center text-[var(--text-tertiary)]">No sales or booking transactions on this date.</td></tr>}
+            {report.todayDetail.map((row, index) => <tr key={`${row.salesperson}-${row.model}`}><td className="px-3 py-2.5">{index + 1}</td><td className="px-3 py-2.5">{row.branch}</td><td className="px-3 py-2.5 font-medium">{row.salesperson}</td><td className="px-3 py-2.5 font-medium">{row.model}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.salesToday}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.salesMtd}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.aHot}</td><td className="kmm-tabular px-3 py-2.5 text-right">{row.bHot}</td><td className="px-3 py-2.5"><StatusBadge status={row.tone}>{row.status}</StatusBadge></td></tr>)}
           </tbody>
         </table>
       </div>
@@ -194,113 +169,74 @@ function TodayDetail({ snapshot }: { snapshot: DailyManagementSnapshot }) {
   );
 }
 
-function StockHealth({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  const maxBranch = Math.max(...snapshot.stock.byBranch.map((row) => row.units), 1);
-  const maxAge = Math.max(...snapshot.stock.aging.map((row) => row.units), 1);
+function StockHealth() {
+  const maxLocation = Math.max(...report.stock.locations.map((row) => row.units));
+  const agingGradient = `conic-gradient(${report.stock.aging.map((row, index) => {
+    const start = report.stock.aging.slice(0, index).reduce((sum, item) => sum + item.percent, 0);
+    return `${row.color} ${start}% ${start + row.percent}%`;
+  }).join(", ")})`;
   return (
-    <Card className="min-w-0 p-5">
-      <SectionHeader title="4. Stock Health Overview" description="Current KMM free-stock snapshot, value and aging." />
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <div className="rounded-[var(--radius-control-lg)] bg-[var(--surface-subtle)] p-4"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 text-3xl font-semibold">{formatMoney(snapshot.stock.value)}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">MMK · current persisted MSRP</p></div>
-        <div><h3 className="text-sm font-semibold">By branch</h3><div className="mt-3 space-y-3">{snapshot.stock.byBranch.map((row) => <div key={row.branch}><div className="mb-1 flex justify-between text-xs"><span>{row.branch}</span><strong className="kmm-tabular">{row.units}</strong></div><div className="h-2 rounded-full bg-[var(--surface-muted)]"><div className="h-2 rounded-full bg-[var(--brand-500)]" style={{ width: `${(row.units / maxBranch) * 100}%` }} /></div></div>)}</div></div>
-        <div><h3 className="text-sm font-semibold">Aging (engine units)</h3><div className="mt-3 space-y-3">{snapshot.stock.aging.map((row) => <div key={row.label}><div className="mb-1 flex justify-between text-xs"><span>{row.label} days</span><strong className="kmm-tabular">{row.units}</strong></div><div className="h-2 rounded-full bg-[var(--surface-muted)]"><div className={`h-2 rounded-full ${row.label === ">90" ? "bg-[var(--status-danger)]" : row.label === "61–90" ? "bg-[var(--status-warning)]" : "bg-[var(--status-success)]"}`} style={{ width: `${(row.units / maxAge) * 100}%` }} /></div></div>)}</div></div>
-      </div>
-      <div className="mt-4 flex items-center gap-2 rounded-[var(--radius-control)] border border-dashed border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2.5 text-xs text-[var(--text-secondary)]"><AlertTriangle size={15} className="text-[var(--status-warning)]" /><span>Physical Stock Location is not shown because the Excel Location column is not persisted in D1.</span></div>
-    </Card>
-  );
-}
-
-function BookingStockIntelligence({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  const tone = { shortage: "negative", high: "warning", balanced: "positive", unknown: "neutral" } as const;
-  const label = { shortage: "Potential shortage", high: "High coverage", balanced: "Balanced", unknown: "No active demand" };
-  return (
-    <Card className="min-w-0 p-5">
-      <SectionHeader title="5. Booking × Stock Intelligence" description="Read-only signal using current active booking and engine stock by exact model." />
-      <div className="mt-5 overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
-        <table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-[var(--surface-subtle)] text-xs text-[var(--text-secondary)]"><tr><th className="px-3 py-3">Model</th><th className="px-3 py-3 text-right">Active Booking</th><th className="px-3 py-3 text-right">Stock</th><th className="px-3 py-3 text-right">Coverage</th><th className="px-3 py-3">Signal</th></tr></thead><tbody className="divide-y divide-[var(--divider)]">{snapshot.bookingStock.length ? snapshot.bookingStock.map((row) => <tr key={row.model}><td className="px-3 py-3 font-medium">{row.model}</td><td className="kmm-tabular px-3 py-3 text-right">{row.activeBooking}</td><td className="kmm-tabular px-3 py-3 text-right">{row.stock}</td><td className="kmm-tabular px-3 py-3 text-right">{row.coverageMonths === null ? "—" : `${row.coverageMonths.toFixed(1)}x`}</td><td className="px-3 py-3"><StatusBadge status={tone[row.signal]}>{label[row.signal]}</StatusBadge></td></tr>) : <tr><td colSpan={5} className="px-3 py-8 text-center text-[var(--text-tertiary)]">No model intelligence available.</td></tr>}</tbody></table>
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="4. STOCK HEALTH OVERVIEW" />
+      <div className="grid gap-px bg-[var(--divider)] md:grid-cols-2 2xl:grid-cols-4">
+        <div className="bg-[var(--surface-default)] p-4"><h3 className="text-xs font-bold text-[#3C6E25]">4.1 STOCK VALUE</h3><p className="kmm-tabular mt-3 text-3xl font-semibold">{report.stock.value}<span className="ml-2 text-xs">M MMK</span></p><p className="mt-4 text-xs text-[var(--text-secondary)]">vs Jul-26 <strong className="ml-2 text-[var(--status-danger)]">{report.stock.previousMonthChange} ↓</strong></p></div>
+        <div className="bg-[var(--surface-default)] p-4"><h3 className="text-xs font-bold text-[#3C6E25]">4.2 PSI (ENGINE)</h3><dl className="mt-3 space-y-2 text-xs"><div className="flex justify-between"><dt>Sales (MTD)</dt><dd className="font-semibold">10 Units</dd></div><div className="flex justify-between"><dt>Booking (Active)</dt><dd className="font-semibold">79 Units</dd></div><div className="flex justify-between"><dt>Stock (Engine)</dt><dd className="font-semibold">83 Units</dd></div></dl><p className="mt-5 text-center text-xs font-semibold">PSI <strong className="kmm-tabular ml-2 text-2xl text-[var(--brand-600)]">{report.stock.psi}</strong> Months</p></div>
+        <div className="bg-[var(--surface-default)] p-4"><h3 className="text-xs font-bold text-[#3C6E25]">4.3 LOCATION OF STOCK</h3><div className="mt-3 space-y-2">{report.stock.locations.map((row) => <div key={row.label} className="grid grid-cols-[112px_minmax(60px,1fr)_28px] items-center gap-2 text-[11px]"><span className="truncate">{row.label}</span><div className="h-2.5 bg-[var(--surface-muted)]"><div className="h-full bg-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
+        <div className="bg-[var(--surface-default)] p-4"><h3 className="text-xs font-bold text-[#3C6E25]">4.4 AGING STOCK (ENGINE)</h3><div className="mt-3 flex items-center gap-4"><div className="relative size-28 shrink-0 rounded-full" style={{ background: agingGradient }}><div className="absolute inset-[22px] grid place-items-center rounded-full bg-[var(--surface-default)] text-center"><strong className="kmm-tabular text-xl">83</strong><span className="-mt-3 text-[10px]">Units</span></div></div><ul className="min-w-0 space-y-2">{report.stock.aging.map((row) => <li key={row.label} className="flex items-center gap-2 text-[11px]"><span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} /><span className="min-w-0 flex-1">{row.label}</span><strong className="kmm-tabular">{row.units} ({row.percent}%)</strong></li>)}</ul></div><p className="mt-3 rounded-[var(--radius-control)] bg-[#FFF0EE] px-3 py-2 text-center text-xs font-bold text-[var(--status-danger)]">33 Units &gt; 90 Days</p></div>
       </div>
     </Card>
   );
 }
 
-function Readiness({ snapshot }: { snapshot: DailyManagementSnapshot }) {
-  const items = [
-    ["Target & Pace", snapshot.availability.target],
-    ["Booking lifecycle", snapshot.availability.bookingLifecycle],
-    ["Cancel reason", snapshot.availability.cancelReason],
-    ["Stock location", snapshot.availability.stockLocation],
-    ["Action workflow", snapshot.availability.actions],
-    ["Daily note", snapshot.availability.notes],
-  ] as const;
+function BookingStock() {
   return (
-    <Card className="p-5">
-      <SectionHeader title="6. Phase 1 Data Readiness" description="Missing fields remain visible as controlled gaps instead of synthetic management data." />
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {items.map(([label, availability]) => <div key={label} className="rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-subtle)] p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{label}</h3><StatusBadge status={availability.available ? "positive" : "inactive"}>{availability.available ? "Ready" : "Waiting"}</StatusBadge></div><p className="mt-2 text-xs leading-5 text-[var(--text-tertiary)]">{availability.reason}</p></div>)}
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="5. BOOKING × STOCK INTELLIGENCE" />
+      <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-2.5">Model</th><th className="px-3 py-2.5 text-right">A HOT</th><th className="px-3 py-2.5 text-right">B HOT</th><th className="px-3 py-2.5 text-right">Total</th><th className="px-3 py-2.5 text-right">Stock</th><th className="px-3 py-2.5 text-right">Coverage</th><th className="px-3 py-2.5">Status</th></tr></thead><tbody className="divide-y divide-[var(--divider)]">{report.bookingStock.map((row) => <tr key={row.model}><td className="px-3 py-3 font-medium">{row.model}</td><td className="kmm-tabular px-3 py-3 text-right">{row.aHot}</td><td className="kmm-tabular px-3 py-3 text-right">{row.bHot}</td><td className="kmm-tabular px-3 py-3 text-right font-semibold">{row.total}</td><td className="kmm-tabular px-3 py-3 text-right">{row.stock}</td><td className="kmm-tabular px-3 py-3 text-right">{row.coverage}</td><td className="px-3 py-3"><StatusBadge status={row.tone}>{row.status}</StatusBadge></td></tr>)}</tbody></table></div>
+    </Card>
+  );
+}
+
+function ActionRequired() {
+  return (
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="6. ACTION REQUIRED (Top Priority)" action={<span className="grid size-6 place-items-center rounded-full bg-white text-xs font-bold text-[var(--status-danger)]">3</span>} />
+      <div className="divide-y divide-[var(--divider)] px-4">
+        {report.actions.map((item) => <div key={item.title} className="grid grid-cols-[22px_minmax(0,1fr)_78px] gap-2 py-3 text-xs"><AlertTriangle size={18} className={item.tone === "negative" ? "text-[var(--status-danger)]" : "text-[var(--status-warning)]"} /><div><p className="font-semibold">{item.title}</p><p className="mt-1 text-[11px] text-[var(--text-secondary)]">{item.detail} · Owner: {item.owner}</p></div><span className="self-center rounded-[var(--radius-control)] border border-[var(--border-default)] px-2 py-1.5 text-center text-[11px] font-semibold">{item.action}</span></div>)}
+      </div>
+    </Card>
+  );
+}
+
+function ManagementNotes() {
+  return (
+    <Card className="min-w-0 overflow-hidden">
+      <SectionBar title="7. DAILY MANAGEMENT NOTE" />
+      <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-3">
+        {report.notes.map((column) => <div key={column.title} className="bg-[var(--surface-default)] p-4"><h3 className="rounded-[var(--radius-control)] bg-[#EDF6FA] px-2 py-2 text-xs font-bold">{column.title}</h3><ul className="mt-3 space-y-2 pl-4 text-[11px] leading-5">{column.items.map((item) => <li key={item} className="list-disc">{item}</li>)}</ul></div>)}
       </div>
     </Card>
   );
 }
 
 export function DailyManagementPage() {
-  const [payload, setPayload] = useState<DailyManagementPayload | null>(null);
-  const [date, setDate] = useState("");
-  const [branch, setBranch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const filtersRef = useRef({ date: "", branch: "" });
-
-  const load = useCallback(async (options: { date?: string; branch?: string } = {}) => {
-    setLoading(true);
-    setError("");
-    try {
-      const next = await loadDailyManagementReport(options);
-      setPayload(next);
-      setDate(next.snapshot.asOfDate);
-      setBranch(next.snapshot.scope.branch ?? "");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load Daily Management Report.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    filtersRef.current = { date, branch };
-  }, [date, branch]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => { void load(); });
-    const refreshAfterImport = () => { void load(filtersRef.current); };
-    window.addEventListener("kmm:sales-imported", refreshAfterImport);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("kmm:sales-imported", refreshAfterImport);
-    };
-  }, [load]);
-
-  const snapshot = payload?.snapshot;
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
-      <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
-        <div className="space-y-5 xl:space-y-6">
-          <section className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between" aria-labelledby="daily-management-title">
-            <div className="min-w-0"><div className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]" aria-hidden="true" /><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--brand-600)]">Daily Sales, Booking & Stock Overview</p><h1 id="daily-management-title" className="mt-1 text-[28px] font-semibold leading-tight tracking-normal sm:text-[30px]">KMM Daily Management Report</h1><p className="mt-1 text-sm text-[var(--text-secondary)]">One-minute operating view built only from persisted Sales, Booking and Stock data.</p></div>
-            {snapshot && <SourceDates snapshot={snapshot} />}
+      <main className="mx-auto max-w-[1800px] p-4 sm:p-5 xl:p-6">
+        <div className="space-y-4">
+          <section className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between" aria-labelledby="daily-management-title">
+            <div className="min-w-0"><h1 id="daily-management-title" className="text-[27px] font-semibold leading-tight tracking-[-0.025em] sm:text-[31px]">KMM Daily Management Report</h1><p className="mt-1 text-sm text-[var(--text-secondary)]">Daily Sales, Booking & Stock Overview</p></div>
+            <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-[var(--radius-pill)] bg-[#FFF1DD] px-3 py-2 font-bold text-[#A65300]">Mockup Mode · Sample Data</span><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2"><CalendarDays size={14} className="mr-1.5 inline" />09 Aug 2026 (Sun)</span><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2">Last update {report.lastUpdated}</span><ExportButton onClick={downloadMockup} /></div>
           </section>
 
-          <ReportFilters date={date} branch={branch} branches={snapshot?.availableBranches ?? []} loading={loading} onDateChange={setDate} onBranchChange={setBranch} onApply={() => void load({ date, branch })} onRefresh={() => void load({ date, branch })} onExport={() => snapshot && downloadReport(snapshot)} />
+          <div role="note" className="flex items-center gap-2 rounded-[var(--radius-control-lg)] border border-[#F3C97A] bg-[#FFF8E8] px-4 py-2.5 text-xs text-[#754600]"><Database size={16} className="shrink-0" /><span>ตัวเลขทั้งหมดในหน้านี้เป็นข้อมูลตัวอย่างสำหรับตรวจรูปแบบ ยังไม่ใช่ข้อมูล Production</span></div>
 
-          {loading && <Card className="grid min-h-[360px] place-items-center p-8" aria-busy="true"><div className="w-full max-w-2xl space-y-4"><LoadingSkeleton variant="chart" /><p className="text-center text-sm text-[var(--text-secondary)]">Loading Daily Management Report from D1...</p></div></Card>}
-          {error && !loading && <Card className="grid min-h-[360px] place-items-center border-[var(--status-danger)] p-8" role="alert"><ErrorState message={error} onRetry={() => void load({ date, branch })} /></Card>}
-          {snapshot && !loading && !error && <>
-            <KpiStrip snapshot={snapshot} />
-            <div className="grid gap-5 xl:grid-cols-2"><SalesPerformance snapshot={snapshot} /><BookingPipeline snapshot={snapshot} /></div>
-            <TodayDetail snapshot={snapshot} />
-            <StockHealth snapshot={snapshot} />
-            <BookingStockIntelligence snapshot={snapshot} />
-            <Readiness snapshot={snapshot} />
-          </>}
+          <KpiStrip />
+          <div className="grid gap-4 2xl:grid-cols-[0.95fr_1.05fr]"><SalesPerformance /><BookingPipeline /></div>
+          <div className="grid gap-4 2xl:grid-cols-[0.8fr_1.2fr]"><TodayDetail /><StockHealth /></div>
+          <div className="grid gap-4 2xl:grid-cols-[1.05fr_0.8fr_1.15fr]"><BookingStock /><ActionRequired /><ManagementNotes /></div>
+
+          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-3 text-[10px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>Remark: MTD = Month To Date</span><span>Data Source: Mockup sample · replace with governed Sales, Booking and Stock sources before release</span><span className="flex items-center gap-1"><PackageCheck size={12} />Prepared for KMM Sales Division</span></footer>
         </div>
       </main>
     </div>

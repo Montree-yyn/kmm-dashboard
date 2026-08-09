@@ -139,10 +139,11 @@ test("Daily Management groups DC70G PRO spelling variants under one canonical mo
   assert.deepEqual(new Set(snapshot.booking.today.map((row) => row.model)), new Set(["DC70G PRO"]));
 });
 
-test("Daily Management route, feature flag and page remain read-only", async () => {
-  const [route, page, client, feature, navigation, shell] = await Promise.all([
+test("Daily Management route stays read-only and mockup presentation is explicit", async () => {
+  const [route, page, mockData, client, feature, navigation, shell] = await Promise.all([
     read("app/api/daily-management/route.ts"),
     read("components/daily-management/daily-management-page.tsx"),
+    read("lib/daily-management/mock-data.ts"),
     read("lib/daily-management/client.ts"),
     read("lib/features.ts"),
     read("components/navigation/navigation-config.ts"),
@@ -157,7 +158,11 @@ test("Daily Management route, feature flag and page remain read-only", async () 
   assert.match(feature, /NEXT_PUBLIC_DAILY_MANAGEMENT_REPORT/);
   assert.match(navigation, /Daily Report/);
   assert.match(shell, /daily-management/);
-  assert.match(page, /Phase 1 Data Readiness/);
-  assert.match(page, /Waiting for governed source/);
-  assert.doesNotMatch(page, /12,983|Sales Today[^\n]*3 Units/);
+  assert.match(page, /Mockup Mode · Sample Data/);
+  assert.match(page, /Booking Cancel Today/);
+  assert.match(page, /clipPath: "polygon/);
+  assert.match(mockData, /DC70G PRO/);
+  assert.doesNotMatch(mockData, /DC-70G PRO/);
+  assert.match(mockData, /Wait Approve/);
+  assert.match(mockData, /Wait Delivery/);
 });

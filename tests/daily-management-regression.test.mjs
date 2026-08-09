@@ -162,7 +162,11 @@ test("Daily Management route stays read-only and mockup presentation is explicit
   assert.match(navigation, /Daily Report/);
   assert.match(shell, /daily-management/);
   assert.match(page, /Mockup · Sample Data/);
-  assert.match(page, /grid-cols-2 gap-px/);
+  assert.match(page, /Daily Pulse/);
+  assert.match(page, /Cumulative/);
+  assert.match(page, /xl:grid-cols-\[1\.35fr_0\.65fr\]/);
+  assert.match(page, /xl:grid-cols-\[1\.18fr_0\.82fr\]/);
+  assert.match(page, /40% high risk/);
   assert.match(page, /Booking pipeline distribution/);
   assert.doesNotMatch(page, /overflow-x-auto|min-w-\[/);
   assert.match(page, /\/daily-management\/input/);

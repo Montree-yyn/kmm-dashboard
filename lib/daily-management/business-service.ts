@@ -25,7 +25,12 @@ type DailyManagementInput = {
 
 const unavailable = (reason: string) => ({ available: false, reason });
 const dateKey = (value: string | null | undefined) => String(value ?? "").slice(0, 10);
-const cleanModel = (value: string | null | undefined) => String(value ?? "").trim();
+export function canonicalDailyModel(value: string | null | undefined) {
+  const model = String(value ?? "").trim().replace(/\s+/g, " ");
+  const key = model.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (key === "DC70GPRO") return "DC70G PRO";
+  return model;
+}
 
 function latestDate(values: Array<string | null | undefined>) {
   return values.map(dateKey).filter(Boolean).sort().at(-1) ?? null;
@@ -100,12 +105,12 @@ export function buildDailyManagementSnapshot(
 
   const bookingByModel = unitsBy(
     activeBooking,
-    (row) => cleanModel(row.model) || row.productType || "Unknown model",
+    (row) => canonicalDailyModel(row.model) || row.productType || "Unknown model",
     () => 1,
   );
   const stockByModel = unitsBy(
     engineStock,
-    (row) => cleanModel(row.model) || normalizeProductType(row),
+    (row) => canonicalDailyModel(row.model) || normalizeProductType(row),
     () => 1,
   );
   const modelNames = [...new Set([
@@ -141,7 +146,7 @@ export function buildDailyManagementSnapshot(
         date: row.date,
         branch: row.branch,
         salesperson: row.salesperson || "Unassigned",
-        model: row.model || row.modelCode,
+        model: canonicalDailyModel(row.model || row.modelCode),
         quantity: salesTransactionQuantity(row),
       })),
       byBranch: branchSales.map(({ name, units }) => ({ branch: name, units })),
@@ -157,7 +162,7 @@ export function buildDailyManagementSnapshot(
         date: row.date,
         branch: row.branch,
         salesperson: row.salesperson || "Unassigned",
-        model: row.model || row.productType,
+        model: canonicalDailyModel(row.model || row.productType),
         purchaseStatus: row.purchaseStatus || "Unclassified",
       })),
     },

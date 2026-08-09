@@ -114,6 +114,31 @@ test("Daily Management branch scope and unavailable management fields stay expli
   assert.equal(snapshot.availability.notes.available, false);
 });
 
+test("Daily Management groups DC70G PRO spelling variants under one canonical model", () => {
+  const snapshot = daily.buildDailyManagementSnapshot({
+    sales: [],
+    booking: [
+      bookingRow({ date: "2026-08-09", model: "DC70G PRO", purchaseStatus: "A HOT" }),
+      bookingRow({ date: "2026-08-09", model: "DC-70G PRO", purchaseStatus: "B HOT" }),
+    ],
+    stock: [
+      stockRow({ model: "DC70G PRO", ageDays: 10 }),
+      stockRow({ model: "DC-70G PRO", ageDays: 20 }),
+    ],
+  }, { asOfDate: "2026-08-09" });
+
+  assert.equal(daily.canonicalDailyModel("DC-70G PRO"), "DC70G PRO");
+  assert.equal(daily.canonicalDailyModel("DC70G PRO"), "DC70G PRO");
+  assert.deepEqual(snapshot.bookingStock, [{
+    model: "DC70G PRO",
+    activeBooking: 2,
+    stock: 2,
+    coverageMonths: 1,
+    signal: "balanced",
+  }]);
+  assert.deepEqual(new Set(snapshot.booking.today.map((row) => row.model)), new Set(["DC70G PRO"]));
+});
+
 test("Daily Management route, feature flag and page remain read-only", async () => {
   const [route, page, client, feature, navigation, shell] = await Promise.all([
     read("app/api/daily-management/route.ts"),

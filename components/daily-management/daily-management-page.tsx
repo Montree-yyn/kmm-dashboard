@@ -1,18 +1,26 @@
 "use client";
 
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
+  FilePenLine,
   PackageCheck,
   ShoppingCart,
   Target,
   WalletCards,
 } from "lucide-react";
 import { dailyManagementMock as report } from "../../lib/daily-management/mock-data";
+import {
+  DAILY_MANAGEMENT_INPUT_PUBLISHED,
+  defaultDailyManagementInput,
+  loadPublishedDailyManagementInput,
+  type DailyManagementInputSnapshot,
+} from "../../lib/daily-management/input-storage";
 import { Card } from "../ui/card";
 import { ExportButton } from "../design-system/export-button";
 import { StatusBadge } from "../design-system/status-badge";
@@ -71,12 +79,15 @@ function PanelHeader({ index, title, action }: { index: string; title: string; a
   );
 }
 
-function KpiStrip() {
+function KpiStrip({ input }: { input: DailyManagementInputSnapshot }) {
+  const salesMtd = Number(report.kpis.find((item) => item.key === "salesMtd")?.value ?? 0);
+  const achievement = input.target.mtdTarget ? `${((salesMtd / input.target.mtdTarget) * 100).toFixed(1)}%` : "—";
+  const items = report.kpis.map((item) => item.key === "target" ? { ...item, value: String(input.target.mtdTarget), detail: `${achievement} achievement · ${salesMtd - input.target.expectedPace} vs pace` } : item);
   return (
     <Card className="overflow-hidden" role="region" aria-label="Daily management mockup KPIs">
       <div className="overflow-x-auto">
         <div className="grid min-w-[1120px] grid-cols-7 divide-x divide-[var(--divider)]">
-          {report.kpis.map((item) => (
+          {items.map((item) => (
             <div key={item.key} className="group relative min-w-0 px-3 py-2.5 transition-colors hover:bg-[var(--surface-subtle)]">
               <div className="flex items-center gap-2">
                 <span className={`grid size-7 shrink-0 place-items-center rounded-[8px] ${tones[item.tone]}`}>{icons[item.key]}</span>
@@ -134,13 +145,19 @@ function SalesPerformance() {
   );
 }
 
-function BookingPipeline() {
+function BookingPipeline({ input }: { input: DailyManagementInputSnapshot }) {
+  const lifecycleValues: Record<string, number> = {
+    "Wait Approve": input.bookingLifecycle.waitApprove,
+    "Wait Delivery": input.bookingLifecycle.waitDelivery,
+    "Delivered Today": input.bookingLifecycle.deliveredToday,
+  };
+  const stages = report.bookingPipeline.map((stage) => ({ ...stage, value: lifecycleValues[stage.label] ?? stage.value }));
   return (
     <Card className="min-w-0 overflow-hidden">
-      <PanelHeader index="2" title="Booking Pipeline" action={<span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--status-danger)]"><AlertTriangle size={14} />Cancel {report.cancellation.total}</span>} />
+      <PanelHeader index="2" title="Booking Pipeline" action={<span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--status-danger)]"><AlertTriangle size={14} />Cancel {input.bookingLifecycle.cancelUnits}</span>} />
       <div className="grid gap-3 p-3 lg:grid-cols-[minmax(280px,1fr)_minmax(220px,0.8fr)]">
         <ol className="mx-auto grid w-full max-w-[430px] gap-1" aria-label="Booking funnel stages">
-          {report.bookingPipeline.map((stage) => (
+          {stages.map((stage) => (
             <li key={stage.label} className="grid grid-cols-[minmax(160px,1fr)_104px] items-center gap-2">
               <div className="mx-auto grid h-7 place-items-center text-xs font-bold text-white shadow-sm" style={{ width: `${stage.width}%`, backgroundColor: stage.color, clipPath: "polygon(6% 0, 94% 0, 86% 100%, 14% 100%)" }}>{stage.value}</div>
               <span className="text-[11px] font-semibold text-[var(--text-primary)]">{stage.label}</span>
@@ -150,8 +167,8 @@ function BookingPipeline() {
         <div className="self-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
           <h3 className="border-b border-[var(--divider)] px-3 py-2.5 text-xs font-bold">Booking Cancel Today</h3>
           <div className="grid grid-cols-[1fr_52px] bg-[var(--surface-subtle)] px-3 py-2 text-[11px] font-semibold"><span>Reason</span><span className="text-right">Units</span></div>
-          <div className="grid grid-cols-[1fr_52px] gap-2 px-3 py-2.5 text-xs"><span>{report.cancellation.reason}</span><strong className="kmm-tabular text-right">1</strong></div>
-          <div className="grid grid-cols-[1fr_52px] border-t border-[var(--divider)] px-3 py-2.5 text-xs font-bold text-[var(--status-danger)]"><span>Total</span><span className="kmm-tabular text-right">1</span></div>
+          <div className="grid grid-cols-[1fr_52px] gap-2 px-3 py-2.5 text-xs"><span>{input.bookingLifecycle.cancelReason || "No cancellation"}</span><strong className="kmm-tabular text-right">{input.bookingLifecycle.cancelUnits}</strong></div>
+          <div className="grid grid-cols-[1fr_52px] border-t border-[var(--divider)] px-3 py-2.5 text-xs font-bold text-[var(--status-danger)]"><span>Total</span><span className="kmm-tabular text-right">{input.bookingLifecycle.cancelUnits}</span></div>
         </div>
       </div>
     </Card>
@@ -202,42 +219,56 @@ function BookingStock() {
   );
 }
 
-function ActionRequired() {
+function ActionRequired({ input }: { input: DailyManagementInputSnapshot }) {
   return (
     <Card className="min-w-0 overflow-hidden">
       <PanelHeader index="6" title="Action Required" action={<span className="rounded-[var(--radius-pill)] bg-[var(--status-danger-bg)] px-2 py-1 text-[10px] font-bold text-[var(--status-danger)]">3 priorities</span>} />
       <div className="divide-y divide-[var(--divider)] px-4">
-        {report.actions.map((item) => <div key={item.title} className="grid grid-cols-[20px_minmax(0,1fr)_70px] gap-2 py-2.5 text-[11px]"><AlertTriangle size={16} className={item.tone === "negative" ? "text-[var(--status-danger)]" : "text-[var(--status-warning)]"} /><div><p className="font-semibold">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">{item.detail} · Owner: {item.owner}</p></div><span className="self-center rounded-[var(--radius-control)] border border-[var(--border-default)] px-2 py-1 text-center text-[10px] font-semibold">{item.action}</span></div>)}
+        {input.actions.map((item) => <div key={item.title} className="grid grid-cols-[20px_minmax(0,1fr)_70px] gap-2 py-2.5 text-[11px]"><AlertTriangle size={16} className={item.priority === "critical" ? "text-[var(--status-danger)]" : "text-[var(--status-warning)]"} /><div><p className="font-semibold">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">{item.detail} · Owner: {item.owner}</p></div><span className="self-center rounded-[var(--radius-control)] border border-[var(--border-default)] px-2 py-1 text-center text-[10px] font-semibold">{item.nextStep}</span></div>)}
       </div>
     </Card>
   );
 }
 
-function ManagementNotes() {
+function ManagementNotes({ input }: { input: DailyManagementInputSnapshot }) {
+  const noteColumns = [
+    { title: "Today’s Situation", items: input.notes.situation.split("\n").filter(Boolean) },
+    { title: "Management Decision", items: input.notes.decision.split("\n").filter(Boolean) },
+    { title: "Tomorrow Focus", items: input.notes.tomorrowFocus.split("\n").filter(Boolean) },
+  ];
   return (
     <Card className="min-w-0 overflow-hidden">
       <PanelHeader index="7" title="Daily Management Note" />
       <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-3">
-        {report.notes.map((column) => <div key={column.title} className="bg-[var(--surface-default)] p-3"><h3 className="rounded-[var(--radius-control)] bg-[#EDF6FA] px-2 py-1.5 text-[10px] font-bold">{column.title}</h3><ul className="mt-2 space-y-1 pl-3 text-[10px] leading-4">{column.items.map((item) => <li key={item} className="list-disc">{item}</li>)}</ul></div>)}
+        {noteColumns.map((column) => <div key={column.title} className="bg-[var(--surface-default)] p-3"><h3 className="rounded-[var(--radius-control)] bg-[#EDF6FA] px-2 py-1.5 text-[10px] font-bold">{column.title}</h3><ul className="mt-2 space-y-1 pl-3 text-[10px] leading-4">{column.items.map((item) => <li key={item} className="list-disc">{item}</li>)}</ul></div>)}
       </div>
     </Card>
   );
 }
 
 export function DailyManagementPage() {
+  const [input, setInput] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
+
+  useEffect(() => {
+    const refresh = () => setInput(loadPublishedDailyManagementInput());
+    refresh();
+    window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
+    return () => window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
+  }, []);
+
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1900px] p-3 sm:p-4 xl:px-5 xl:py-4">
         <div className="space-y-3">
           <section className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between" aria-labelledby="daily-management-title">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[24px] font-semibold leading-tight tracking-[-0.025em] sm:text-[27px]">KMM Daily Management Report</h1><span className="rounded-[var(--radius-pill)] bg-[#FFF1DD] px-2.5 py-1 text-[10px] font-bold text-[#8B4600]">Mockup · Sample Data</span></div><p className="mt-0.5 text-xs text-[var(--text-secondary)]">Daily Sales, Booking & Stock Overview · ตัวเลขยังไม่ใช่ข้อมูล Production</p></div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]"><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2"><CalendarDays size={13} className="mr-1.5 inline" />09 Aug 2026</span><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2">Updated {report.lastUpdated}</span><ExportButton onClick={downloadMockup} /></div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px]"><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2"><CalendarDays size={13} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2">Updated {input.publishedAt ? new Date(input.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : report.lastUpdated}</span><Link href="/daily-management/input" className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={15} />Update Inputs</Link><ExportButton onClick={downloadMockup} /></div>
           </section>
 
-          <KpiStrip />
-          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><SalesPerformance /><BookingPipeline /></div>
+          <KpiStrip input={input} />
+          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><SalesPerformance /><BookingPipeline input={input} /></div>
           <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail /><StockHealth /></div>
-          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.8fr_1.12fr]"><BookingStock /><ActionRequired /><ManagementNotes /></div>
+          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.8fr_1.12fr]"><BookingStock /><ActionRequired input={input} /><ManagementNotes input={input} /></div>
 
           <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[9px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Mockup sample · replace with governed sources before release</span><span className="flex items-center gap-1"><PackageCheck size={11} />KMM Sales Division</span></footer>
         </div>

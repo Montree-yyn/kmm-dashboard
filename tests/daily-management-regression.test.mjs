@@ -140,9 +140,12 @@ test("Daily Management groups DC70G PRO spelling variants under one canonical mo
 });
 
 test("Daily Management route stays read-only and mockup presentation is explicit", async () => {
-  const [route, page, mockData, client, feature, navigation, shell] = await Promise.all([
+  const [route, page, inputRoute, inputPage, inputStorage, mockData, client, feature, navigation, shell] = await Promise.all([
     read("app/api/daily-management/route.ts"),
     read("components/daily-management/daily-management-page.tsx"),
+    read("app/daily-management/input/page.tsx"),
+    read("components/daily-management/daily-management-input-page.tsx"),
+    read("lib/daily-management/input-storage.ts"),
     read("lib/daily-management/mock-data.ts"),
     read("lib/daily-management/client.ts"),
     read("lib/features.ts"),
@@ -160,10 +163,19 @@ test("Daily Management route stays read-only and mockup presentation is explicit
   assert.match(shell, /daily-management/);
   assert.match(page, /Mockup · Sample Data/);
   assert.match(page, /min-w-\[1120px\] grid-cols-7/);
+  assert.match(page, /\/daily-management\/input/);
+  assert.match(page, /loadPublishedDailyManagementInput/);
   assert.match(page, /Booking Cancel Today/);
   assert.match(page, /clipPath: "polygon/);
   assert.match(mockData, /DC70G PRO/);
   assert.doesNotMatch(mockData, /DC-70G PRO/);
   assert.match(mockData, /Wait Approve/);
   assert.match(mockData, /Wait Delivery/);
+  assert.match(inputRoute, /DAILY_MANAGEMENT_REPORT_ENABLED/);
+  assert.match(inputPage, /Input Channels/);
+  assert.match(inputPage, /Open Data Hub/);
+  assert.match(inputPage, /Save Draft/);
+  assert.match(inputPage, /Publish Preview/);
+  assert.match(inputStorage, /localStorage/);
+  assert.doesNotMatch(inputStorage, /fetch\(|\/api\//);
 });

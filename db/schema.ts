@@ -313,6 +313,58 @@ export const salespersonMaster = sqliteTable(
   ],
 );
 
+/**
+ * Approved, versioned business targets. Empty dimension keys represent an
+ * explicit company-wide scope so SQLite can enforce one record per exact
+ * target scope and source version without NULL-unique ambiguity.
+ */
+export const businessTargets = sqliteTable(
+  "business_targets",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    companyId: text("company_id").notNull(),
+    targetYear: integer("target_year").notNull(),
+    targetMonth: integer("target_month").notNull(),
+    metric: text("metric").notNull(),
+    targetValue: text("target_value").notNull(),
+    productGroup: text("product_group").notNull().default(""),
+    branchId: text("branch_id").notNull().default(""),
+    salespersonId: text("salesperson_id").notNull().default(""),
+    source: text("source").notNull(),
+    sourceVersion: text("source_version").notNull(),
+    approvalStatus: text("approval_status").notNull().default("approved"),
+    effectiveFrom: text("effective_from").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdBy: text("created_by").notNull(),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (table) => [
+    uniqueIndex("business_targets_exact_version_unique").on(
+      table.companyId,
+      table.targetYear,
+      table.targetMonth,
+      table.metric,
+      table.productGroup,
+      table.branchId,
+      table.salespersonId,
+      table.sourceVersion,
+    ),
+    index("business_targets_runtime_lookup_idx").on(
+      table.companyId,
+      table.targetYear,
+      table.targetMonth,
+      table.metric,
+      table.productGroup,
+      table.branchId,
+      table.salespersonId,
+      table.approvalStatus,
+      table.effectiveFrom,
+    ),
+  ],
+);
+
 export const bookingTransactions = sqliteTable("booking_transactions", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull(),
@@ -375,3 +427,34 @@ export const stockTransactions = sqliteTable("stock_transactions", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   createdBy: text("created_by").notNull(),
 });
+
+export const dailyManagementInputs = sqliteTable(
+  "daily_management_inputs",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    companyId: text("company_id").notNull(),
+    reportDate: text("report_date").notNull(),
+    branch: text("branch").notNull(),
+    draftPayload: text("draft_payload").notNull(),
+    publishedPayload: text("published_payload"),
+    revision: integer("revision").notNull().default(1),
+    savedAt: text("saved_at").notNull(),
+    publishedAt: text("published_at"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdBy: text("created_by").notNull(),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (table) => [
+    uniqueIndex("daily_management_inputs_scope_unique").on(
+      table.companyId,
+      table.reportDate,
+      table.branch,
+    ),
+    index("daily_management_inputs_latest_idx").on(
+      table.companyId,
+      table.updatedAt,
+    ),
+  ],
+);

@@ -1,11 +1,16 @@
 import { getAverageBookingAge, getBookingByProduct, getBookingConversionRate, getBookingValue, getDepositAmount, getOpenBookingUnit, type BookingRow } from "../dashboard/booking-selectors";
 import { getAgedStock, getAverageStockAge, getStockByProduct, getStockUnit, getStockValue, normalizeProductType, type StockRow } from "../dashboard/stock-selectors";
-import { adaptBookingRow, adaptStockRow } from "./adapters";
 import type { OperationalBusiness, OperationalFilters } from "./types";
 
-export function getOperationalBusiness(bookingRows: Record<string, unknown>[], stockRows: Record<string, unknown>[], filters: OperationalFilters = {}): OperationalBusiness {
-  const booking = bookingRows.map(adaptBookingRow) as BookingRow[];
-  const stock = filterStockRows(stockRows.map(adaptStockRow) as StockRow[], filters);
+/**
+ * Operational UI/API boundary: callers pass rows that have already crossed
+ * the raw DB row -> adapter boundary. Re-adapting them drops Booking's
+ * `year`/`month` fields because those canonical fields intentionally differ
+ * from the raw `booking_year`/`booking_month` column names.
+ */
+export function getOperationalBusiness(bookingRows: BookingRow[], stockRows: StockRow[], filters: OperationalFilters = {}): OperationalBusiness {
+  const booking = bookingRows;
+  const stock = filterStockRows(stockRows, filters);
   return {
     booking: { unit: getOpenBookingUnit(booking, filters), value: getBookingValue(booking, filters), deposit: getDepositAmount(booking, filters), averageAge: getAverageBookingAge(booking, filters), conversionRate: getBookingConversionRate(booking, filters), byProduct: getBookingByProduct(booking, filters) },
     stock: { unit: getStockUnit(stock), value: getStockValue(stock), averageAge: getAverageStockAge(stock), agedUnit: getAgedStock(stock).length, byProduct: getStockByProduct(stock) },

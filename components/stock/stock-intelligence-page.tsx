@@ -35,6 +35,7 @@ import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
+import { useLocale } from "../../src/hooks/useLocale";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expressions retained: const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows);
 
@@ -174,7 +175,7 @@ function HorizontalBars({
   rows,
   value,
   suffix = " Units",
-  color = "#C24700",
+  color = "#FF7A00",
 }: {
   rows: { label: string; count: number; value: number }[];
   value?: (row: { label: string; count: number; value: number }) => number;
@@ -268,6 +269,7 @@ function StockTrend({ rows }: { rows: Stock[] }) {
 }
 
 export function StockIntelligencePage() {
+  const { t } = useLocale();
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -302,7 +304,7 @@ export function StockIntelligencePage() {
   );
   const unitRows = getStockUnitRows(rows);
   const valueRows = getStockValueRows(rows);
-  const operationalBusiness = data ? getOperationalBusiness([], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch, product: filters.product }).stock : null;
+  const operationalBusiness = data ? getOperationalBusiness([], data.stock, { year: filters.year, month: filters.month, branch: filters.branch, product: filters.product }).stock : null;
   const stockValue = operationalBusiness?.value ?? 0;
   const averageStockAge = operationalBusiness?.averageAge ?? null;
   const aged = operationalBusiness ? Array.from({ length: operationalBusiness.agedUnit }) : [];
@@ -457,11 +459,10 @@ export function StockIntelligencePage() {
                   id="stock-title"
                   className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
                 >
-                  Stock Intelligence
+                  {t("route.stock.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Current inventory position, value, composition, age, and
-                  supporting stock detail.
+                  {t("route.stock.subtitle")}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">

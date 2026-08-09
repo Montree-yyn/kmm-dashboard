@@ -95,7 +95,7 @@ test("shared states, freshness, and responsive table primitives expose accessibl
     read("components/booking/booking-intelligence-page.tsx"),
   ]);
 
-  assert.match(freshness, /View refreshed/);
+  assert.match(freshness, /t\("common\.viewRefreshed"\)/);
   assert.match(freshness, /RelativeTimeFormat/);
   assert.match(status, /status: StatusMessageKind/);
   assert.match(status, /aria-live=\{role === "alert" \? "assertive" : "polite"\}/);
@@ -129,6 +129,27 @@ test("Dashboard and Sales analytics share card and chart contracts", async () =>
   assert.match(kpiCard, /hover:shadow-\[var\(--shadow-hover\)\]/);
 });
 
+test("project charts preserve the approved color conditions", async () => {
+  const [theme, globals, dashboard, stock, booking] = await Promise.all([
+    read("components/common/charts/chartTheme.ts"),
+    read("app/globals.css"),
+    read("components/dashboard/dashboard-page.tsx"),
+    read("components/stock/stock-intelligence-page.tsx"),
+    read("components/booking/booking-intelligence-page.tsx"),
+  ]);
+
+  assert.match(theme, /current: "#F97316"/);
+  assert.match(theme, /previous: "#FBBF24"/);
+  assert.match(theme, /older: \["#FFD54F", "#FFE082", "#FFECB3"\]/);
+  assert.match(theme, /target: "#9CA3AF"/);
+  assert.match(globals, /--chart-current: #f56600/);
+  assert.match(globals, /--chart-previous: #f7a35c/);
+  assert.match(globals, /--chart-neutral: #86868b/);
+  assert.match(dashboard, /TT: "#FF7A00"[\s\S]*?CH: "#4B5563"[\s\S]*?EX: "#9CA3AF"[\s\S]*?TP: "#D1D5DB"[\s\S]*?MAX: "#F3F4F6"/);
+  assert.match(stock, /color = "#FF7A00"/);
+  assert.match(booking, /status === "delivered"[\s\S]*?status-success[\s\S]*?status === "cancelled"[\s\S]*?status-danger[\s\S]*?status === "open"[\s\S]*?chart-current[\s\S]*?chart-neutral/);
+});
+
 test("Sprint 4 page refinement keeps an executive hierarchy without changing data contracts", async () => {
   const [dashboard, sales, booking, stock] = await Promise.all([
     read("components/dashboard/dashboard-page.tsx"),
@@ -149,8 +170,9 @@ test("Sprint 4 page refinement keeps an executive hierarchy without changing dat
   assert.match(sales, /ariaLabel="Sales transaction table"/);
 
   assert.match(booking, /aria-labelledby="booking-observed-pipeline"/);
-  assert.match(booking, /Branch pressure/);
-  assert.match(booking, /Not supplied by source/);
+  assert.match(booking, /Booking Status/);
+  assert.match(booking, /Branch Booking Risk/);
+  assert.doesNotMatch(booking, /Not supplied by source/);
   assert.match(booking, /aria-labelledby="booking-secondary-analysis"/);
 
   assert.match(stock, /aria-labelledby="stock-risk-overview"/);
@@ -176,7 +198,7 @@ test("Marketing retains the approved compact workspace exception", async () => {
   assert.match(marketing, /data-marketing-workspace="true"/);
   assert.match(marketing, /h-\[calc\(100vh-72px\)\]/);
   assert.match(marketing, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
-  assert.match(marketing, /inline-flex h-11 min-w-28/);
-  assert.match(marketing, /kmm-compare-control inline-flex h-11/);
-  assert.match(marketing, /transition-colors hover:bg/);
+  assert.match(marketing, /inline-flex h-14 min-w-\[132px\]/);
+  assert.match(marketing, /kmm-compare-control inline-flex h-14/);
+  assert.match(marketing, /transition-\[border-color,background-color\]/);
 });

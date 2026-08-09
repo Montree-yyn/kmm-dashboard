@@ -1,5 +1,10 @@
+"use client";
+
+import { useLocale } from "../../src/hooks/useLocale";
+
 type EmptyStateProps = { message?: string };
 
-export function EmptyState({ message = "No data available for the selected filters." }: EmptyStateProps) {
-  return <p className="grid min-h-32 place-items-center text-center text-sm font-medium text-[var(--text-secondary)]" role="status" aria-live="polite">{message}</p>;
+export function EmptyState({ message }: EmptyStateProps) {
+  const { t } = useLocale();
+  return <p className="grid min-h-32 place-items-center text-center text-sm font-medium text-[var(--text-secondary)]" role="status" aria-live="polite">{message ?? t("common.empty")}</p>;
 }

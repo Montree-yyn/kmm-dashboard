@@ -43,6 +43,7 @@ import {
 } from "../../lib/sales/business-service";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { useLocale } from "../../src/hooks/useLocale";
 
 const MONTHS = [
   "Jan",
@@ -312,7 +313,7 @@ function KpiSection({
   filters: FilterState;
 }) {
   const filteredStock = data.stock.filter((row) => rowMatches(row, filters));
-  const operationalBusiness = getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch });
+  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, { year: filters.year, month: filters.month, branch: filters.branch });
   // Legacy parity expression retained: getStockUnit(currentStock).
   // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
   const currentBooking = operationalBusiness.booking.unit;
@@ -393,11 +394,11 @@ function KpiSection({
 }
 
 const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#C24700",
-  CH: "#2563A8",
-  EX: "#475569",
-  TP: "#0F766E",
-  MAX: "#64748B",
+  TT: "#FF7A00",
+  CH: "#4B5563",
+  EX: "#9CA3AF",
+  TP: "#D1D5DB",
+  MAX: "#F3F4F6",
 };
 
 function filterForCharts<
@@ -791,7 +792,7 @@ function YearTrendChart({
 
 function HorizontalBarChart({
   data,
-  color = "#C24700",
+  color = "#FF7A00",
 }: {
   data: { label: string; value: number }[];
   color?: string;
@@ -1076,7 +1077,7 @@ function ChartsSection({
   }));
   const salesByBranch = getBranchSummary(filteredSales);
   const productMix = getProductSummary(filteredSales);
-  const operationalBusiness = getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], data.stock as unknown as Record<string, unknown>[], { year: filters.year, month: filters.month, branch: filters.branch });
+  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, { year: filters.year, month: filters.month, branch: filters.branch });
   const bookingByProduct = operationalBusiness.booking.byProduct
     .filter((item) =>
       (PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[]).includes(
@@ -1251,6 +1252,7 @@ function buildFilterOptions(data: DashboardData): FilterState {
 }
 
 export function DashboardPage() {
+  const { t } = useLocale();
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null,
@@ -1360,10 +1362,10 @@ export function DashboardPage() {
                   id="dashboard-title"
                   className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
                 >
-                  Executive Dashboard
+                  {t("route.dashboard.title")}
                 </h1>
                 <p className="mt-1 text-sm font-normal leading-5 text-[var(--text-secondary)]">
-                  Sales, booking, stock, and target performance
+                  {t("route.dashboard.subtitle")}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">

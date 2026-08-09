@@ -17,6 +17,7 @@ import {
   type SettingsCardDefinition,
 } from "./settings-card";
 import { SettingsSearch } from "./settings-search";
+import { useLocale } from "../../src/hooks/useLocale";
 
 const settingsCards: SettingsCardDefinition[] = [
   {
@@ -70,6 +71,7 @@ const settingsCards: SettingsCardDefinition[] = [
 ];
 
 export function SettingsPage() {
+  const { t } = useLocale();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -111,10 +113,10 @@ export function SettingsPage() {
                   id="settings-overview-title"
                   className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
                 >
-                  Settings Overview
+                  {t("settings.overview")}
                 </h1>
                 <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
-                  Manage your enterprise configuration.
+                  {t("settings.overviewDescription")}
                 </p>
               </section>
 

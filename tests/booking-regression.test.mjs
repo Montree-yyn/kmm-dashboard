@@ -29,6 +29,24 @@ test("Booking KPIs remain backed by the existing selectors", async () => {
   }
 });
 
+test("operational Booking KPIs preserve already-adapted date metadata", async () => {
+  const [service, route, client] = await Promise.all([
+    read("lib/operations/business-service.ts"),
+    read("app/api/operations/route.ts"),
+    read("lib/operations/client.ts"),
+  ]);
+
+  // The API/client are the sole raw -> BookingAdapterRow boundaries. The
+  // operational selector service receives canonical fields such as
+  // `{ year: 2026, month: 8 }` and must not adapt them a second time.
+  assert.match(service, /getOperationalBusiness\(bookingRows: BookingRow\[\], stockRows: StockRow\[\]/);
+  assert.match(service, /const booking = bookingRows;/);
+  assert.doesNotMatch(service, /bookingRows\.map\(adaptBookingRow\)/);
+  assert.match(route, /getOperationalBusiness\(booking, stock\)/);
+  assert.match(client, /getOperationalBusiness\(booking, stock\)/);
+  assert.match(service, /raw DB row -> adapter boundary/);
+});
+
 test("Booking aging thresholds and status rules are unchanged", async () => {
   const page = await read("components/booking/booking-intelligence-page.tsx");
   assert.match(
@@ -72,7 +90,8 @@ test("Booking charts preserve their existing library and data inputs", async () 
   );
   for (const title of [
     "Booking Health Summary",
-    "Booking Funnel",
+    "Booking Status",
+    "Branch Booking Risk",
     "Booking by Product",
     "Top 10 Model",
     "Top 10 Salesperson",
@@ -84,17 +103,23 @@ test("Booking charts preserve their existing library and data inputs", async () 
   }
 });
 
-test("Booking funnel and detail table preserve all operational information", async () => {
+test("Booking status and branch risk use only observed, same-unit comparisons", async () => {
   const page = await read("components/booking/booking-intelligence-page.tsx");
-  for (const stage of [
-    "Booking",
-    "Deposit",
-    "Finance Approved",
-    "Ready for Delivery",
-    "Delivered",
-  ]) {
-    assert.match(page, new RegExp(`"${stage}"`));
-  }
+  assert.match(page, /function BookingStatusBars/);
+  assert.match(page, /Current lifecycle status · Units and share of selected scope/);
+  assert.match(page, /function BranchRiskComparison/);
+  assert.match(page, /Open bookings by branch · Red segment is critical backlog over 90 days/);
+  assert.match(page, /criticalShare = item\.open \? \(item\.critical \/ item\.open\) \* 100 : 0/);
+  assert.match(page, /maxOpen = Math\.max/);
+  assert.match(page, /xl:grid-cols-\[minmax\(130px,1fr\)_minmax\(150px,1\.35fr\)/);
+  assert.doesNotMatch(page, /grid-cols-\[190px_minmax\(180px,1fr\)_72px_82px_86px\]/);
+  assert.doesNotMatch(page, /Finance Approved/);
+  assert.doesNotMatch(page, /Ready for Delivery/);
+  assert.doesNotMatch(page, /Not supplied by source/);
+});
+
+test("Booking detail table preserves all operational information", async () => {
+  const page = await read("components/booking/booking-intelligence-page.tsx");
 
   for (const column of [
     "Booking Date",

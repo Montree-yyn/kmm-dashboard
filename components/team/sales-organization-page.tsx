@@ -19,6 +19,7 @@ import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { SectionHeader } from "../design-system/section-header";
 import { TableCard } from "../design-system/table-card";
+import { useLocale } from "../../src/hooks/useLocale";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BRANCHES = [
@@ -345,6 +346,7 @@ function EmployeeDetail({ person, rows }: { person: Person | null; rows: SalesRo
 function exportPeople(people: Person[]) { const headings = ["Rank", "Name", "Showroom", "Sales", "GP", "Booking", "Achievement %"]; const rows = people.map((person) => [String(person.rank), person.name, person.branch, String(person.salesUnit), String(person.gp), String(person.booking), person.achievement.toFixed(1)]); const csv = [headings, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "kmm-team.csv"; anchor.click(); URL.revokeObjectURL(url); }
 
 export function SalesOrganizationPage() {
+  const { t } = useLocale();
   const [filters, setFilters] = useState<FilterState>(defaultFilters); const [data, setData] = useState<DashboardData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [selectedName, setSelectedName] = useState<string | null>(null);
   async function loadData() {
     setLoading(true);
@@ -422,11 +424,10 @@ export function SalesOrganizationPage() {
                 id="sales-organization-title"
                 className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
               >
-                Sales Organization Intelligence
+                {t("route.team.title")}
               </h1>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-                Current team structure, showroom ownership, performance, and
-                employee detail for the selected period.
+                {t("route.team.subtitle")}
               </p>
             </section>
 

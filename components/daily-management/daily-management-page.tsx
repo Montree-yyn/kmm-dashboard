@@ -15,6 +15,9 @@ import {
   WalletCards,
 } from "lucide-react";
 import { dailyManagementMock as report } from "../../lib/daily-management/mock-data";
+import { loadDailyManagementReport } from "../../lib/daily-management/client";
+import type { DailyManagementSnapshot } from "../../lib/daily-management/types";
+import { loadDailyManagementInput } from "../../lib/daily-management/input-client";
 import {
   DAILY_MANAGEMENT_INPUT_PUBLISHED,
   defaultDailyManagementInput,
@@ -24,6 +27,7 @@ import {
 import { Card } from "../ui/card";
 import { ExportButton } from "../design-system/export-button";
 import { StatusBadge } from "../design-system/status-badge";
+import { useLocale } from "../../src/hooks/useLocale";
 
 const icons: Record<string, ReactNode> = {
   salesToday: <ShoppingCart size={17} />,
@@ -54,26 +58,34 @@ type KpiMetricItem = {
   tone: keyof typeof tones;
 };
 
+type BadgeTone = "positive" | "negative" | "warning" | "neutral" | "active" | "inactive";
+
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function downloadMockup() {
+function downloadReport(input: DailyManagementInputSnapshot, snapshot: DailyManagementSnapshot | null) {
   const rows = [
-    ["MOCKUP DATA — NOT FOR OPERATIONAL USE"],
-    ["Report Date", report.reportDate],
+    ["KMM DAILY MANAGEMENT REPORT"],
+    ["Report Date", input.reportDate],
+    ["Data source", snapshot ? "D1 Sales, Booking and Stock" : "Report data is loading"],
     [],
     ["KPI", "Value", "Unit", "Detail"],
-    ...report.kpis.map((item) => [item.label, item.value, item.unit, item.detail]),
+    ["Sales Today", snapshot?.sales.todayUnits ?? "—", "Units", "D1"],
+    ["Sales MTD", snapshot?.sales.mtdUnits ?? "—", "Units", "D1"],
+    ["MTD Target", input.target.mtdTarget, "Units", `Expected pace ${input.target.expectedPace}`],
+    ["Booking Today", snapshot?.booking.newToday ?? "—", "Units", "D1"],
+    ["Active Booking", snapshot?.booking.activeUnits ?? "—", "Units", "D1"],
+    ["Stock (Engine)", snapshot?.stock.engineUnits ?? "—", "Units", "D1"],
     [],
-    ["Branch", "Sales MTD", "Target", "Achievement", "vs Pace"],
-    ...report.salesPerformance.branches.map((item) => [item.branch, item.sales, item.target, item.achievement, item.pace]),
+    ["Branch", "Sales MTD"],
+    ...(snapshot?.sales.byBranch.map((item) => [item.branch, item.units]) ?? []),
   ];
   const blob = new Blob([rows.map((row) => row.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `kmm-daily-management-mockup-${report.reportDate}.csv`;
+  link.download = `kmm-daily-management-${input.reportDate}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -90,10 +102,19 @@ function PanelHeader({ index, title, action }: { index: string; title: string; a
   );
 }
 
-function KpiStrip({ input }: { input: DailyManagementInputSnapshot }) {
-  const salesMtd = Number(report.kpis.find((item) => item.key === "salesMtd")?.value ?? 0);
+function KpiStrip({ input, snapshot }: { input: DailyManagementInputSnapshot; snapshot: DailyManagementSnapshot | null }) {
+  const salesMtd = snapshot?.sales.mtdUnits ?? Number(report.kpis.find((item) => item.key === "salesMtd")?.value ?? 0);
   const achievement = input.target.mtdTarget ? `${((salesMtd / input.target.mtdTarget) * 100).toFixed(1)}%` : "—";
-  const items: KpiMetricItem[] = report.kpis.map((item) => item.key === "target" ? { ...item, value: String(input.target.mtdTarget), detail: `${achievement} achievement · ${salesMtd - input.target.expectedPace} vs pace` } : item);
+  const liveValues: Partial<Record<string, number>> = snapshot ? {
+    salesToday: snapshot.sales.todayUnits,
+    salesMtd: snapshot.sales.mtdUnits,
+    bookingToday: snapshot.booking.newToday,
+    activeBooking: snapshot.booking.activeUnits,
+    stockEngine: snapshot.stock.engineUnits,
+  } : {};
+  const items: KpiMetricItem[] = report.kpis.map((item) => item.key === "target"
+    ? { ...item, value: String(input.target.mtdTarget), detail: `${achievement} achievement · ${salesMtd - input.target.expectedPace} vs pace` }
+    : liveValues[item.key] === undefined ? item : { ...item, value: String(liveValues[item.key]), detail: `D1 data · ${snapshot?.asOfDate}` });
   const kpis = items.filter((item) => item.key !== "stockValue");
   const sparkPaths: Record<string, string> = {
     salesToday: "M2 24 C15 22 19 12 31 15 S49 5 62 9 S77 3 94 6",
@@ -140,25 +161,30 @@ function PerformerList({ title, rows }: { title: string; rows: readonly { name: 
   );
 }
 
-function SalesPerformance() {
-  const branches = report.salesPerformance.branches.map((row) => ({ ...row, percent: row.target ? Math.min(100, (row.sales / row.target) * 100) : 0 }));
+function SalesPerformance({ snapshot }: { snapshot: DailyManagementSnapshot | null }) {
+  const branches = snapshot
+    ? snapshot.sales.byBranch.map((row) => ({ branch: row.branch, sales: row.units, target: 0, achievement: "D1", pace: "" , percent: 0 }))
+    : report.salesPerformance.branches.map((row) => ({ ...row, percent: row.target ? Math.min(100, (row.sales / row.target) * 100) : 0 }));
+  const topPerformers = snapshot
+    ? snapshot.sales.topSalespeople.map((row) => ({ name: row.salesperson, result: `${row.units} units`, achievement: "MTD" }))
+    : report.salesPerformance.top;
   return (
     <Card className={panelClass}>
-      <PanelHeader index="1" title="Sales Performance" action={<span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">20.8% of target</span>} />
+      <PanelHeader index="1" title="Sales Performance" action={<span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">{snapshot ? `${snapshot.sales.mtdUnits} MTD units` : "20.8% of target"}</span>} />
       <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_190px]">
         <div className="min-w-0 rounded-[14px] border border-[#ECEEF2] bg-gradient-to-br from-[#FCFCFD] to-white p-3" role="img" aria-label="Branch sales achievement against target">
           <div className="mb-3 flex items-center justify-between gap-3"><span className="text-[9px] font-bold uppercase tracking-[0.05em] text-[var(--text-secondary)]">Branch achievement</span><span className="text-[8px] text-[var(--text-tertiary)]">Sales / Target</span></div>
-          <div className="space-y-3">{branches.map((row) => <div key={row.branch} className="grid grid-cols-[minmax(110px,0.85fr)_minmax(110px,1.4fr)_50px] items-center gap-3"><span className="min-w-0 text-[9px] font-semibold leading-3">{row.branch}</span><div className="relative h-3 overflow-hidden rounded-full bg-[#ECEEF2]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFB06F] via-[#FF833A] to-[#F25C05] shadow-[0_2px_8px_rgba(242,92,5,0.25)]" style={{ width: `${Math.max(4, row.percent)}%` }} /><span className="absolute inset-y-0 right-0 w-px bg-[#A9ADB5]" /></div><span className="kmm-tabular text-right text-[9px]"><strong>{row.sales}</strong><span className="text-[var(--text-tertiary)]"> / {row.target}</span></span><span className="col-start-2 flex items-center justify-between text-[8px]"><span className="font-semibold text-[var(--text-secondary)]">{row.achievement}</span><span className={`rounded-full px-1.5 py-0.5 font-bold ${row.pace.startsWith("+") ? "bg-[var(--status-success-bg)] text-[var(--status-success)]" : "bg-[var(--status-danger-bg)] text-[var(--status-danger)]"}`}>{row.pace} pace</span></span></div>)}</div>
-          <div className="mt-3 flex items-center justify-between border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-secondary)]"><span>MTD total <strong className="kmm-tabular text-[var(--text-primary)]">10 / 48 units</strong></span><span>Expected pace <strong className="kmm-tabular text-[var(--status-danger)]">14 · gap -4</strong></span></div>
+          <div className="space-y-3">{branches.map((row) => <div key={row.branch} className="grid grid-cols-[minmax(110px,0.85fr)_minmax(110px,1.4fr)_50px] items-center gap-3"><span className="min-w-0 text-[9px] font-semibold leading-3">{row.branch}</span><div className="relative h-3 overflow-hidden rounded-full bg-[#ECEEF2]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFB06F] via-[#FF833A] to-[#F25C05] shadow-[0_2px_8px_rgba(242,92,5,0.25)]" style={{ width: `${snapshot ? Math.max(4, (row.sales / Math.max(...branches.map((item) => item.sales), 1)) * 100) : Math.max(4, row.percent)}%` }} /></div><span className="kmm-tabular text-right text-[9px]"><strong>{row.sales}</strong><span className="text-[var(--text-tertiary)]">{snapshot ? " units" : ` / ${row.target}`}</span></span><span className="col-start-2 flex items-center justify-between text-[8px]"><span className="font-semibold text-[var(--text-secondary)]">{row.achievement}</span>{!snapshot && <span className={`rounded-full px-1.5 py-0.5 font-bold ${row.pace.startsWith("+") ? "bg-[var(--status-success-bg)] text-[var(--status-success)]" : "bg-[var(--status-danger-bg)] text-[var(--status-danger)]"}`}>{row.pace} pace</span>}</span></div>)}</div>
+          <div className="mt-3 flex items-center justify-between border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-secondary)]"><span>MTD total <strong className="kmm-tabular text-[var(--text-primary)]">{snapshot ? `${snapshot.sales.mtdUnits} units` : "10 / 48 units"}</strong></span><span>Expected pace <strong className="kmm-tabular text-[var(--status-danger)]">{snapshot ? "Set in Daily Input" : "14 · gap -4"}</strong></span></div>
         </div>
-        <div className="min-w-0 rounded-[14px] bg-[#F8FBF9] p-3"><PerformerList title="Top Performers" rows={report.salesPerformance.top} /></div>
+        <div className="min-w-0 rounded-[14px] bg-[#F8FBF9] p-3"><PerformerList title="Top Performers" rows={topPerformers} /></div>
       </div>
     </Card>
   );
 }
 
-function BookingPipeline({ input }: { input: DailyManagementInputSnapshot }) {
-  const lifecycleValues: Record<string, number> = { "Wait Approve": input.bookingLifecycle.waitApprove, "Wait Delivery": input.bookingLifecycle.waitDelivery, "Delivered Today": input.bookingLifecycle.deliveredToday };
+function BookingPipeline({ input, snapshot }: { input: DailyManagementInputSnapshot; snapshot: DailyManagementSnapshot | null }) {
+  const lifecycleValues: Record<string, number> = { "New Today": snapshot?.booking.newToday ?? report.bookingPipeline[0].value, "A HOT": snapshot?.booking.aHot ?? report.bookingPipeline[1].value, "B HOT": snapshot?.booking.bHot ?? report.bookingPipeline[2].value, "Wait Approve": input.bookingLifecycle.waitApprove, "Wait Delivery": input.bookingLifecycle.waitDelivery, "Delivered Today": input.bookingLifecycle.deliveredToday };
   const stages = report.bookingPipeline.map((stage) => ({ ...stage, value: lifecycleValues[stage.label] ?? stage.value }));
   const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
   return (
@@ -180,41 +206,57 @@ function BookingPipeline({ input }: { input: DailyManagementInputSnapshot }) {
   );
 }
 
-function TodayDetail() {
+function TodayDetail({ snapshot }: { snapshot: DailyManagementSnapshot | null }) {
+  const rows = snapshot
+    ? [
+      ...snapshot.sales.today.map((row) => ({ branch: row.branch, salesperson: row.salesperson, model: row.model, salesToday: row.quantity, salesMtd: snapshot.sales.topSalespeople.find((item) => item.salesperson === row.salesperson)?.units ?? 0, aHot: 0, bHot: 0, status: "Sales", tone: "positive" })),
+      ...snapshot.booking.today.map((row) => ({ branch: row.branch, salesperson: row.salesperson, model: row.model, salesToday: 0, salesMtd: 0, aHot: row.purchaseStatus === "A HOT" ? 1 : 0, bHot: row.purchaseStatus === "B HOT" ? 1 : 0, status: row.purchaseStatus, tone: "warning" })),
+    ]
+    : report.todayDetail;
   return (
     <Card className={panelClass}>
       <PanelHeader index="3" title="Today’s Sales & Booking Detail" />
       <div role="table" aria-label="Today's sales and booking detail" className="hidden text-[9px] sm:block">
         <div role="row" className="grid grid-cols-[50px_minmax(95px,0.8fr)_minmax(125px,1.3fr)_58px_62px_86px] gap-2 bg-[var(--surface-subtle)] px-3 py-2 font-semibold text-[var(--text-secondary)]"><span>Branch</span><span>Salesperson</span><span>Model</span><span className="text-center">Sales<br />T / MTD</span><span className="text-center">Booking<br />A / B</span><span>Status</span></div>
-        {report.todayDetail.map((row) => <div role="row" key={`${row.salesperson}-${row.model}`} className="grid grid-cols-[50px_minmax(95px,0.8fr)_minmax(125px,1.3fr)_58px_62px_86px] items-center gap-2 border-b border-[var(--divider)] px-3 py-2"><span>{row.branch}</span><span className="break-words font-medium leading-3">{row.salesperson}</span><span className="break-words font-medium leading-3">{row.model}</span><span className="kmm-tabular text-center">{row.salesToday} / {row.salesMtd}</span><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><StatusBadge status={row.tone} className="min-h-0 max-w-full px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}
+        {rows.map((row) => <div role="row" key={`${row.salesperson}-${row.model}-${row.status}`} className="grid grid-cols-[50px_minmax(95px,0.8fr)_minmax(125px,1.3fr)_58px_62px_86px] items-center gap-2 border-b border-[var(--divider)] px-3 py-2"><span>{row.branch}</span><span className="break-words font-medium leading-3">{row.salesperson}</span><span className="break-words font-medium leading-3">{row.model}</span><span className="kmm-tabular text-center">{row.salesToday} / {row.salesMtd}</span><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><StatusBadge status={row.tone as BadgeTone} className="min-h-0 max-w-full px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}
       </div>
-      <div className="grid gap-2 p-3 sm:hidden">{report.todayDetail.map((row) => <div key={`${row.salesperson}-${row.model}`} className="rounded-[11px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><span className="min-w-0"><strong className="block truncate text-[11px]">{row.salesperson}</strong><span className="mt-0.5 block truncate text-[9px] text-[var(--text-secondary)]">{row.branch} · {row.model}</span></span><StatusBadge status={row.tone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 flex gap-4 text-[9px]"><span>Sales <strong>{row.salesToday}/{row.salesMtd}</strong></span><span>Booking <strong>{row.aHot}/{row.bHot}</strong></span></div></div>)}</div>
+      <div className="grid gap-2 p-3 sm:hidden">{rows.map((row) => <div key={`${row.salesperson}-${row.model}-${row.status}`} className="rounded-[11px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><span className="min-w-0"><strong className="block truncate text-[11px]">{row.salesperson}</strong><span className="mt-0.5 block truncate text-[9px] text-[var(--text-secondary)]">{row.branch} · {row.model}</span></span><StatusBadge status={row.tone as BadgeTone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 flex gap-4 text-[9px]"><span>Sales <strong>{row.salesToday}/{row.salesMtd}</strong></span><span>Booking <strong>{row.aHot}/{row.bHot}</strong></span></div></div>)}</div>
     </Card>
   );
 }
 
-function StockHealth() {
-  const maxLocation = Math.max(...report.stock.locations.map((row) => row.units));
+function StockHealth({ snapshot }: { snapshot: DailyManagementSnapshot | null }) {
+  const locations = snapshot?.stock.byBranch.map((row) => ({ label: row.branch, units: row.units })) ?? report.stock.locations;
+  const liveAging = snapshot?.stock.aging.map((row) => ({
+    label: row.label === "0–30" ? "≤ 30 Days" : row.label === ">90" ? "91+ Days" : `${row.label} Days`,
+    units: row.units,
+    percent: snapshot.stock.engineUnits ? Math.round((row.units / snapshot.stock.engineUnits) * 100) : 0,
+    color: row.label === "0–30" ? "#54A948" : row.label === "31–60" ? "#F6C43C" : row.label === "61–90" ? "#F28C28" : "#EF4B2F",
+  })) ?? report.stock.aging;
+  const maxLocation = Math.max(...locations.map((row) => row.units), 1);
   const agingGradient = "conic-gradient(from -90deg, #54A948 0 24%, #FFFFFF 24% 25%, #F6C43C 25% 51%, #FFFFFF 51% 52%, #F28C28 52% 59%, #FFFFFF 59% 60%, #EF4B2F 60% 99%, #FFFFFF 99% 100%)";
   return (
     <Card className={panelClass}>
       <PanelHeader index="4" title="Stock Health Overview" />
       <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2">
-        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 text-[22px] font-semibold tracking-[-0.025em]">{report.stock.value}<span className="ml-1.5 text-[9px]">M MMK</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[9px] font-bold text-[var(--status-danger)]">{report.stock.previousMonthChange} vs Jul</p></div>
-        <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">PSI Engine</p><strong className="kmm-tabular text-xl text-[var(--brand-600)]">{report.stock.psi}<span className="ml-1 text-[8px] text-[var(--text-secondary)]">mo.</span></strong></div><div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-subtle)] p-2 text-center text-[8px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">10</strong></span><span>Booking<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">79</strong></span><span>Stock<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">83</strong></span></div></div>
-        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{report.stock.locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFA45C] to-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
-        <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Aging</p><span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">40% high risk</span></div><div className="mt-2 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3"><div className="relative mx-auto size-24" role="img" aria-label="Stock aging: 33 of 83 units are older than 90 days"><div className="absolute inset-0 rounded-full border border-[#ECEEF1] bg-[#F8F9FA]" /><div className="absolute inset-1 rounded-full shadow-[0_8px_18px_rgba(31,41,55,0.10)]" style={{ background: agingGradient }} /><div className="absolute inset-[20px] grid place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#ECEEF1]"><span className="text-center"><strong className="kmm-tabular block text-lg leading-none text-[var(--status-danger)]">33</strong><span className="mt-1 block text-[7px] font-semibold text-[var(--text-secondary)]">&gt; 90 days</span></span></div><span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#202124] px-2 py-0.5 text-[7px] font-bold text-white shadow-sm">83 total</span></div><ul className="min-w-0 space-y-1.5">{report.stock.aging.map((row) => <li key={row.label} className="grid grid-cols-[8px_minmax(0,1fr)_48px] items-center gap-1.5 text-[8px]"><span className="size-2 rounded-full" style={{ backgroundColor: row.color }} /><span className="leading-3">{row.label}</span><strong className="kmm-tabular text-right">{row.units} · {row.percent}%</strong></li>)}</ul></div></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 text-[22px] font-semibold tracking-[-0.025em]">{snapshot?.stock.value?.toLocaleString() ?? report.stock.value}<span className="ml-1.5 text-[9px]">M MMK</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--surface-subtle)] px-2 py-1 text-[9px] font-bold text-[var(--text-secondary)]">{snapshot ? "Current D1 snapshot" : `${report.stock.previousMonthChange} vs Jul`}</p></div>
+        <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">PSI Engine</p><strong className="kmm-tabular text-xl text-[var(--brand-600)]">{snapshot ? "Live" : report.stock.psi}<span className="ml-1 text-[8px] text-[var(--text-secondary)]">{snapshot ? "D1" : "mo."}</span></strong></div><div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-subtle)] p-2 text-center text-[8px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot?.sales.mtdUnits ?? 10}</strong></span><span>Booking<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot?.booking.activeUnits ?? 79}</strong></span><span>Stock<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot?.stock.engineUnits ?? 83}</strong></span></div></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFA45C] to-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
+        <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Aging</p><span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">{liveAging.find((row) => row.label === "91+ Days")?.percent ?? 40}% high risk</span></div><div className="mt-2 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3"><div className="relative mx-auto size-24" role="img" aria-label="Stock aging"><div className="absolute inset-0 rounded-full border border-[#ECEEF1] bg-[#F8F9FA]" /><div className="absolute inset-1 rounded-full shadow-[0_8px_18px_rgba(31,41,55,0.10)]" style={{ background: agingGradient }} /><div className="absolute inset-[20px] grid place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#ECEEF1]"><span className="text-center"><strong className="kmm-tabular block text-lg leading-none text-[var(--status-danger)]">{liveAging.find((row) => row.label === "91+ Days")?.units ?? 33}</strong><span className="mt-1 block text-[7px] font-semibold text-[var(--text-secondary)]">&gt; 90 days</span></span></div><span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#202124] px-2 py-0.5 text-[7px] font-bold text-white shadow-sm">{snapshot?.stock.engineUnits ?? 83} total</span></div><ul className="min-w-0 space-y-1.5">{liveAging.map((row) => <li key={row.label} className="grid grid-cols-[8px_minmax(0,1fr)_48px] items-center gap-1.5 text-[8px]"><span className="size-2 rounded-full" style={{ backgroundColor: row.color }} /><span className="leading-3">{row.label}</span><strong className="kmm-tabular text-right">{row.units} · {row.percent}%</strong></li>)}</ul></div></div>
       </div>
     </Card>
   );
 }
 
-function BookingStock() {
+function BookingStock({ snapshot }: { snapshot: DailyManagementSnapshot | null }) {
+  const rows = snapshot
+    ? snapshot.bookingStock.map((row) => ({ model: row.model, aHot: "—", bHot: "—", total: row.activeBooking, stock: row.stock, coverage: row.coverageMonths === null ? "—" : `${row.coverageMonths.toFixed(1)} Month`, status: row.signal === "shortage" ? "Potential shortage" : row.signal === "high" ? "High stock" : row.signal === "balanced" ? "Normal" : "No booking", tone: row.signal === "shortage" ? "negative" : row.signal === "balanced" ? "positive" : "warning" }))
+    : report.bookingStock;
   return (
     <Card className={panelClass}>
       <PanelHeader index="5" title="Booking × Stock Intelligence" />
-      <div role="table" aria-label="Booking and stock intelligence" className="hidden text-[9px] sm:block"><div role="row" className="grid grid-cols-[minmax(120px,1.4fr)_54px_64px_76px_minmax(96px,0.9fr)] gap-1 bg-[var(--surface-subtle)] px-3 py-2 font-semibold text-[var(--text-secondary)]"><span>Model</span><span className="text-center">A / B</span><span className="text-center">Book / Stock</span><span className="text-center">Coverage</span><span>Status</span></div>{report.bookingStock.map((row) => <div role="row" key={row.model} className="grid grid-cols-[minmax(120px,1.4fr)_54px_64px_76px_minmax(96px,0.9fr)] items-center gap-1 border-b border-[var(--divider)] px-3 py-2"><strong className="break-words leading-3">{row.model}</strong><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><span className="kmm-tabular text-center">{row.total} / {row.stock}</span><span className="kmm-tabular text-center">{row.coverage}</span><StatusBadge status={row.tone} className="min-h-0 max-w-full px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}</div>
-      <div className="grid gap-2 p-3 sm:hidden">{report.bookingStock.map((row) => <div key={row.model} className="rounded-[10px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><strong className="text-[10px]">{row.model}</strong><StatusBadge status={row.tone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 grid grid-cols-3 text-center text-[8px] text-[var(--text-secondary)]"><span>A/B<strong className="block text-[10px] text-[var(--text-primary)]">{row.aHot}/{row.bHot}</strong></span><span>Book/Stock<strong className="block text-[10px] text-[var(--text-primary)]">{row.total}/{row.stock}</strong></span><span>Coverage<strong className="block text-[10px] text-[var(--text-primary)]">{row.coverage}</strong></span></div></div>)}</div>
+      <div role="table" aria-label="Booking and stock intelligence" className="hidden text-[9px] sm:block"><div role="row" className="grid grid-cols-[minmax(120px,1.4fr)_54px_64px_76px_minmax(96px,0.9fr)] gap-1 bg-[var(--surface-subtle)] px-3 py-2 font-semibold text-[var(--text-secondary)]"><span>Model</span><span className="text-center">A / B</span><span className="text-center">Book / Stock</span><span className="text-center">Coverage</span><span>Status</span></div>{rows.map((row) => <div role="row" key={row.model} className="grid grid-cols-[minmax(120px,1.4fr)_54px_64px_76px_minmax(96px,0.9fr)] items-center gap-1 border-b border-[var(--divider)] px-3 py-2"><strong className="break-words leading-3">{row.model}</strong><span className="kmm-tabular text-center">{row.aHot} / {row.bHot}</span><span className="kmm-tabular text-center">{row.total} / {row.stock}</span><span className="kmm-tabular text-center">{row.coverage}</span><StatusBadge status={row.tone as BadgeTone} className="min-h-0 max-w-full px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div>)}</div>
+      <div className="grid gap-2 p-3 sm:hidden">{rows.map((row) => <div key={row.model} className="rounded-[10px] bg-[var(--surface-subtle)] p-2.5"><div className="flex items-start justify-between gap-2"><strong className="text-[10px]">{row.model}</strong><StatusBadge status={row.tone as BadgeTone} className="min-h-0 shrink-0 px-1.5 py-0.5 text-[8px] leading-3">{row.status}</StatusBadge></div><div className="mt-2 grid grid-cols-3 text-center text-[8px] text-[var(--text-secondary)]"><span>A/B<strong className="block text-[10px] text-[var(--text-primary)]">{row.aHot}/{row.bHot}</strong></span><span>Book/Stock<strong className="block text-[10px] text-[var(--text-primary)]">{row.total}/{row.stock}</strong></span><span>Coverage<strong className="block text-[10px] text-[var(--text-primary)]">{row.coverage}</strong></span></div></div>)}</div>
     </Card>
   );
 }
@@ -239,22 +281,47 @@ function ManagementNotes({ input }: { input: DailyManagementInputSnapshot }) {
 }
 
 export function DailyManagementPage() {
+  const { t } = useLocale();
   const [input, setInput] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
-  useEffect(() => { const refresh = () => setInput(loadPublishedDailyManagementInput()); refresh(); window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); return () => window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); }, []);
+  const [snapshot, setSnapshot] = useState<DailyManagementSnapshot | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      const cached = loadPublishedDailyManagementInput();
+      setInput(cached);
+      try {
+        const remote = await loadDailyManagementInput("published", { date: cached.reportDate, branch: cached.branch });
+        const resolvedInput = remote ?? cached;
+        if (!active) return;
+        setInput(resolvedInput);
+        const live = await loadDailyManagementReport({ date: resolvedInput.reportDate, branch: resolvedInput.branch === "All Branches" ? undefined : resolvedInput.branch });
+        if (active) {
+          setSnapshot(live.snapshot);
+          setReportError(null);
+        }
+      } catch (error) {
+        if (active) setReportError(error instanceof Error ? error.message : "Unable to load D1 report data.");
+      }
+    };
+    void refresh();
+    window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
+    return () => { active = false; window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); };
+  }, []);
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[#F6F7F9] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1900px] p-3 sm:p-4 xl:px-5 xl:py-4">
         <div className="space-y-3">
           <section className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between" aria-labelledby="daily-management-title">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[23px] font-semibold leading-tight tracking-[-0.025em] sm:text-[26px]">KMM Daily Management Report</h1><span className="rounded-full bg-[#FFF0E4] px-2.5 py-1 text-[9px] font-bold text-[#9D4300]">Mockup · Sample Data</span></div><p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">Daily Sales, Booking & Stock Overview · ตัวเลขยังไม่ใช่ข้อมูล Production</p></div>
-            <div className="flex flex-wrap items-center gap-2 text-[10px]"><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2"><CalendarDays size={12} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2">Updated {input.publishedAt ? new Date(input.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : report.lastUpdated}</span><Link href="/daily-management/input" className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] bg-white px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={14} />Update Inputs</Link><ExportButton onClick={downloadMockup} /></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[23px] font-semibold leading-tight tracking-[-0.025em] sm:text-[26px]">{t("route.dailyManagement.title")}</h1><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${snapshot ? "bg-[#EAF7EE] text-[#18813A]" : "bg-[#FFF0E4] text-[#9D4300]"}`}>{snapshot ? "Live · D1 Data" : "Loading D1 data"}</span></div><p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{reportError ? `D1 unavailable: ${reportError}` : t("route.dailyManagement.subtitle")}</p></div>
+            <div className="flex flex-wrap items-center gap-2 text-[10px]"><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2"><CalendarDays size={12} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2">Updated {input.publishedAt ? new Date(input.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : report.lastUpdated}</span><Link href="/daily-management/input" className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] bg-white px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={14} />Update Inputs</Link><ExportButton onClick={() => downloadReport(input, snapshot)} /></div>
           </section>
-          <KpiStrip input={input} />
-          <div className="grid gap-3 xl:grid-cols-[1.35fr_0.65fr]"><SalesPerformance /><BookingPipeline input={input} /></div>
-          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail /><StockHealth /></div>
-          <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]"><BookingStock /><ActionRequired input={input} /></div>
+          <KpiStrip input={input} snapshot={snapshot} />
+          <div className="grid gap-3 xl:grid-cols-[1.35fr_0.65fr]"><SalesPerformance snapshot={snapshot} /><BookingPipeline input={input} snapshot={snapshot} /></div>
+          <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail snapshot={snapshot} /><StockHealth snapshot={snapshot} /></div>
+          <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]"><BookingStock snapshot={snapshot} /><ActionRequired input={input} /></div>
           <ManagementNotes input={input} />
-          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Mockup sample · replace with governed sources before release</span><span className="flex items-center gap-1"><PackageCheck size={10} />KMM Sales Division</span></footer>
+          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>{snapshot ? "Operational data: D1 Sales, Booking and Stock" : "Waiting for D1 operational data"}</span><span className="flex items-center gap-1"><PackageCheck size={10} />KMM Sales Division</span></footer>
         </div>
       </main>
     </div>

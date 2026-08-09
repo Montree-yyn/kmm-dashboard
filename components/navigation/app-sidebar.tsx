@@ -15,6 +15,7 @@ import {
   navigationItemIsActive,
   visibleNavigationItems,
 } from "./navigation-config";
+import { useLocale } from "../../src/hooks/useLocale";
 
 type AppSidebarProps = {
   collapsed: boolean;
@@ -26,6 +27,7 @@ type AppSidebarProps = {
 export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileOpenChange }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLocale();
 
   async function logout() {
     await signOut(auth);
@@ -36,14 +38,14 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
     <>
       <div className="flex min-h-[88px] items-center justify-between border-b border-[var(--border-default)] px-4 py-6">
         <img src="/kmm-logo.png" alt="Kubota Maesod Myanmar" className={cn("h-11 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-10 object-[9%_center]" : "max-w-[128px]")} />
-        <button className="hidden rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F5F7] hover:text-[#55565A] lg:block" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+        <button className="hidden rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F5F7] hover:text-[#55565A] lg:block" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? t("nav.expand") : t("nav.collapse")} title={collapsed ? t("nav.expand") : t("nav.collapse")}>
           <ChevronDown className={cn("rotate-90 transition-transform", collapsed && "-rotate-90")} size={18} />
         </button>
-        <button className="rounded-lg p-2 text-[#55565A] hover:bg-[#F4F5F7] lg:hidden" onClick={() => onMobileOpenChange(false)} aria-label="Close navigation"><X size={20} /></button>
+        <button className="rounded-lg p-2 text-[#55565A] hover:bg-[#F4F5F7] lg:hidden" onClick={() => onMobileOpenChange(false)} aria-label={t("nav.close")}><X size={20} /></button>
       </div>
       <nav
         className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-6"
-        aria-label="Primary navigation"
+        aria-label={t("nav.primary")}
       >
         {visibleNavigationItems.map((item) => {
           const Icon = item.icon;
@@ -60,7 +62,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]",
                 isCollapsed && "justify-center px-0",
               )}
-              title={isCollapsed ? item.label : undefined}
+              title={isCollapsed ? t(item.labelKey ?? "nav.dashboard") : undefined}
               aria-current={active ? "page" : undefined}
             >
               <Icon
@@ -68,7 +70,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
                 strokeWidth={active ? 2.2 : 1.8}
                 aria-hidden="true"
               />
-              {!isCollapsed && <span>{item.label}</span>}
+              {!isCollapsed && <span className="min-w-0 break-words leading-tight">{t(item.labelKey ?? "nav.dashboard")}</span>}
             </Link>
           );
         })}
@@ -85,7 +87,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
                   KMM Company
                 </span>
                 <span className="block text-[11px] text-[var(--text-tertiary)]">
-                  Current company
+                  {t("company.current")}
                 </span>
               </span>
             </div>
@@ -98,11 +100,11 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
             "flex h-12 w-full items-center gap-4 rounded-[14px] pl-5 pr-4 text-base font-medium text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--brand-50)] hover:text-[var(--brand-600)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
             isCollapsed && "justify-center px-0",
           )}
-          title={isCollapsed ? "Logout" : undefined}
-          aria-label="Logout"
+          title={isCollapsed ? t("nav.logout") : undefined}
+          aria-label={t("nav.logout")}
         >
           <LogOut className="size-[22px] shrink-0" aria-hidden="true" />
-          {!isCollapsed && "Logout"}
+          {!isCollapsed && t("nav.logout")}
         </button>
       </div>
     </>
@@ -111,7 +113,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
   return (
     <>
       <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-[var(--border-default)] bg-[var(--surface-default)] transition-[width] duration-150 motion-reduce:transition-none lg:flex", collapsed ? "w-[76px]" : "w-[240px]")}>{renderSidebar(collapsed)}</aside>
-      {mobileOpen && <button className="fixed inset-0 z-40 bg-[#1F2937]/35 backdrop-blur-[2px] lg:hidden" aria-label="Close navigation overlay" onClick={() => onMobileOpenChange(false)} />}
+      {mobileOpen && <button className="fixed inset-0 z-40 bg-[#1F2937]/35 backdrop-blur-[2px] lg:hidden" aria-label={t("nav.close")} onClick={() => onMobileOpenChange(false)} />}
       <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--surface-default)] shadow-[var(--shadow-overlay)] transition-transform duration-150 motion-reduce:transition-none lg:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>{renderSidebar(false)}</aside>
     </>
   );

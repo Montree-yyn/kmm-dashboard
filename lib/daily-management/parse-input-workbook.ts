@@ -35,6 +35,24 @@ function sheetRows(workbook: XLSX.WorkBook, sheetName: string) {
   return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw: true });
 }
 
+function workbookHeaders(workbook: XLSX.WorkBook) {
+  return workbook.SheetNames.flatMap((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return [];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw: true });
+    return rows.slice(0, 12).flatMap((row) => row.map(normalized));
+  });
+}
+
+function transactionWorkbookType(workbook: XLSX.WorkBook, filename: string) {
+  const tokens = new Set([...workbookHeaders(workbook), ...workbook.SheetNames.map(normalized), normalized(filename)]);
+  const has = (...values: string[]) => values.some((value) => tokens.has(normalized(value)));
+  if ((has("No.BK", "Booking No", "Purchase Status") && has("Dealer", "Customer", "CS NAME")) || normalized(filename).includes("booking")) return "Booking";
+  if ((has("Stock Code", "Chassis No", "Engine No") && has("Today", "MSRP", "KMM")) || normalized(filename).includes("stock")) return "Stock";
+  if ((has("Invoice No", "Sale Date", "Sales Date") && has("Quantity", "Sale Amount", "Sales Value")) || normalized(filename).includes("sales")) return "Sales";
+  return null;
+}
+
 function table(rows: unknown[][], requiredHeaders: string[]) {
   const headerIndex = rows.findIndex((row) => requiredHeaders.every((header) => row.some((cell) => normalized(cell) === normalized(header))));
   if (headerIndex < 0) throw new Error(`ไม่พบหัวคอลัมน์ ${requiredHeaders.join(", ")}`);
@@ -55,6 +73,10 @@ export async function parseDailyManagementWorkbook(file: File, base: DailyManage
   if (file.size > MAX_FILE_SIZE) throw new Error("ไฟล์ต้องมีขนาดไม่เกิน 10 MB");
 
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+  if (!workbook.Sheets["Daily Input"]) {
+    const transactionType = transactionWorkbookType(workbook, file.name);
+    if (transactionType) throw new Error(`ไฟล์นี้เป็น ${transactionType} Data · กรุณาอัปโหลดที่ Data Hub > ${transactionType} ส่วนหน้านี้รับเฉพาะ KMM Daily Management Template`);
+  }
   const daily = table(sheetRows(workbook, "Daily Input"), ["Report Date", "Branch", "Prepared By", "MTD Target", "Expected Pace", "Wait Approve", "Wait Delivery", "Delivered Today", "Cancel Units", "Cancel Reason"]);
   if (!daily.records.length) throw new Error("ชีต Daily Input ไม่มีข้อมูล");
   const row = daily.records[0];

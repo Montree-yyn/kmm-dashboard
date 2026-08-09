@@ -68,7 +68,7 @@ import { StatusBadge } from "../design-system/status-badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { DataMappingPanel } from "./data-mapping-panel";
-import { UnifiedImportCenter } from "./unified-import-center";
+import { SmartImportCenter } from "./smart-import-center";
 
 const moduleIcons: Record<DataModule, typeof Banknote> = {
   sales: Banknote,
@@ -488,5 +488,5 @@ function LegacyDataHubPage() {
 }
 
 export function DataHubPage() {
-  return <UnifiedImportCenter />;
+  return <SmartImportCenter />;
 }

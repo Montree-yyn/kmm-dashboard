@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { ChevronDown, Search } from "lucide-react";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
+import { useLocale } from "../../src/hooks/useLocale";
 
 type NextValues = (option: string, current: string[]) => string[];
 
@@ -34,6 +35,7 @@ export function MultiSelectFilter({
   getNextValues = defaultNextValues,
   className,
 }: MultiSelectFilterProps) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,10 +46,10 @@ export function MultiSelectFilter({
     [options, query],
   );
   const displayValue = values.length === 0
-    ? "All"
+    ? t("common.all")
     : values.length === 1
       ? values[0]
-      : `${values.length} selected`;
+      : `${values.length} ${t("common.selectedCount")}`;
 
   useEffect(() => {
     if (!open) return;
@@ -118,7 +120,7 @@ export function MultiSelectFilter({
               </label>
             ))}
             {filteredOptions.length === 0 && (
-              <p className="px-2 py-4 text-center text-sm text-[var(--text-tertiary)]">No options found</p>
+              <p className="px-2 py-4 text-center text-sm text-[var(--text-tertiary)]">{t("common.noOptions")}</p>
             )}
           </div>
         </Card>
@@ -148,6 +150,7 @@ export function ActiveFilterSummary<Key extends string>({
   clearValues,
   className,
 }: ActiveFilterSummaryProps<Key>) {
+  const { t } = useLocale();
   const active = (Object.entries(filters) as Array<[Key, string[]]>)
     .map(([key, values]) => {
       const excluded = excludeValues?.[key] ?? [];
@@ -158,8 +161,8 @@ export function ActiveFilterSummary<Key extends string>({
   const activeSelectionCount = active.reduce((total, [, values]) => total + values.length, 0);
 
   return (
-    <div className={cn("mt-3 flex flex-wrap items-center gap-2", className)} aria-label="Active filters">
-      <span className="text-xs font-semibold text-[var(--text-secondary)]">Active filters · {activeSelectionCount}</span>
+    <div className={cn("mt-3 flex flex-wrap items-center gap-2", className)} aria-label={t("common.activeFilters")}>
+      <span className="text-xs font-semibold text-[var(--text-secondary)]">{t("common.activeFilters")} · {activeSelectionCount}</span>
       {active.map(([key, values]) => (
         <button
           key={key}
@@ -168,7 +171,7 @@ export function ActiveFilterSummary<Key extends string>({
           className="inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--brand-400)] hover:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           aria-label={`Remove ${labels[key]} filter`}
         >
-          {labels[key]}: {values.length > 2 ? `${values.length} selected` : values.join(", ")}
+          {labels[key]}: {values.length > 2 ? `${values.length} ${t("common.selectedCount")}` : values.join(", ")}
           <span aria-hidden="true">×</span>
         </button>
       ))}
@@ -177,7 +180,7 @@ export function ActiveFilterSummary<Key extends string>({
         onClick={onReset}
         className="min-h-11 rounded-full px-3 text-xs font-semibold text-[var(--brand-700)] transition-colors hover:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none"
       >
-        Clear all
+        {t("common.clearAll")}
       </button>
     </div>
   );

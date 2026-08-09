@@ -14,7 +14,7 @@ const STORAGE_KEY = "kmm-language";
 export const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 function isLanguage(value: string | null): value is Language {
-  return value === "th" || value === "en";
+  return value === "th" || value === "en" || value === "my";
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
@@ -31,6 +31,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLanguageState(nextLanguage);
     window.localStorage.setItem(STORAGE_KEY, nextLanguage);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language === "my" ? "my" : language;
+    document.documentElement.dataset.locale = language;
+  }, [language]);
 
   const t = useCallback((key: LocaleKey) => translate(language, key), [language]);
 

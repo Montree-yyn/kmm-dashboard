@@ -1,7 +1,11 @@
+"use client";
+
 import { ReceiptText } from "lucide-react";
 import { Card } from "../ui/card";
+import { useLocale } from "../../src/hooks/useLocale";
 
 export function ExpenseIntelligencePage() {
+  const { t } = useLocale();
   return (
     <div className="kmm-expense-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
@@ -15,11 +19,10 @@ export function ExpenseIntelligencePage() {
                 id="expense-title"
                 className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
               >
-                Expense Intelligence
+                {t("route.expense.title")}
               </h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-                Executive expense reporting will appear here when an approved
-                financial data source is available.
+                {t("route.expense.subtitle")}
               </p>
             </section>
 
@@ -36,12 +39,10 @@ export function ExpenseIntelligencePage() {
                     id="expense-empty-title"
                     className="mt-5 text-xl font-semibold text-[var(--text-primary)]"
                   >
-                    No expense data available
+                    {t("expense.emptyTitle")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                    Expense metrics, budget comparisons, trends, and supporting
-                    detail are not shown until verified financial data is
-                    connected.
+                    {t("expense.emptyDescription")}
                   </p>
                 </div>
               </Card>

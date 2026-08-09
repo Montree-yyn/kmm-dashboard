@@ -19,8 +19,9 @@ test("Data Hub is an authenticated route inside the shared shell", async () => {
   assert.match(shell, /"\/data-hub"/);
   assert.match(shell, /<AuthGate>/);
   assert.match(header, /prefix: "\/data-hub"/);
-  assert.match(header, /Enterprise Data Hub/);
-  assert.match(navigation, /label: "Data Hub"/);
+  assert.match(header, /title: "route\.dataHub\.title"/);
+  assert.match(header, /subtitle: "route\.dataHub\.subtitle"/);
+  assert.match(navigation, /labelKey: "nav\.dataHub"/);
 });
 
 test("Data Hub exposes six transactional sources and the extensible Master Data registry", async () => {

@@ -23,7 +23,13 @@
   inset: 0 0 0 auto;
   width: min(420px, 100vw);
   height: 100dvh;
-  animation: kmm-kai-slide-in-right 250ms ease both;
+  /*
+   * This dialog is portalled to document.body. Safari can retain the initial
+   * translateX(100%) keyframe after a hydration/reload, leaving an otherwise
+   * mounted, focusable panel outside the painted viewport. Keep the fixed
+   * portal at its final position; opening it is already an explicit action.
+   */
+  transform: translate3d(0, 0, 0);
 }
 
 @media (min-width: 640px) and (max-width: 1023px) {
@@ -39,7 +45,6 @@
     height: 80dvh;
     max-height: 80vh;
     border-radius: var(--radius-card) var(--radius-card) 0 0;
-    animation-name: kmm-kai-slide-in-up;
   }
 }
 
@@ -128,6 +133,7 @@
 
   --font-kmm:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Noto Sans Thai", "Noto Sans Myanmar", "Myanmar Text", "Leelawadee UI",
     "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --background: var(--surface-canvas);
   --foreground: var(--text-primary);
@@ -174,6 +180,10 @@ body {
   color: var(--foreground);
   font-family: var(--font-kmm);
   text-rendering: optimizeLegibility;
+}
+
+html[data-locale="my"] body {
+  line-height: 1.55;
 }
 
 .kmm-surface {

@@ -20,6 +20,6 @@ export async function loadLiveOperationalData(options: { allowFallback?: boolean
     const data = await fallback.json() as { booking: BookingAdapterRow[]; stock: StockAdapterRow[] };
     const booking = data.booking.map((row) => adaptBookingRow(row as unknown as Record<string, unknown>));
     const stock = data.stock.map((row) => adaptStockRow(row as unknown as Record<string, unknown>));
-    return { booking, stock, business: getOperationalBusiness(booking as unknown as Record<string, unknown>[], stock as unknown as Record<string, unknown>[]) };
+    return { booking, stock, business: getOperationalBusiness(booking, stock) };
   }
 }

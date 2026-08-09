@@ -36,6 +36,7 @@ import {
   getTargetAvailability,
   salesProductGroup,
 } from "../../lib/sales/business-service";
+import { useLocale } from "../../src/hooks/useLocale";
 
 // Legacy QA fallback contract remains available through fetch(`/dashboard-data.json?ts=${Date.now()}`).
 
@@ -1184,6 +1185,7 @@ function filterOptions(rows: SalesRow[], filters: FilterState): FilterState {
 }
 
 export function SalesPage() {
+  const { t } = useLocale();
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [data, setData] = useState<SalesData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1290,11 +1292,10 @@ export function SalesPage() {
                   id="sales-title"
                   className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
                 >
-                  Sales Performance
+                  {t("route.sales.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Sales performance, target progress, rankings, and transaction
-                  detail.
+                  {t("route.sales.subtitle")}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">

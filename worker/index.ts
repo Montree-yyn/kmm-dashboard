@@ -5,6 +5,15 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS?: Fetcher;
   DB: D1Database;
+  AI: {
+    run(model: string, input: Record<string, unknown>): Promise<unknown>;
+  };
+  KAI_MODEL?: string;
+  KAI_PRIMARY_MODEL?: string;
+  KAI_FALLBACK_MODEL?: string;
+  KAI_MAX_TOKENS?: string;
+  KAI_TEMPERATURE?: string;
+  TAVILY_API_KEY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

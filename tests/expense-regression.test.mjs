@@ -20,8 +20,8 @@ test("Expense remains presentation-only while no financial source exists", async
     "components/expense/expense-intelligence-page.tsx",
   );
 
-  assert.match(page, /No expense data available/);
-  assert.match(page, /verified financial data/);
+  assert.match(page, /t\("expense\.emptyTitle"\)/);
+  assert.match(page, /t\("expense\.emptyDescription"\)/);
   assert.doesNotMatch(page, /\bfetch\s*\(/);
   assert.doesNotMatch(page, /\bFirebase\b|firestore|collection\s*\(/i);
   assert.doesNotMatch(page, /<KpiCard/);

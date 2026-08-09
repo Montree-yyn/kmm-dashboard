@@ -23,6 +23,8 @@ import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
+import { cn } from "../../lib/utils";
+import { useLocale } from "../../src/hooks/useLocale";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
 // Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getAverageBookingAge(data.booking, filters); getBookingConversionRate(data.booking, filters).
@@ -231,6 +233,109 @@ function Bars({
   );
 }
 
+function BookingStatusBars({
+  items,
+}: {
+  items: { label: string; rows: Booking[]; value: number }[];
+}) {
+  const total = items.reduce((sum, item) => sum + item.rows.length, 0);
+  const max = Math.max(...items.map((item) => item.rows.length), 1);
+
+  if (!items.length) {
+    return <p className="py-10 text-center text-sm text-[var(--text-secondary)]">No booking status data in the current scope.</p>;
+  }
+
+  return (
+    <div className="space-y-4" role="img" aria-label={`Booking status distribution across ${total.toLocaleString()} records`}>
+      {items.map((item) => {
+        const count = item.rows.length;
+        const share = total ? (count / total) * 100 : 0;
+        const status = item.label.trim().toLowerCase();
+        const tone = status === "delivered"
+          ? "bg-[var(--status-success)]"
+          : status === "cancelled" || status === "canceled"
+            ? "bg-[var(--status-danger)]"
+            : status === "open"
+              ? "bg-[var(--chart-current)]"
+              : "bg-[var(--chart-neutral)]";
+        return (
+          <div key={item.label}>
+            <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_64px_58px] items-center gap-2 text-xs">
+              <span className="truncate font-medium text-[var(--text-secondary)]">{item.label}</span>
+              <span className="kmm-tabular text-right font-semibold text-[var(--text-primary)]">{count.toLocaleString()}</span>
+              <span className="kmm-tabular text-right text-[var(--text-tertiary)]">{share.toFixed(1)}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+              <div
+                className={cn("h-full rounded-full", tone)}
+                style={{ width: `${(count / max) * 100}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <p className="border-t border-[var(--divider)] pt-3 text-[11px] text-[var(--text-tertiary)]">Bars compare record count; percentages use all booking records in the selected scope.</p>
+    </div>
+  );
+}
+
+type BranchRiskItem = {
+  branch: string;
+  open: number;
+  critical: number;
+  value: number;
+  averageAge: number | null;
+  conversion: number | null;
+};
+
+function BranchRiskComparison({ items }: { items: BranchRiskItem[] }) {
+  const maxOpen = Math.max(...items.map((item) => item.open), 1);
+
+  if (!items.length) {
+    return <p className="py-10 text-center text-sm text-[var(--text-secondary)]">No branch data in the current scope.</p>;
+  }
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-3 flex flex-wrap items-center gap-4 text-[11px] text-[var(--text-tertiary)]" aria-label="Chart legend">
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--chart-current)]" aria-hidden="true" />Open booking</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--status-danger)]" aria-hidden="true" />Critical &gt;90 days</span>
+      </div>
+      <div className="hidden min-w-0 grid-cols-[minmax(130px,1fr)_minmax(150px,1.35fr)_minmax(52px,0.42fr)_minmax(58px,0.48fr)_minmax(68px,0.58fr)] gap-3 border-b border-[var(--divider)] pb-2 text-[10px] font-semibold uppercase tracking-[0.035em] text-[var(--text-tertiary)] xl:grid">
+        <span className="min-w-0">Branch</span><span className="min-w-0">Open booking</span><span className="min-w-0 text-right">Critical</span><span className="min-w-0 text-right">Avg. age</span><span className="min-w-0 text-right">Conversion</span>
+      </div>
+      <div className="divide-y divide-[var(--divider)]">
+        {items.map((item) => {
+          const criticalShare = item.open ? (item.critical / item.open) * 100 : 0;
+          const totalWidth = (item.open / maxOpen) * 100;
+          return (
+            <div key={item.branch} className="grid min-w-0 gap-3 py-4 xl:grid-cols-[minmax(130px,1fr)_minmax(150px,1.35fr)_minmax(52px,0.42fr)_minmax(58px,0.48fr)_minmax(68px,0.58fr)] xl:items-center">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{item.branch} <span className="font-normal text-[var(--text-tertiary)]">{BRANCH_NAMES[item.branch] ?? "Returned branch"}</span></p>
+                <p className="kmm-tabular mt-1 text-[11px] text-[var(--text-tertiary)]">{compact(item.value)} MMK open value</p>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs xl:hidden"><span className="text-[var(--text-secondary)]">Open booking</span><strong className="kmm-tabular">{item.open.toLocaleString()}</strong></div>
+                <div className="relative h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                  <div className="relative h-full min-w-[2px] rounded-full bg-[var(--chart-current)]" style={{ width: `${totalWidth}%` }}>
+                    {item.critical > 0 && <span className="absolute inset-y-0 right-0 bg-[var(--status-danger)]" style={{ width: `${criticalShare}%` }} aria-hidden="true" />}
+                  </div>
+                </div>
+                <p className="kmm-tabular mt-1 hidden text-right text-[11px] font-semibold text-[var(--text-primary)] xl:block">{item.open.toLocaleString()} units</p>
+              </div>
+              <div className="grid min-w-0 grid-cols-3 gap-3 text-xs xl:contents">
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Critical</span><strong className="kmm-tabular mt-0.5 block text-[var(--status-danger)] xl:text-right">{item.critical.toLocaleString()}</strong></div>
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Avg. age</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.averageAge === null ? "N/A" : `${item.averageAge}d`}</strong></div>
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Conversion</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`}</strong></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Trend({ rows }: { rows: Booking[] }) {
   const [metric, setMetric] = useState<"unit" | "value">("unit");
   const years = [2026, 2025, 2024, 2023, 2022];
@@ -275,6 +380,7 @@ function Trend({ rows }: { rows: Booking[] }) {
 }
 
 export function BookingIntelligencePage() {
+  const { t } = useLocale();
   const [data, setData] = useState<Data | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -307,14 +413,14 @@ export function BookingIntelligencePage() {
     () => (data ? getOpenBookingValueRows(data.booking, filters) : []),
     [data, filters],
   );
-  const operationalBusiness = data ? getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], [], filters).booking : null;
+  const operationalBusiness = data ? getOperationalBusiness(data.booking, [], filters).booking : null;
   const bookingUnit = operationalBusiness?.unit ?? 0;
   const bookingValue = operationalBusiness?.value ?? 0;
   const depositReceived = operationalBusiness?.deposit ?? 0;
   const averageBookingAge = operationalBusiness?.averageAge ?? null;
   const bookingConversionRate = operationalBusiness?.conversionRate ?? null;
   const bookingByProduct = data
-    ? getOperationalBusiness(data.booking as unknown as Record<string, unknown>[], [], filters).booking.byProduct
+    ? getOperationalBusiness(data.booking, [], filters).booking.byProduct
     : [];
   const options = useMemo(
     () => ({
@@ -360,6 +466,25 @@ export function BookingIntelligencePage() {
   const models = group(open, (r) => canonicalModelName(r.model) || "Unknown model").slice(0, 10);
   const people = group(open, (r) => r.salesperson || "Unassigned").slice(0, 10);
   const payments = group(openValue, (r) => r.paymentType || "Unavailable");
+  const statusBreakdown = group(
+    rows.filter(isUnitProduct),
+    (row) => row.status || "Status unavailable",
+  );
+  const branchRisk = options.branch
+    .map((branch) => {
+      const openRows = open.filter((row) => row.branch === branch);
+      const branchRows = rows.filter((row) => row.branch === branch && isUnitProduct(row));
+      const delivered = branchRows.filter((row) => row.status === "Delivered").length;
+      return {
+        branch,
+        open: openRows.length,
+        critical: openRows.filter((row) => risk(row) === "Critical").length,
+        value: openValue.filter((row) => row.branch === branch).reduce((sum, row) => sum + priceOf(row), 0),
+        averageAge: openRows.length ? Math.round(openRows.reduce((sum, row) => sum + age(row), 0) / openRows.length) : null,
+        conversion: branchRows.length ? (delivered / branchRows.length) * 100 : null,
+      } satisfies BranchRiskItem;
+    })
+    .sort((left, right) => right.critical - left.critical || right.open - left.open);
   const table = open.filter((row) =>
     `${row.bookingNo} ${row.customer} ${row.date} ${row.branch} ${row.salesperson} ${row.model}`
       .toLowerCase()
@@ -437,11 +562,10 @@ export function BookingIntelligencePage() {
                   id="booking-title"
                   className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
                 >
-                  Booking Intelligence
+                  {t("route.booking.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Booking pipeline, aging, deposits, conversion, and operational
-                  detail.
+                  {t("route.booking.subtitle")}
                 </p>
               </div>
               {/* The operational endpoint currently exposes a client refresh marker,
@@ -643,166 +767,21 @@ export function BookingIntelligencePage() {
                       .filter((r) => match(r, { ...filters, status: [] }))
                       .filter(isUnitProduct)}
                   />
-                <section className="grid gap-5 xl:grid-cols-[1.1fr_1.9fr]">
+                <section className="grid gap-5 xl:grid-cols-[0.9fr_2.1fr]">
                   <ChartCard
-                    title="Booking Funnel"
-                    subtitle="Observed stages; unavailable stages are not supplied by source"
+                    title="Booking Status"
+                    subtitle="Current lifecycle status · Units and share of selected scope"
                     className={chartCardClass}
                   >
-                    <div className="space-y-3">
-                      {[
-                        "Booking",
-                        "Deposit",
-                        "Finance Approved",
-                        "Ready for Delivery",
-                        "Delivered",
-                      ].map((stage, i) => (
-                        <div
-                          key={stage}
-                          className="grid grid-cols-[minmax(92px,150px)_minmax(0,1fr)_56px] items-center gap-3 text-sm"
-                        >
-                          <span className="font-medium text-[var(--text-secondary)]">
-                            {stage}
-                          </span>
-                          <div className="h-8 overflow-hidden rounded-[var(--radius-control)] bg-[var(--surface-muted)]">
-                            <div
-                              className="h-8 rounded-[var(--radius-control)] bg-[var(--chart-current)] transition-[width] duration-300"
-                              style={{
-                                width:
-                                  i === 0
-                                    ? "100%"
-                                    : i === 4
-                                      ? `${rows.length ? (rows.filter((r) => r.status === "Delivered").length / rows.length) * 100 : 0}%`
-                                      : "0%",
-                              }}
-                            />
-                          </div>
-                          <span className="kmm-tabular text-right text-xs font-semibold text-[var(--text-primary)]">
-                            {i === 0
-                              ? rows.length
-                              : i === 4
-                                ? rows.filter((r) => r.status === "Delivered")
-                                    .length
-                                : "Not supplied by source"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <BookingStatusBars items={statusBreakdown} />
                   </ChartCard>
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="text-base font-semibold tracking-normal text-[var(--text-primary)]">
-                        Branch pressure
-                      </h3>
-                      <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                        Returned branches only; no branch values are inferred.
-                      </p>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-3">
-                    {options.branch.map((branch) => {
-                      const items = open.filter((r) => r.branch === branch);
-                      const branchRows = rows.filter(
-                        (r) => r.branch === branch,
-                      );
-                      return (
-                        <Card
-                          key={branch}
-                          className="rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)]"
-                        >
-                          <p className="text-lg font-semibold text-[var(--text-primary)]">
-                            {branch}{" "}
-                            <span className="text-sm font-normal text-[var(--text-tertiary)]">
-                              {BRANCH_NAMES[branch] ?? "Returned branch"}
-                            </span>
-                          </p>
-                          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Open Booking
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold">
-                                {items.length}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Booking Value
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold">
-                                {compact(
-                                  openValue
-                                    .filter((r) => r.branch === branch)
-                                    .reduce((s, r) => s + priceOf(r), 0),
-                                )}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Average Age
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold">
-                                {items.length
-                                  ? Math.round(
-                                      items.reduce((s, r) => s + age(r), 0) /
-                                        items.length,
-                                    )
-                                  : "N/A"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Critical
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold text-[var(--status-danger)]">
-                                {
-                                  items.filter((r) => risk(r) === "Critical")
-                                    .length
-                                }
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Deposit
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold">
-                                {compact(
-                                  items.reduce(
-                                    (s, r) => s + safeNumber(r.deposit),
-                                    0,
-                                  ),
-                                )}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-[var(--text-tertiary)]">
-                                Conversion
-                              </p>
-                              <p className="kmm-tabular mt-1 font-semibold">
-                                {branchRows.length
-                                  ? `${((branchRows.filter((r) => r.status === "Delivered").length / branchRows.length) * 100).toFixed(1)}%`
-                                  : "N/A"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-5 flex items-end gap-1 border-t border-[var(--divider)] pt-3">
-                            <span
-                              className="h-8 flex-1 rounded-t-sm bg-[var(--chart-current)]"
-                              style={{
-                                height: `${Math.max(10, items.length * 8)}px`,
-                              }}
-                            />
-                            <span
-                              className="h-8 flex-1 rounded-t-sm bg-[var(--chart-neutral)]"
-                              style={{
-                                height: `${Math.max(10, branchRows.filter((r) => r.status === "Delivered").length * 8)}px`,
-                              }}
-                            />
-                          </div>
-                        </Card>
-                      );
-                    })}
-                    </div>
-                  </div>
+                  <ChartCard
+                    title="Branch Booking Risk"
+                    subtitle="Open bookings by branch · Red segment is critical backlog over 90 days"
+                    className={chartCardClass}
+                  >
+                    <BranchRiskComparison items={branchRisk} />
+                  </ChartCard>
                 </section>
                 </section>
                 <section className="space-y-4" aria-labelledby="booking-secondary-analysis">

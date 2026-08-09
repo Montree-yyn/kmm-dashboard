@@ -161,6 +161,45 @@ test("prior-year Sales comparisons use the same shared rules", () => {
   });
 });
 
+test("Dashboard Sales KPI scope keeps an explicit 2026 August selection separate from all historical August rows", () => {
+  const rows = [
+    businessRow({ type: "TT", value: 100, gp: 10, year: 2025, month: 8 }),
+    businessRow({ type: "CH", value: 200, gp: 20, year: 2024, month: 8 }),
+    businessRow({ type: "TT", value: 300, gp: 30, year: 2026, month: 7 }),
+  ];
+
+  // Dashboard passes its current filter state directly to the canonical Sales
+  // service. A month-only filter is intentionally historical; the current
+  // year must be selected for a current-month KPI scope.
+  assert.deepEqual(salesBusiness.getSalesKpis(rows, { month: ["Aug"] }), {
+    salesUnit: 2,
+    salesValue: 300,
+    grossProfit: 30,
+    grossProfitAvailable: true,
+    expense: null,
+  });
+
+  const august2026 = salesBusiness.getSalesKpis(rows, {
+    year: ["2026"],
+    month: ["Aug"],
+    branch: [],
+    salesperson: [],
+  });
+  assert.equal(august2026.salesUnit, 0);
+  assert.equal(august2026.salesValue ?? 0, 0);
+  assert.equal(august2026.grossProfit ?? 0, 0);
+  assert.equal(august2026.grossProfitAvailable, false);
+
+  const july2026 = salesBusiness.getSalesKpis(rows, { year: ["2026"], month: ["Jul"] });
+  assert.deepEqual(july2026, {
+    salesUnit: 1,
+    salesValue: 300,
+    grossProfit: 30,
+    grossProfitAvailable: true,
+    expense: null,
+  });
+});
+
 test("Sales invoice scope is a non-unique lookup while the transaction id remains primary", async () => {
   const [schema, migration] = await Promise.all([
     read("db/schema.ts"),

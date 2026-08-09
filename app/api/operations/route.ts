@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const [bookingRows, stockRows] = await Promise.all([listBookingTransactions(), listStockTransactions()]);
     const booking = bookingRows.map((row) => adaptBookingRow(row as unknown as Record<string, unknown>));
     const stock = stockRows.map((row) => adaptStockRow(row as unknown as Record<string, unknown>));
-    return Response.json({ booking, stock, business: getOperationalBusiness(bookingRows as unknown as Record<string, unknown>[], stockRows as unknown as Record<string, unknown>[]) }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ booking, stock, business: getOperationalBusiness(booking, stock) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 500;
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load operational data." }, { status });

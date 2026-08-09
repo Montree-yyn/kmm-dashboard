@@ -3,20 +3,34 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
+  BarChart3,
+  CalendarDays,
+  CalendarRange,
+  Check,
   CheckCircle2,
   ChevronDown,
+  CircleDollarSign,
   MapPin,
   Maximize2,
+  Package2,
+  Percent,
   RefreshCw,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -90,6 +104,20 @@ const THAI_MONTHS = [
   "ตุลาคม",
   "พฤศจิกายน",
   "ธันวาคม",
+];
+const THAI_MONTH_SHORT = [
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
 ];
 const SHOWROOMS = [
   { id: "KMM-MYAWADDY", name: "Myawaddy" },
@@ -786,6 +814,299 @@ function ExecutiveGisControls({
   );
 }
 type MultiSelectOption = { value: string; label: string; shortLabel?: string };
+type MultiSelectLayout = "list" | "month-grid";
+type OpenMarketingFilter = "year" | "month" | "product" | "metric";
+type MetricSelectOption = {
+  label: string;
+  value: ExecutiveGisFilters["activeMetric"];
+  mode: Mode;
+  description: string;
+  icon: LucideIcon;
+};
+
+/**
+ * Keeps the menu mounted briefly after close so the compact opacity/translate
+ * exit transition can finish. It is intentionally presentation-only: every
+ * selection still stays local until the parent invokes its existing callback.
+ */
+function usePopoverDisclosure() {
+  const [open, setOpen] = useState(false);
+  const [present, setPresent] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const frameRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+
+  const show = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    setPresent(true);
+    setOpen(true);
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = window.requestAnimationFrame(() => {
+        setVisible(true);
+        frameRef.current = null;
+      });
+    });
+  }, []);
+  const hide = useCallback(() => {
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    setOpen(false);
+    setVisible(false);
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => {
+      setPresent(false);
+      closeTimerRef.current = null;
+    }, 140);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+      if (closeTimerRef.current !== null)
+        window.clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
+
+  return { open, present, visible, show, hide };
+}
+
+function FilterTrigger({
+  triggerRef,
+  icon: Icon,
+  label,
+  value,
+  overflowCount,
+  open,
+  onClick,
+  onKeyDown,
+  popoverId,
+  popupRole = "dialog",
+  disabled,
+  className,
+}: {
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  overflowCount?: number;
+  open: boolean;
+  onClick: () => void;
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+  popoverId: string;
+  popupRole?: "dialog" | "listbox";
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      ref={triggerRef}
+      type="button"
+      aria-label={`${label}: ${value}`}
+      aria-expanded={open}
+      aria-haspopup={popupRole}
+      aria-controls={popoverId}
+      disabled={disabled}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      className={cn(
+        "inline-flex h-14 min-w-[132px] shrink-0 items-center gap-2.5 rounded-xl border bg-[var(--surface-default)] px-3 text-left shadow-[var(--shadow-card)] transition-[border-color,background-color] duration-[160ms] ease-[var(--ease-state)] hover:border-[var(--brand-300)] hover:bg-[var(--brand-50)] focus-visible:border-[var(--brand-500)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none max-sm:h-11",
+        open
+          ? "border-2 border-[var(--brand-500)] bg-[var(--surface-default)]"
+          : "border-[var(--border-default)]",
+        className,
+      )}
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--surface-muted)] text-[var(--brand-700)]">
+        <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-medium leading-4 text-[var(--text-secondary)]">
+          {label}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-semibold leading-5 text-[var(--text-primary)]">
+            {value}
+          </span>
+          {overflowCount && overflowCount > 0 ? (
+            <span className="inline-flex h-5 shrink-0 items-center rounded-md bg-[var(--surface-muted)] px-1.5 text-[10px] font-bold tabular-nums text-[var(--text-secondary)]">
+              +{overflowCount}
+            </span>
+          ) : null}
+        </span>
+      </span>
+      <ChevronDown
+        size={14}
+        aria-hidden="true"
+        className={cn(
+          "shrink-0 text-[var(--text-tertiary)] transition-transform duration-[160ms] motion-reduce:transition-none",
+          open && "rotate-180 text-[var(--brand-700)]",
+        )}
+      />
+    </button>
+  );
+}
+
+function useAnchoredPopoverPosition({
+  anchorRef,
+  popoverRef,
+  present,
+  preferredWidth,
+}: {
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  present: boolean;
+  preferredWidth: number;
+}) {
+  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+  const updatePosition = useCallback(() => {
+    const anchor = anchorRef.current;
+    const popover = popoverRef.current;
+    if (!anchor || !popover) return;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const mobile = window.matchMedia("(max-width: 639px)").matches;
+    const viewportMargin = mobile ? 8 : 12;
+
+    if (mobile) {
+      setStyle({
+        position: "fixed",
+        left: viewportMargin,
+        right: viewportMargin,
+        bottom: viewportMargin,
+        width: "auto",
+        maxHeight: Math.max(160, viewportHeight - viewportMargin * 2),
+        visibility: "visible",
+      });
+      return;
+    }
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const gap = 8;
+    const width = Math.min(preferredWidth, viewportWidth - viewportMargin * 2);
+    const measuredHeight = Math.min(popover.scrollHeight || 320, 320);
+    const availableBelow = viewportHeight - anchorRect.bottom - gap - viewportMargin;
+    const availableAbove = anchorRect.top - gap - viewportMargin;
+    const openAbove = availableBelow < measuredHeight && availableAbove > availableBelow;
+    const availableHeight = openAbove ? availableAbove : availableBelow;
+    const maxHeight = Math.max(96, Math.min(320, availableHeight));
+    const renderedHeight = Math.min(measuredHeight, maxHeight);
+    const left = Math.max(
+      viewportMargin,
+      Math.min(anchorRect.left, viewportWidth - viewportMargin - width),
+    );
+    const top = openAbove
+      ? Math.max(viewportMargin, anchorRect.top - gap - renderedHeight)
+      : Math.min(
+          anchorRect.bottom + gap,
+          viewportHeight - viewportMargin - renderedHeight,
+        );
+
+    setStyle({
+      position: "fixed",
+      left,
+      top,
+      width,
+      maxHeight,
+      visibility: "visible",
+      transformOrigin: openAbove ? "bottom" : "top",
+    });
+  }, [anchorRef, popoverRef, preferredWidth]);
+
+  useEffect(() => {
+    if (!present) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [present, updatePosition]);
+
+  return style;
+}
+
+function FilterPopover({
+  id,
+  label,
+  anchorRef,
+  popoverRef,
+  present,
+  visible,
+  preferredWidth,
+  onDismiss,
+  role = "dialog",
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  present: boolean;
+  visible: boolean;
+  preferredWidth: number;
+  onDismiss: () => void;
+  role?: "dialog" | "listbox";
+  className?: string;
+  children: ReactNode;
+}) {
+  const positionStyle = useAnchoredPopoverPosition({
+    anchorRef,
+    popoverRef,
+    present,
+    preferredWidth,
+  });
+  if (!present || typeof document === "undefined") return null;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        aria-label={`ปิด${label}`}
+        onClick={onDismiss}
+        className="fixed inset-0 z-[1090] hidden bg-black/20 max-sm:block"
+      />
+      <div
+        ref={popoverRef}
+        style={positionStyle}
+        className={cn(
+          "z-[1000] transition-[opacity,transform] ease-[var(--ease-enter)] motion-reduce:transition-none max-sm:z-[1100]",
+          visible
+            ? "translate-y-0 opacity-100 duration-[160ms]"
+            : "pointer-events-none translate-y-1 opacity-0 duration-[140ms] max-sm:translate-y-2",
+        )}
+      >
+        <Card
+          id={id}
+          role={role}
+          aria-label={label}
+          aria-hidden={!visible}
+          className={cn(
+            "flex max-h-[inherit] flex-col overflow-hidden rounded-xl border-[var(--border-default)] bg-[var(--surface-default)] p-0 shadow-[0_8px_24px_rgb(0_0_0_/_10%)]",
+            className,
+          )}
+        >
+          {children}
+        </Card>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function ApplyMultiSelect({
   label,
   options,
@@ -793,6 +1114,14 @@ function ApplyMultiSelect({
   allLabel,
   summary,
   onApply,
+  icon,
+  dropdownId,
+  activeDropdown,
+  onActiveDropdownChange,
+  popoverWidth,
+  triggerClassName,
+  showSelectAll = true,
+  layout = "list",
 }: {
   label: string;
   options: MultiSelectOption[];
@@ -800,33 +1129,88 @@ function ApplyMultiSelect({
   allLabel: string;
   summary: (values: string[], options: MultiSelectOption[]) => string;
   onApply: (values: string[]) => void;
+  icon: LucideIcon;
+  dropdownId: OpenMarketingFilter;
+  activeDropdown: OpenMarketingFilter | null;
+  onActiveDropdownChange: (filter: OpenMarketingFilter | null) => void;
+  popoverWidth: number;
+  triggerClassName?: string;
+  showSelectAll?: boolean;
+  layout?: MultiSelectLayout;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const popoverId = useId();
   const [draft, setDraft] = useState(values);
   const [error, setError] = useState("");
+  const { open, present, visible, show, hide } = usePopoverDisclosure();
   const optionValues = useMemo(
     () => options.map((option) => option.value),
     [options],
   );
+  const restoreTriggerFocus = useCallback(() => {
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  }, []);
   const openPopover = () => {
     setDraft(values);
     setError("");
-    setOpen(true);
+    onActiveDropdownChange(dropdownId);
+    show();
   };
   const cancel = useCallback(() => {
     setDraft(values);
     setError("");
-    setOpen(false);
-  }, [values]);
+    hide();
+    if (activeDropdown === dropdownId) onActiveDropdownChange(null);
+  }, [activeDropdown, dropdownId, hide, onActiveDropdownChange, values]);
+  const cancelAndRestoreFocus = useCallback(() => {
+    cancel();
+    restoreTriggerFocus();
+  }, [cancel, restoreTriggerFocus]);
+
+  useEffect(() => {
+    if (activeDropdown === dropdownId || !open) return;
+    const frame = window.requestAnimationFrame(hide);
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeDropdown, dropdownId, hide, open]);
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) cancel();
+      const target = event.target as Node;
+      if (
+        ref.current &&
+        !ref.current.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
+        cancel();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelAndRestoreFocus();
+      }
     };
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open, cancel]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, cancel, cancelAndRestoreFocus]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      const checked = optionRefs.current.find((input) => input?.checked);
+      (checked ?? optionRefs.current.find(Boolean))?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
   const toggle = (value: string) => {
     setDraft((current) =>
       current.includes(value)
@@ -842,94 +1226,391 @@ function ApplyMultiSelect({
       return;
     }
     onApply(next);
-    setOpen(false);
+    setError("");
+    hide();
+    onActiveDropdownChange(null);
+    restoreTriggerFocus();
   };
+  const allSelected = optionValues.length > 0 && draft.length === optionValues.length;
+  const overflowCount =
+    values.length === options.length ? undefined : Math.max(values.length - 3, 0);
+  const moveOptionFocus = (currentIndex: number, direction: number) => {
+    const visibleIndices = options
+      .map((option) => options.findIndex((item) => item.value === option.value))
+      .filter((index) => index >= 0);
+    const currentPosition = visibleIndices.indexOf(currentIndex);
+    const nextPosition =
+      currentPosition === -1
+        ? 0
+        : (currentPosition + direction + visibleIndices.length) %
+          visibleIndices.length;
+    const nextIndex = visibleIndices[nextPosition];
+    if (nextIndex !== undefined) optionRefs.current[nextIndex]?.focus();
+  };
+
   return (
-    <div ref={ref} className="relative">
-      <label className="text-[11px] font-bold text-[#6B7280]">
-        {label}{" "}
-        <button
-          type="button"
-          onClick={open ? cancel : openPopover}
-          className="ml-1.5 inline-flex h-11 min-w-28 items-center justify-between gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-left text-xs font-semibold text-[var(--text-primary)] transition-colors hover:border-[#CFCFD5] hover:bg-[var(--surface-subtle)]"
-        >
-          <span className="truncate">{summary(values, options)}</span>
-          <ChevronDown
-            size={14}
-            className={cn(
-              "shrink-0 text-[#9CA3AF] transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
-      </label>
-      {open && (
-        <Card className="absolute left-0 top-12 z-50 w-64 rounded-[var(--radius-card)] border-[var(--border-default)] p-3 text-xs shadow-[var(--shadow-floating)]">
-          <div className="mb-2 flex items-center justify-between gap-2">
+    <div ref={ref} className="relative min-w-0 shrink-0">
+      <FilterTrigger
+        triggerRef={triggerRef}
+        icon={icon}
+        label={label}
+        value={summary(values, options)}
+        overflowCount={overflowCount}
+        open={open}
+        onClick={open ? cancelAndRestoreFocus : openPopover}
+        popoverId={popoverId}
+        className={triggerClassName}
+      />
+      <FilterPopover
+        id={popoverId}
+        label={`เลือก${label}`}
+        anchorRef={triggerRef}
+        popoverRef={popoverRef}
+        present={present}
+        visible={visible}
+        preferredWidth={popoverWidth}
+        onDismiss={cancelAndRestoreFocus}
+      >
+        <div className="shrink-0 border-b border-[var(--divider)] px-3 py-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-[13px] font-semibold leading-5 text-[var(--text-primary)]">
+                {label === "สินค้า" ? "เลือกสินค้า" : `เลือก${label}`}
+              </h3>
+              <p className="text-[11px] font-medium leading-4 text-[var(--text-secondary)]">
+                เลือกแล้ว {draft.length} จาก {options.length}
+              </p>
+            </div>
             <button
               type="button"
-              className="font-bold text-[#E86F00]"
               onClick={() => {
-                setDraft(optionValues);
+                setDraft([]);
                 setError("");
               }}
-            >
-              เลือกทั้งหมด
-            </button>
-            <button
-              type="button"
-              className="font-bold text-[#6B7280]"
-              onClick={() => setDraft([])}
+              className="min-h-10 rounded-lg px-2 text-xs font-semibold text-[var(--brand-700)] transition-colors hover:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               ล้างค่า
             </button>
           </div>
-          <div className="max-h-60 space-y-1 overflow-y-auto">
-            {options.map((option) => (
-              <label
-                key={option.value}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 font-semibold text-[#4B5563] hover:bg-[#FFF7EF]"
-              >
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+          {layout === "list" && showSelectAll ? (
+            <>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
                 <input
                   type="checkbox"
-                  className="size-4 accent-[#FF7A00]"
-                  checked={draft.includes(option.value)}
-                  onChange={() => toggle(option.value)}
+                  checked={allSelected}
+                  onChange={() => {
+                    setDraft(allSelected ? [] : optionValues);
+                    setError("");
+                  }}
+                  aria-label={allLabel}
+                  className="size-4 rounded border-[var(--border-default)] accent-[var(--brand-500)]"
                 />
-                <span>{option.label}</span>
+                <span>{allLabel}</span>
               </label>
-            ))}
+              <div className="mx-2 my-1 border-t border-[var(--divider)]" />
+            </>
+          ) : null}
+          <div
+            className={cn(
+              layout === "month-grid"
+                ? "grid grid-cols-3 gap-1.5"
+                : "space-y-0.5",
+            )}
+          >
+            {options.map((option, optionIndex) => {
+              const selected = draft.includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "group relative flex cursor-pointer items-center transition-[background-color,border-color,color] duration-[160ms] focus-within:ring-2 focus-within:ring-[var(--focus-ring)] motion-reduce:transition-none",
+                    layout === "month-grid"
+                      ? "min-h-[38px] justify-center rounded-lg border px-1.5 text-center text-xs font-semibold"
+                      : "min-h-10 gap-2.5 rounded-lg px-2 text-sm font-semibold",
+                    selected
+                      ? "border-[var(--brand-300)] bg-[var(--brand-50)] text-[var(--brand-700)]"
+                      : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]",
+                  )}
+                >
+                  <input
+                    ref={(element) => {
+                      optionRefs.current[optionIndex] = element;
+                    }}
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => toggle(option.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+                        event.preventDefault();
+                        moveOptionFocus(optionIndex, 1);
+                      }
+                      if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        moveOptionFocus(optionIndex, -1);
+                      }
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        toggle(option.value);
+                      }
+                    }}
+                    aria-label={option.label}
+                    className={cn(
+                      "size-4 rounded border-[var(--border-default)] accent-[var(--brand-500)]",
+                      layout === "month-grid" && "sr-only",
+                    )}
+                  />
+                  <span>
+                    {layout === "month-grid"
+                      ? option.shortLabel ?? option.label
+                      : option.label}
+                  </span>
+                </label>
+              );
+            })}
           </div>
-          {error && (
-            <p className="mt-2 rounded-lg bg-[#FEF2F2] px-2 py-1.5 font-semibold text-[#B91C1C]">
-              {error}
-            </p>
-          )}
-          <div className="mt-3 flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-lg border border-[#E5E7EB] px-3 py-1.5 font-bold text-[#6B7280]"
-              onClick={() => setDraft([])}
-            >
-              ล้างค่า
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-[#E5E7EB] px-3 py-1.5 font-bold text-[#6B7280]"
-              onClick={cancel}
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-[#E86F00] px-3 py-1.5 font-bold text-white"
-              onClick={apply}
-            >
-              นำไปใช้
-            </button>
-          </div>
-        </Card>
-      )}
+        </div>
+        {error ? (
+          <p
+            role="alert"
+            className="mx-3 mb-1 rounded-lg bg-[var(--status-danger-bg)] px-2.5 py-1.5 text-xs font-semibold text-[var(--status-danger)]"
+          >
+            {error}
+          </p>
+        ) : null}
+        <div className="flex min-h-[50px] shrink-0 items-center justify-between gap-2 border-t border-[var(--divider)] bg-[var(--surface-default)] px-3 py-1.5">
+          <button
+            type="button"
+            onClick={cancelAndRestoreFocus}
+            className="min-h-10 rounded-lg px-2.5 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            onClick={apply}
+            className="inline-flex min-h-10 items-center rounded-lg bg-[var(--brand-500)] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-600)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2"
+          >
+            นำไปใช้ ({draft.length})
+          </button>
+        </div>
+      </FilterPopover>
+    </div>
+  );
+}
+
+function MetricSelector({
+  options,
+  selected,
+  onSelect,
+  activeDropdown,
+  onActiveDropdownChange,
+}: {
+  options: MetricSelectOption[];
+  selected: MetricSelectOption;
+  onSelect: (option: MetricSelectOption) => void;
+  activeDropdown: OpenMarketingFilter | null;
+  onActiveDropdownChange: (filter: OpenMarketingFilter | null) => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const popoverId = useId();
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((option) => option.value === selected.value),
+  );
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+  const { open, present, visible, show, hide } = usePopoverDisclosure();
+  const restoreTriggerFocus = useCallback(() => {
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  }, []);
+  const close = useCallback(
+    (restoreFocus = false) => {
+      hide();
+      if (activeDropdown === "metric") onActiveDropdownChange(null);
+      if (restoreFocus) restoreTriggerFocus();
+    },
+    [activeDropdown, hide, onActiveDropdownChange, restoreTriggerFocus],
+  );
+  const openSelector = (nextIndex = selectedIndex) => {
+    setActiveIndex(nextIndex);
+    onActiveDropdownChange("metric");
+    show();
+  };
+  const moveActive = (direction: number) => {
+    const nextIndex = (activeIndex + direction + options.length) % options.length;
+    setActiveIndex(nextIndex);
+  };
+  const selectMetric = (option: MetricSelectOption) => {
+    onSelect(option);
+    close(true);
+  };
+
+  useEffect(() => {
+    if (activeDropdown === "metric" || !open) return;
+    const frame = window.requestAnimationFrame(hide);
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeDropdown, hide, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        ref.current &&
+        !ref.current.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
+        close();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(true);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      optionRefs.current[activeIndex]?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeIndex, open]);
+
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      openSelector(
+        (selectedIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) %
+          options.length,
+      );
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (open) close();
+      else openSelector();
+    }
+  };
+
+  return (
+    <div ref={ref} className="relative min-w-0 shrink-0">
+      <FilterTrigger
+        triggerRef={triggerRef}
+        icon={SlidersHorizontal}
+        label="ตัวชี้วัด"
+        value={selected.label}
+        open={open}
+        onClick={() => (open ? close(true) : openSelector())}
+        onKeyDown={handleTriggerKeyDown}
+        popoverId={popoverId}
+        popupRole="listbox"
+        className="min-w-[142px]"
+      />
+      <FilterPopover
+        id={popoverId}
+        role="listbox"
+        label="เลือกตัวชี้วัด"
+        anchorRef={triggerRef}
+        popoverRef={popoverRef}
+        present={present}
+        visible={visible}
+        preferredWidth={280}
+        onDismiss={() => close(true)}
+      >
+        <div className="flex h-10 shrink-0 items-center border-b border-[var(--divider)] px-3">
+          <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+            เลือกตัวชี้วัด
+          </h3>
+        </div>
+        <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-1.5">
+          {options.map((option, index) => {
+            const Icon = option.icon;
+            const isSelected = option.value === selected.value;
+            return (
+              <button
+                key={option.value}
+                ref={(element) => {
+                  optionRefs.current[index] = element;
+                }}
+                id={`${popoverId}-${option.value}`}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                tabIndex={activeIndex === index ? 0 : -1}
+                onClick={() => selectMetric(option)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    moveActive(1);
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    moveActive(-1);
+                  }
+                  if (event.key === "Home") {
+                    event.preventDefault();
+                    setActiveIndex(0);
+                  }
+                  if (event.key === "End") {
+                    event.preventDefault();
+                    setActiveIndex(options.length - 1);
+                  }
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectMetric(option);
+                  }
+                }}
+                className={cn(
+                  "flex min-h-12 w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-[background-color,color] duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] motion-reduce:transition-none",
+                  isSelected
+                    ? "bg-[var(--brand-50)] text-[var(--brand-700)]"
+                    : "text-[var(--text-primary)] hover:bg-[var(--surface-muted)]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid size-7 shrink-0 place-items-center rounded-md",
+                    isSelected
+                      ? "bg-[var(--brand-100)] text-[var(--brand-700)]"
+                      : "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
+                  )}
+                >
+                  <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold leading-4">{option.label}</span>
+                  <span className="block text-[11px] font-medium leading-4 text-[var(--text-secondary)]">
+                    {option.description}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "grid size-[18px] shrink-0 place-items-center rounded-full border",
+                    isSelected
+                      ? "border-[var(--brand-500)] bg-[var(--brand-500)] text-white"
+                      : "border-[var(--border-default)] bg-[var(--surface-default)]",
+                  )}
+                >
+                  {isSelected ? <Check size={13} strokeWidth={2.5} /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </FilterPopover>
     </div>
   );
 }
@@ -950,19 +1631,39 @@ function ComparisonToolbarControl({
       disabled={disabled}
       onClick={() => onChange(!compareMode)}
       className={cn(
-        "kmm-compare-control inline-flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45",
+        "kmm-compare-control inline-flex h-14 min-w-[176px] shrink-0 items-center gap-2.5 rounded-xl border px-3 text-left outline-none shadow-[var(--shadow-card)] transition-[border-color,background-color] duration-[160ms] ease-[var(--ease-state)] focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none max-sm:h-11",
         compareMode
           ? "border-[var(--brand-600)] bg-[var(--brand-500)] text-white hover:bg-[var(--brand-600)]"
-          : "border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
+          : "border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-primary)] hover:border-[var(--brand-300)] hover:bg-[var(--brand-50)]",
       )}
     >
-      <span>เปรียบเทียบพื้นที่</span>
       <span
         className={cn(
-          "rounded-md px-1.5 py-0.5 text-[9px] leading-4",
+          "grid size-8 shrink-0 place-items-center rounded-lg",
+          compareMode ? "bg-white/18 text-white" : "bg-[var(--surface-muted)] text-[var(--brand-700)]",
+        )}
+      >
+        <MapPin size={16} strokeWidth={1.8} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block text-[11px] font-medium leading-4",
+            compareMode ? "text-white/80" : "text-[var(--text-secondary)]",
+          )}
+        >
+          เปรียบเทียบพื้นที่
+        </span>
+        <span className="mt-0.5 block text-sm font-semibold leading-5">
+          {compareMode ? "เปิดใช้งาน" : disabled ? "รอข้อมูล" : "ปิดอยู่"}
+        </span>
+      </span>
+      <span
+        className={cn(
+          "rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-4",
           compareMode
             ? "bg-white/20 text-white"
-            : "bg-[#F3F4F6] text-[#6B7280]",
+            : "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
         )}
       >
         {compareMode ? "ON" : "OFF"}
@@ -998,7 +1699,8 @@ function DecisionToolbar({
   onCompareModeChange: (enabled: boolean) => void;
   compareDisabled?: boolean;
 }) {
-  const { t } = useLocale();
+  const [activeDropdown, setActiveDropdown] =
+    useState<OpenMarketingFilter | null>(null);
   const yearSelectOptions = useMemo(
     () => yearOptions.map((year) => ({ value: year, label: year })),
     [yearOptions],
@@ -1008,7 +1710,7 @@ function DecisionToolbar({
       THAI_MONTHS.map((month, index) => ({
         value: String(index + 1),
         label: month,
-        shortLabel: `${month.slice(0, 3)}.`,
+        shortLabel: THAI_MONTH_SHORT[index],
       })),
     [],
   );
@@ -1052,15 +1754,35 @@ function DecisionToolbar({
       comparisonDateTo: "",
     });
   };
-  const metricOptions: {
-    label: string;
-    value: ExecutiveGisFilters["activeMetric"];
-    mode: Mode;
-  }[] = [
-    { label: "Unit", value: "salesUnit", mode: "sales" },
-    { label: "Value", value: "salesValue", mode: "sales" },
-    { label: "GP", value: "gpValue", mode: "sales" },
-    { label: "GP%", value: "gpPercent", mode: "sales" },
+  const metricOptions: MetricSelectOption[] = [
+    {
+      label: "Unit",
+      value: "salesUnit",
+      mode: "sales",
+      description: "จำนวน (คัน / เครื่อง)",
+      icon: BarChart3,
+    },
+    {
+      label: "Value",
+      value: "salesValue",
+      mode: "sales",
+      description: "มูลค่า (บาท)",
+      icon: CircleDollarSign,
+    },
+    {
+      label: "GP",
+      value: "gpValue",
+      mode: "sales",
+      description: "กำไรขั้นต้น (บาท)",
+      icon: CircleDollarSign,
+    },
+    {
+      label: "GP%",
+      value: "gpPercent",
+      mode: "sales",
+      description: "อัตรากำไรขั้นต้น (%)",
+      icon: Percent,
+    },
   ];
   const selectedMetric =
     metricOptions.find((option) => option.value === activeMetric) ??
@@ -1068,29 +1790,34 @@ function DecisionToolbar({
   return (
     <section
       aria-label="Decision Toolbar"
-      className="kmm-decision-toolbar flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-3 gap-y-2 overflow-visible border-b border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-2.5 shadow-[var(--shadow-card)] backdrop-blur-md xl:flex-nowrap xl:px-5"
+      className="kmm-decision-toolbar flex min-h-[72px] shrink-0 flex-wrap items-center gap-2.5 overflow-visible border-b border-[var(--border-default)] bg-[var(--surface-default)] px-3.5 py-2 shadow-[var(--shadow-card)] xl:flex-nowrap xl:overflow-x-auto xl:px-5 max-sm:min-h-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:py-2"
     >
       <ApplyMultiSelect
         label="ปี"
         options={yearSelectOptions}
         values={filters.selectedYears}
-        allLabel="ทุกปี"
-        summary={(values, options) =>
-          values.length === options.length
-            ? "ทุกปี"
-            : values.length === 1
-              ? values[0]
-              : values.length === 2
-                ? [...values].sort().join(", ")
-                : `${values.length} ปี`
-        }
+        allLabel="เลือกทั้งหมด"
+        summary={(values, options) => {
+          if (values.length === options.length) return "ทุกปี";
+          const selected = options
+            .filter((option) => values.includes(option.value))
+            .map((option) => option.label);
+          return selected.slice(0, 3).join(", ");
+        }}
         onApply={applyYears}
+        icon={CalendarRange}
+        dropdownId="year"
+        activeDropdown={activeDropdown}
+        onActiveDropdownChange={setActiveDropdown}
+        popoverWidth={232}
+        triggerClassName="min-w-[132px]"
+        showSelectAll={false}
       />
       <ApplyMultiSelect
         label="เดือน"
         options={monthSelectOptions}
         values={filters.selectedMonths}
-        allLabel="ทุกเดือน"
+        allLabel="เลือกทั้งหมด"
         summary={(values, options) =>
           values.length === options.length
             ? "ทุกเดือน"
@@ -1108,44 +1835,41 @@ function DecisionToolbar({
                 : `${values.length} เดือน`
         }
         onApply={applyMonths}
+        icon={CalendarDays}
+        dropdownId="month"
+        activeDropdown={activeDropdown}
+        onActiveDropdownChange={setActiveDropdown}
+        popoverWidth={316}
+        triggerClassName="min-w-[144px]"
+        layout="month-grid"
       />
       <ApplyMultiSelect
         label="สินค้า"
         options={productSelectOptions}
         values={selectedProducts}
-        allLabel="สินค้าทั้งหมด"
-        summary={(values, options) =>
-          values.length === options.length
-            ? "สินค้าทั้งหมด"
-            : values.length === 1
-              ? (options.find((option) => option.value === values[0])?.label ??
-                values[0])
-              : values.length === 2
-                ? `${options.find((option) => option.value === values[0])?.label ?? values[0]} +1`
-                : `${values.length} สินค้า`
-        }
+        allLabel="เลือกทั้งหมด"
+        summary={(values, options) => {
+          if (values.length === options.length) return "สินค้าทั้งหมด";
+          const first = options.find((option) => option.value === values[0]);
+          return values.length === 1
+            ? first?.label ?? values[0]
+            : `${first?.label ?? values[0]} +${values.length - 1}`;
+        }}
         onApply={(values) => onProductsChange(values as ProductGroup[])}
+        icon={Package2}
+        dropdownId="product"
+        activeDropdown={activeDropdown}
+        onActiveDropdownChange={setActiveDropdown}
+        popoverWidth={300}
+        triggerClassName="min-w-[174px]"
       />
-      <label className="text-[11px] font-bold text-[#6B7280]">
-        ตัวชี้วัด{" "}
-        <select
-          value={selectedMetric.value}
-          onChange={(event) => {
-            const next =
-              metricOptions.find(
-                (option) => option.value === event.target.value,
-              ) ?? metricOptions[0];
-            onMetricChange(next.value, next.mode);
-          }}
-          className="ml-1.5 h-10 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-primary)]"
-        >
-          {metricOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <MetricSelector
+        options={metricOptions}
+        selected={selectedMetric}
+        onSelect={(next) => onMetricChange(next.value, next.mode)}
+        activeDropdown={activeDropdown}
+        onActiveDropdownChange={setActiveDropdown}
+      />
       <ComparisonToolbarControl
         compareMode={compareMode}
         disabled={compareDisabled}

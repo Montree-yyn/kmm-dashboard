@@ -470,7 +470,7 @@ test("Area Comparison Phase C1 renders executive metric matrix from shared Towns
   assert.doesNotMatch(workspace, /Lowest/);
 });
 
-test("Localization foundation defaults to Thai and exposes English switching", async () => {
+test("Localization foundation defaults to Thai and exposes English and Myanmar switching", async () => {
   const [
     layout,
     context,
@@ -508,9 +508,10 @@ test("Localization foundation defaults to Thai and exposes English switching", a
     /"comparison\.samePeriodLastYear": "ช่วงเดียวกันของปีก่อน"/,
   );
   assert.match(english, /"metric\.salesUnit": "Sales Unit"/);
-  assert.match(header, /setLanguage\("th"\)/);
-  assert.match(header, /setLanguage\("en"\)/);
-  assert.match(header, /Marketing Intelligence/);
+  assert.match(header, /value="th"/);
+  assert.match(header, /value="en"/);
+  assert.match(header, /value="my"/);
+  assert.match(header, /route\.marketing\.title/);
   assert.match(
     await read("components/marketing/marketing-intelligence-page.tsx"),
     /t\("period\.rolling12Months"\)/,

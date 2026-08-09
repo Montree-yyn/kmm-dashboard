@@ -106,6 +106,13 @@ test("Marketing dropdowns own a stacking context above the map", async () => {
     styles,
     /\.kmm-decision-toolbar\s*\{[\s\S]*?position:\s*relative;[\s\S]*?z-index:\s*20;[\s\S]*?overflow:\s*visible;/,
   );
+  assert.match(workspace, /createPortal\(/);
+  assert.match(workspace, /document\.body/);
+  assert.match(workspace, /z-\[1000\]/);
+  assert.match(workspace, /position: "fixed"/);
+  assert.match(workspace, /availableBelow/);
+  assert.match(workspace, /availableAbove/);
+  assert.match(workspace, /openAbove/);
 });
 
 test("Marketing compare control matches filter control typography and geometry", async () => {
@@ -115,12 +122,53 @@ test("Marketing compare control matches filter control typography and geometry",
   const styles = await read("app/globals.css");
   assert.match(
     workspace,
-    /kmm-compare-control inline-flex h-11[\s\S]*?rounded-\[var\(--radius-control\)\][\s\S]*?px-3/,
+    /kmm-compare-control inline-flex h-14 min-w-\[176px\][\s\S]*?rounded-xl[\s\S]*?px-3/,
   );
+  assert.match(workspace, /max-sm:h-11/);
   assert.match(
     styles,
     /\.kmm-compare-control\s*\{[\s\S]*?font-size:\s*11px;[\s\S]*?font-weight:\s*700;/,
   );
+});
+
+test("Marketing decision filters keep staged selection, custom metric semantics, and compact responsive controls", async () => {
+  const workspace = await read(
+    "components/marketing/marketing-intelligence-page.tsx",
+  );
+  const decisionToolbar = workspace.slice(
+    workspace.indexOf("function DecisionToolbar"),
+    workspace.indexOf("function Metric("),
+  );
+  const applyMultiSelect = workspace.slice(
+    workspace.indexOf("function ApplyMultiSelect"),
+    workspace.indexOf("function MetricSelector"),
+  );
+
+  assert.match(workspace, /inline-flex h-14 min-w-\[132px\]/);
+  assert.match(workspace, /max-sm:h-11/);
+  assert.match(workspace, /grid grid-cols-3 gap-1\.5/);
+  assert.doesNotMatch(decisionToolbar, /ค้นหาปี\.\.\./);
+  assert.doesNotMatch(decisionToolbar, /ค้นหาสินค้า\.\.\./);
+  assert.doesNotMatch(applyMultiSelect, /<Check/);
+  assert.match(workspace, /aria-expanded=\{open\}/);
+  assert.match(workspace, /aria-controls=\{popoverId\}/);
+  assert.match(workspace, /role = "dialog"/);
+  assert.match(workspace, /role="listbox"/);
+  assert.match(workspace, /role="alert"/);
+  assert.match(workspace, /event\.key === "Escape"/);
+  assert.match(workspace, /document\.addEventListener\("mousedown", onPointerDown\)/);
+  assert.match(workspace, /document\.removeEventListener\("mousedown", onPointerDown\)/);
+  assert.match(workspace, /popoverRef\.current\?\.contains\(target\)/);
+  assert.match(workspace, /activeDropdown === dropdownId \|\| !open/);
+  assert.match(workspace, /onActiveDropdownChange\(dropdownId\)/);
+  assert.match(decisionToolbar, /useState<OpenMarketingFilter \| null>\(null\)/);
+  assert.match(workspace, /onApply\(next\)/);
+  assert.match(workspace, /onApply=\{applyYears\}/);
+  assert.match(workspace, /onApply=\{applyMonths\}/);
+  assert.match(workspace, /onProductsChange\(values as ProductGroup\[\]\)/);
+  assert.match(decisionToolbar, /<MetricSelector/);
+  assert.doesNotMatch(decisionToolbar, /<select/);
+  assert.match(decisionToolbar, /onMetricChange\(next\.value, next\.mode\)/);
 });
 
 test("Marketing compare mode preserves one selection model across normal and fullscreen layouts", async () => {

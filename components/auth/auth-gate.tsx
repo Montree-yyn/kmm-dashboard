@@ -5,8 +5,10 @@ import { onAuthStateChanged } from "firebase/auth";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { auth } from "../../lib/firebase";
 import { loginPathFor } from "../../lib/auth/return-path";
+import { useLocale } from "../../src/hooks/useLocale";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
+  const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -56,7 +58,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-4">
           <img src="/kmm-logo.png" alt="Kubota Maesod Myanmar" className="h-14 w-auto" />
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FFE1C4] border-t-[#FF8615]" />
-          <p className="text-sm font-semibold text-[#6B7280]">Loading secure dashboard...</p>
+          <p className="text-sm font-semibold text-[#6B7280]">{t("login.loadingDashboard")}</p>
         </div>
       </div>
     );

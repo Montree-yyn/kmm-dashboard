@@ -104,7 +104,7 @@ test("Settings sidebar contains the approved Phase 1 menu and company area", asy
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
   assert.match(sidebar, /KMM Company/);
-  assert.match(sidebar, /Current company/);
+  assert.match(sidebar, /t\("company\.current"\)/);
   assert.match(sidebar, /aria-current=\{active \? "page" : undefined\}/);
   assert.match(navigation, /visible: false/);
 });
@@ -156,9 +156,9 @@ test("Settings follows the responsive control-center layout", async () => {
 
   assert.match(page, /kmm-settings-page min-h-\[calc\(100vh-72px\)\]/);
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-4/);
-  assert.match(page, /Settings Overview/);
-  assert.match(page, /Manage your enterprise configuration\./);
+  assert.match(page, /t\("settings\.overview"\)/);
+  assert.match(page, /t\("settings\.overviewDescription"\)/);
   assert.match(header, /h-\[72px\]/);
-  assert.match(header, /Enterprise Control Center/);
+  assert.match(header, /subtitle: "route\.settings\.subtitle"/);
   assert.match(header, /focus-visible:ring-2/);
 });

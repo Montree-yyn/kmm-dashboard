@@ -1,66 +1,71 @@
 "use client";
 
-import { Bell, ChevronDown, Menu } from "lucide-react";
+import { Bell, ChevronDown, Globe2, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
 import { KaiHeaderAssistant } from "../kai/kai-header-assistant";
-import { cn } from "../../lib/utils";
 import { useLocale } from "../../src/hooks/useLocale";
+import type { LocaleKey } from "../../src/locales";
 
 const routeTitles: Array<{
   prefix: string;
-  title: string;
-  subtitle: string;
+  title: LocaleKey;
+  subtitle: LocaleKey;
 }> = [
   {
     prefix: "/settings/company",
-    title: "Company Management",
-    subtitle: "Enterprise configuration",
+    title: "route.companyManagement.title",
+    subtitle: "route.companyManagement.subtitle",
   },
   {
     prefix: "/dashboard",
-    title: "Dashboard",
-    subtitle: "KMM Executive Intelligence",
+    title: "route.dashboard.title",
+    subtitle: "route.dashboard.subtitle",
+  },
+  {
+    prefix: "/daily-management",
+    title: "route.dailyManagement.title",
+    subtitle: "route.dailyManagement.subtitle",
   },
   {
     prefix: "/sales",
-    title: "Sales Performance",
-    subtitle: "KMM Sales Intelligence",
+    title: "route.sales.title",
+    subtitle: "route.sales.subtitle",
   },
   {
     prefix: "/booking",
-    title: "Booking Intelligence",
-    subtitle: "KMM Booking Intelligence",
+    title: "route.booking.title",
+    subtitle: "route.booking.subtitle",
   },
   {
     prefix: "/stock",
-    title: "Stock Intelligence",
-    subtitle: "KMM Inventory Intelligence",
+    title: "route.stock.title",
+    subtitle: "route.stock.subtitle",
   },
   {
     prefix: "/marketing",
-    title: "Marketing Intelligence",
-    subtitle: "KMM Geospatial Intelligence",
+    title: "route.marketing.title",
+    subtitle: "route.marketing.subtitle",
   },
   {
     prefix: "/data-hub",
-    title: "Data Hub",
-    subtitle: "Enterprise Data Hub",
+    title: "route.dataHub.title",
+    subtitle: "route.dataHub.subtitle",
   },
   {
     prefix: "/settings",
-    title: "Settings",
-    subtitle: "Enterprise Control Center",
+    title: "route.settings.title",
+    subtitle: "route.settings.subtitle",
   },
   {
     prefix: "/expense",
-    title: "Expense Intelligence",
-    subtitle: "KMM Financial Intelligence",
+    title: "route.expense.title",
+    subtitle: "route.expense.subtitle",
   },
   {
     prefix: "/team",
-    title: "Sales Organization",
-    subtitle: "KMM Organization Intelligence",
+    title: "route.team.title",
+    subtitle: "route.team.subtitle",
   },
 ];
 
@@ -86,17 +91,17 @@ export function GlobalHeader({ onOpenNavigation }: GlobalHeaderProps) {
         type="button"
         className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:hidden"
         onClick={onOpenNavigation}
-        aria-label="Open navigation"
+        aria-label={t("common.openNavigation")}
       >
         <Menu size={20} aria-hidden="true" />
       </button>
 
       <div className="min-w-0">
         <p className="truncate text-base font-semibold text-[var(--text-primary)]">
-          {route.title}
+          {t(route.title)}
         </p>
         <p className="hidden truncate text-xs text-[var(--text-tertiary)] sm:block">
-          {route.subtitle}
+          {t(route.subtitle)}
         </p>
       </div>
 
@@ -106,40 +111,35 @@ export function GlobalHeader({ onOpenNavigation }: GlobalHeaderProps) {
       />
 
       <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3 md:ml-0">
-        <div className="hidden h-10 items-center rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] p-0.5 text-xs font-semibold sm:inline-flex">
-          <button
-            type="button"
-            onClick={() => setLanguage("th")}
-            className={cn(
-              "grid h-8 min-w-9 place-items-center rounded-lg px-2 transition-colors duration-150",
-              language === "th"
-                ? "bg-[var(--brand-100)] text-[var(--brand-600)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
-            )}
-            aria-pressed={language === "th"}
+        <label className="relative grid size-11 place-items-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)] text-[var(--text-secondary)] sm:hidden">
+          <Globe2 size={17} aria-hidden="true" />
+          <span className="sr-only">{t("language.select")}</span>
+          <select value={language} onChange={(event) => setLanguage(event.target.value as "th" | "en" | "my")} aria-label={t("language.select")} className="absolute inset-0 cursor-pointer opacity-0">
+            <option value="th">{t("language.thai")}</option>
+            <option value="en">{t("language.english")}</option>
+            <option value="my">{t("language.myanmar")}</option>
+          </select>
+        </label>
+        <label className="relative hidden h-10 items-center sm:flex">
+          <Globe2 className="pointer-events-none absolute left-3 z-10 text-[var(--text-tertiary)]" size={15} aria-hidden="true" />
+          <span className="sr-only">{t("language.select")}</span>
+          <select
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as "th" | "en" | "my")}
+            aria-label={t("language.select")}
+            className="h-10 min-w-[118px] appearance-none rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] pl-9 pr-8 text-xs font-semibold text-[var(--text-secondary)] outline-none transition hover:bg-[var(--surface-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
-            {t("language.thai")}
-          </button>
-          <span className="text-[var(--border-default)]">|</span>
-          <button
-            type="button"
-            onClick={() => setLanguage("en")}
-            className={cn(
-              "grid h-8 min-w-9 place-items-center rounded-lg px-2 transition-colors duration-150",
-              language === "en"
-                ? "bg-[var(--brand-100)] text-[var(--brand-600)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
-            )}
-            aria-pressed={language === "en"}
-          >
-            {t("language.english")}
-          </button>
-        </div>
+            <option value="th">{t("language.thai")}</option>
+            <option value="en">{t("language.english")}</option>
+            <option value="my">{t("language.myanmar")}</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 text-[var(--text-tertiary)]" size={14} aria-hidden="true" />
+        </label>
         <HeaderPresentationTrigger />
         <button
           type="button"
           className="relative hidden size-11 place-items-center rounded-[var(--radius-control-lg)] border border-[var(--border-default)] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:grid"
-          aria-label="Open notifications"
+          aria-label={t("common.openNotifications")}
         >
           <Bell size={18} aria-hidden="true" />
           <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[var(--status-danger)]" />
@@ -148,7 +148,7 @@ export function GlobalHeader({ onOpenNavigation }: GlobalHeaderProps) {
         <button
           type="button"
           className="flex min-h-11 items-center gap-2 rounded-[var(--radius-control-lg)] p-1.5 pr-2 text-[var(--text-primary)] transition-colors duration-150 hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-          aria-label="Open profile menu"
+          aria-label={t("common.openProfileMenu")}
         >
           <span className="grid size-9 place-items-center rounded-[var(--radius-control)] bg-[var(--text-primary)] text-xs font-bold text-white">
             KM

@@ -15,6 +15,16 @@
   "observability": {
     "enabled": true
   },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "vars": {
+    "KAI_PRIMARY_MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "KAI_FALLBACK_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+    "KAI_MAX_TOKENS": "384",
+    "KAI_TEMPERATURE": "0.4"
+  },
   "d1_databases": [
     {
       "binding": "DB",

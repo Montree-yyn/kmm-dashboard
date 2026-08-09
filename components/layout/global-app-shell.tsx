@@ -9,6 +9,7 @@ import { GlobalHeader } from "./global-header";
 
 const shellRoutePrefixes = [
   "/dashboard",
+  "/daily-management",
   "/sales",
   "/booking",
   "/stock",

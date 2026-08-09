@@ -1,0 +1,2 @@
+export const DAILY_MANAGEMENT_REPORT_ENABLED =
+  process.env.NEXT_PUBLIC_DAILY_MANAGEMENT_REPORT === "true";

@@ -13,6 +13,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { DAILY_MANAGEMENT_REPORT_ENABLED } from "../../lib/features";
 
 export type NavigationItem = {
   label: string;
@@ -28,6 +29,12 @@ export const navigationItems: NavigationItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     visible: true,
+  },
+  {
+    label: "Daily Report",
+    href: "/daily-management",
+    icon: BarChart3,
+    visible: DAILY_MANAGEMENT_REPORT_ENABLED,
   },
   { label: "Sales", href: "/sales", icon: Banknote, visible: true },
   {

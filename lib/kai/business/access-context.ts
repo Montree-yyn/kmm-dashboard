@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { companyUsers } from "../../../db/schema";
-import { getDb } from "../../../db";
+import { getCompanyDb } from "../../../db";
 import { COMPANY_ID, type CompanyRole } from "../../company-management/types";
 import type { KaiBusinessAccess } from "../tools/types";
 
@@ -18,7 +18,7 @@ const ALLOWED_ROLES = new Set<KaiBusinessAccess["role"]>([
  * Phase 3A, so every allowed role receives company-wide aggregates only.
  */
 export async function resolveKaiBusinessAccess(userId: string): Promise<KaiBusinessAccess | null> {
-  const db = await getDb();
+  const db = await getCompanyDb();
   const [membership] = await db
     .select({ role: companyUsers.role, status: companyUsers.status })
     .from(companyUsers)

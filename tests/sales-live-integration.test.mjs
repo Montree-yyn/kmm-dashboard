@@ -61,7 +61,8 @@ test("D1 repository, shared business service, API, and page adapters are connect
   assert.match(organization, /loadLiveSalesData/);
   assert.match(organization, /allowFallback: false/);
   assert.match(marketing, /getSalesKpis/);
-  assert.match(client, /NEXT_PUBLIC_SALES_LOCAL_FALLBACK/);
+  assert.match(client, /process\.env\.NODE_ENV === "production"/);
+  assert.doesNotMatch(client, /NEXT_PUBLIC_SALES_LOCAL_FALLBACK/);
 });
 
 test("canonical D1 fields and null GP behavior are preserved by the adapter", async () => {

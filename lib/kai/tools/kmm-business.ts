@@ -22,7 +22,7 @@ import type { SalesFilterInput } from "../../sales/types";
 import { listSalesTransactions } from "../../sales/repository";
 import { getCompanyMonthlyTarget, targetProgress } from "../../targets/business-service";
 import type { TargetMetric, TargetProductGroup } from "../../targets/types";
-import { buildExecutiveSnapshot, deriveExecutiveSignals, executiveRecommendations, groupExecutiveSignals, rankExecutivePriorities, selectExecutiveSignalGroups, type ExecutiveSignal, type ExecutiveSignalGroup } from "../executive-intelligence";
+import { buildExecutiveSnapshot, canEvaluateFullPeriodTarget, deriveExecutiveSignals, executiveRecommendations, groupExecutiveSignals, rankExecutivePriorities, selectExecutiveSignalGroups, type ExecutiveSignal, type ExecutiveSignalGroup } from "../executive-intelligence";
 import { composeExecutiveNarrative } from "../executive-narrative";
 import { evaluateExecutiveAlerts } from "../executive-alerts";
 import { composeExecutiveBriefing } from "../executive-briefing";
@@ -123,7 +123,7 @@ export function isExecutiveQuestion(message: string) { return EXECUTIVE_REQUEST.
 async function getAlertAnswer(context: Parameters<KaiTool["execute"]>[0]): Promise<KaiToolOutput> {
   const range = resolveKmmDateRange(context.message, context.now);
   if (range.kind !== "dateRange") return unavailableOutput("business", context.message);
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel });
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, undefined, context.now);
   const alerts = evaluateExecutiveAlerts(snapshot, deriveExecutiveSignals(snapshot), context.now.toISOString(), range.end >= context.now.toISOString().slice(0, 10) ? "MTD" : "COMPLETED");
   const selected = resolveProduct(context.message); const visible = selected ? alerts.filter((alert) => alert.subject.includes(selected)) : alerts;
   const lines = ["Executive Alerts"];
@@ -140,10 +140,11 @@ async function getBriefingAnswer(context: Parameters<KaiTool["execute"]>[0]): Pr
   if (range.kind !== "dateRange") return unavailableOutput("business", context.message);
   const mode = weekly ? "weekly" : /(วันนี้|daily)/i.test(context.message) ? "daily" : "monthly";
   const isMtd = mode === "monthly" && range.end >= context.now.toISOString().slice(0,10);
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous);
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous, context.now);
   const status = weekly ? "WEEKLY" : mode === "daily" ? "DAILY" : isMtd ? "MTD" : "COMPLETED";
-  const alerts = evaluateExecutiveAlerts(snapshot, deriveExecutiveSignals(snapshot), context.now.toISOString(), status);
-  const groups = groupExecutiveSignals(deriveExecutiveSignals(snapshot));
+  const signals = deriveExecutiveSignals(snapshot);
+  const alerts = evaluateExecutiveAlerts(snapshot, signals, context.now.toISOString(), status);
+  const groups = groupExecutiveSignals(signals);
   const recommendations = executiveRecommendations(snapshot, groups);
   return { answer: composeExecutiveBriefing(snapshot, alerts, recommendations, mode, isMtd), data: { source: "KMM Internal Data", briefing: mode, mtd: isMtd, alerts } };
 }
@@ -225,10 +226,15 @@ async function getTargetAnswer(context: Parameters<KaiTool["execute"]>[0]): Prom
     `KMM · ${formatDateScope(range, thai)}`,
     `• ${metricLabel}: ${target.metric === "SALES_UNITS" ? formatNumber(target.target) : formatMoney(target.target)}${unit}`,
   ];
+  const targetEvaluationEligible = canEvaluateFullPeriodTarget(range, context.now);
   if (actualValue !== null && progress) {
     lines.push(`• ${thai ? "ผลงานจริง" : "Actual"}: ${target.metric === "SALES_UNITS" ? formatNumber(actualValue) : formatMoney(actualValue)}${unit}`);
-    lines.push(`• ${thai ? "Achievement" : "Achievement"}: ${formatNumber(progress.achievementPercent)}%`);
-    lines.push(`• Gap: ${target.metric === "SALES_UNITS" ? formatNumber(progress.gap) : formatMoney(progress.gap)}${unit}`);
+    if (targetEvaluationEligible) {
+      lines.push(`• ${thai ? "Achievement" : "Achievement"}: ${formatNumber(progress.achievementPercent)}%`);
+      lines.push(`• Gap: ${target.metric === "SALES_UNITS" ? formatNumber(progress.gap) : formatMoney(progress.gap)}${unit}`);
+    } else {
+      lines.push(thai ? "• งวดยังไม่สิ้นสุด: Target แสดงเป็นข้อมูลประกอบเท่านั้น ยังไม่ประเมินผลทั้งเดือน" : "• Period incomplete: Target is context only; full-period performance is not evaluated.");
+    }
     lines.push(`${thai ? "ข้อมูลจริง" : "Actual source"}: KMM Internal Data`);
   }
   lines.push(`${thai ? "เป้าหมาย" : "Target source"}: ${sourceLabel}`);
@@ -242,7 +248,7 @@ async function getExecutiveAnswer(context: Parameters<KaiTool["execute"]>[0]): P
   if (range.kind !== "dateRange" || range.start.slice(0, 7) !== range.end.slice(0, 7)) {
     return { answer: thai ? "ข้อมูลยังไม่เพียงพอสำหรับสรุป Executive Intelligence ในขอบเขตนี้ กรุณาระบุเดือนและปีเดียว" : "Executive Intelligence requires one explicit calendar month and year for this scope.", data: { unavailable: "executive_scope" } };
   }
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous);
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous, context.now);
   const signals = deriveExecutiveSignals(snapshot);
   const priorities = rankExecutivePriorities(signals);
   const groups = groupExecutiveSignals(signals);
@@ -253,7 +259,9 @@ async function getExecutiveAnswer(context: Parameters<KaiTool["execute"]>[0]): P
   if (mode === "branch") return executiveBranchAnswer(snapshot, range, thai);
   const hasPrior = snapshot.priorSales.units > 0 || snapshot.priorBooking.units > 0;
   const lines = [thai ? "Executive Summary" : "Executive Summary", `• ${thai ? "Sales" : "Sales"}: ${formatNumber(snapshot.sales.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.sales.value)}`, `• ${thai ? "กำไรขั้นต้น" : "Gross Profit"}: ${formatMoney(snapshot.sales.gp)}${snapshot.sales.gpPercent === null ? "" : ` · ${formatNumber(snapshot.sales.gpPercent)}%`}`, `• ${thai ? "Booking" : "Booking"}: ${formatNumber(snapshot.booking.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.booking.value)}`, `• ${thai ? "Stock" : "Stock"}: ${formatNumber(snapshot.stock.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.stock.value)}`];
-  if (snapshot.target && snapshot.progress) lines.push(`• ${thai ? "Target" : "Target"}: ${formatNumber(snapshot.target.target)} ${thai ? "คัน" : "units"} · ${formatNumber(snapshot.progress.achievementPercent)}% · Gap ${formatNumber(snapshot.progress.gap)}`);
+  if (snapshot.target && snapshot.progress) lines.push(snapshot.targetEvaluationEligible
+    ? `• ${thai ? "Target" : "Target"}: ${formatNumber(snapshot.target.target)} ${thai ? "คัน" : "units"} · ${formatNumber(snapshot.progress.achievementPercent)}% · Gap ${formatNumber(snapshot.progress.gap)}`
+    : `• ${thai ? "Target (ข้อมูลประกอบ)" : "Target (context only)"}: ${formatNumber(snapshot.target.target)} ${thai ? "คัน" : "units"} · ${thai ? "งวดยังไม่สิ้นสุด จึงไม่ประเมินผลทั้งงวด" : "period incomplete; no full-period assessment"}`);
   if (range.end > isoDate(context.now)) lines.push(thai ? "หมายเหตุ: ข้อมูลเดือนปัจจุบันเป็น Month-to-Date; การเปรียบเทียบกับเดือนก่อนเป็นเพียงข้อมูลประกอบ" : "Note: current-month data is Month-to-Date; the prior-month comparison is contextual only.");
   if (!hasPrior) lines.push(thai ? "แนวโน้ม: ข้อมูลยังไม่เพียงพอสำหรับเปรียบเทียบงวดก่อน" : "Trend: insufficient prior comparable-period data.");
   const narrative = await composeExecutiveNarrative(context.aiProvider, snapshot, signals, priorities);
@@ -332,7 +340,8 @@ function executiveWhyAnswer(message: string, snapshot: Awaited<ReturnType<typeof
     lines.push(`• Sales: ${formatNumber(snapshot.sales.units)} ${thai ? "คัน" : "units"}`);
     lines.push(`• Booking: ${formatNumber(snapshot.booking.units)} ${thai ? "คัน" : "units"}`);
     lines.push(`• Stock: ${formatNumber(snapshot.stock.units)} ${thai ? "คัน" : "units"}`);
-    if (snapshot.progress) lines.push(`• Achievement: ${formatNumber(snapshot.progress.achievementPercent)}%`);
+    if (snapshot.progress && snapshot.targetEvaluationEligible) lines.push(`• Achievement: ${formatNumber(snapshot.progress.achievementPercent)}%`);
+    if (snapshot.progress && !snapshot.targetEvaluationEligible) lines.push(thai ? "• Target เป็นข้อมูลประกอบ เนื่องจากงวดยังไม่สิ้นสุด" : "• Target is context only because the period is incomplete.");
   }
   lines.push(thai ? "ข้อมูลปัจจุบันแสดงสัญญาณ แต่ยังไม่เพียงพอที่จะยืนยันสาเหตุ" : "The available data shows a signal, but is insufficient to confirm a cause.");
   lines.push(`${thai ? "ช่วงข้อมูล" : "Data scope"}: ${formatDateScope(range, thai)}`, `${thai ? "แหล่งข้อมูล" : "Source"}: KMM Internal Data`);

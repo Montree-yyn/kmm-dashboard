@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import { getDb } from "../../../../db";
+import { getCompanyDb, getOperationsDb } from "../../../../db";
 import {
   companies,
   companyUsers,
@@ -43,16 +43,17 @@ type SalesRow = {
 export async function GET(request: Request) {
   try {
     const context = await getContext(request);
-    const db = context.db;
+    const companyDb = context.companyDb;
+    const operationsDb = context.operationsDb;
     const query = new URL(request.url).searchParams;
     const requestedCompany = query.get("companyId") || COMPANY_ID;
     const requestedYear = Number(query.get("year"));
     const requestedMonth = Number(query.get("month"));
     const [companyRows, history] = await Promise.all([
-      db.select({ id: companies.companyId, code: companies.companyCode, name: companies.companyName })
+      companyDb.select({ id: companies.companyId, code: companies.companyCode, name: companies.companyName })
         .from(companies)
         .where(eq(companies.status, "active")),
-      db.select().from(dataImportHistory)
+      operationsDb.select().from(dataImportHistory)
         .where(and(eq(dataImportHistory.companyId, COMPANY_ID), eq(dataImportHistory.module, "sales")))
         .orderBy(desc(dataImportHistory.importedAt)).limit(50),
     ]);
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
       companies: companyRows.length ? companyRows : [{ id: COMPANY_ID, code: "KMM", name: "KMM Company" }],
       role: context.role,
       history: history.map(toHistory),
-      existingRows: Number((await db.select({ count: sql<number>`count(*)` }).from(salesTransactions).where(and(eq(salesTransactions.companyId, requestedCompany), Number.isInteger(requestedYear) ? eq(salesTransactions.importYear, requestedYear) : undefined, Number.isInteger(requestedMonth) ? eq(salesTransactions.importMonth, requestedMonth) : undefined)))[0]?.count ?? 0),
+      existingRows: Number((await operationsDb.select({ count: sql<number>`count(*)` }).from(salesTransactions).where(and(eq(salesTransactions.companyId, requestedCompany), Number.isInteger(requestedYear) ? eq(salesTransactions.importYear, requestedYear) : undefined, Number.isInteger(requestedMonth) ? eq(salesTransactions.importMonth, requestedMonth) : undefined)))[0]?.count ?? 0),
     });
   } catch (error) {
     return handleError(error);
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
   try {
     const context = await getContext(request);
     if (!WRITE_ROLES.has(context.role)) return json({ error: "Your role is read-only for Sales imports." }, 403);
-    const db = context.db;
+    const db = context.operationsDb;
     const payload = await request.json() as {
       action?: "replace" | "save_mapping";
       companyId?: string;
@@ -145,10 +146,10 @@ export async function POST(request: Request) {
 
 async function getContext(request: Request) {
   const user = await verifyFirebaseRequest(request);
-  const db = await getDb();
-  const [existing] = await db.select({ role: companyUsers.role }).from(companyUsers).where(and(eq(companyUsers.companyId, COMPANY_ID), eq(companyUsers.userId, user.id), eq(companyUsers.status, "active"))).limit(1);
+  const [companyDb, operationsDb] = await Promise.all([getCompanyDb(), getOperationsDb()]);
+  const [existing] = await companyDb.select({ role: companyUsers.role }).from(companyUsers).where(and(eq(companyUsers.companyId, COMPANY_ID), eq(companyUsers.userId, user.id), eq(companyUsers.status, "active"))).limit(1);
   const role = existing && isCompanyRole(existing.role) ? existing.role : "viewer";
-  return { db, user, role };
+  return { companyDb, operationsDb, user, role };
 }
 
 function toHistory(row: Pick<typeof dataImportHistory.$inferSelect, "id" | "filename" | "importedAt" | "importedBy" | "totalRows" | "validRows" | "warningRows" | "errorRows" | "durationMs" | "status">) {

@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "../../../../db";
+import { getCompanyDb, getOperationsDb } from "../../../../db";
 import { bookingTransactions, companyUsers, dataImportHistory, stockTransactions } from "../../../../db/schema";
 import { COMPANY_ID, TENANT_ID, type CompanyRole } from "../../../../lib/company-management/types";
 import { isCompanyRole } from "../../../../lib/company-management/permissions";
@@ -19,7 +19,7 @@ type Module = "sales" | "booking" | "stock";
 export async function GET(request: Request) {
   try {
     const context = await getContext(request);
-    const history = await context.db.select().from(dataImportHistory).where(eq(dataImportHistory.companyId, COMPANY_ID)).orderBy(desc(dataImportHistory.importedAt)).limit(100);
+    const history = await context.operationsDb.select().from(dataImportHistory).where(eq(dataImportHistory.companyId, COMPANY_ID)).orderBy(desc(dataImportHistory.importedAt)).limit(100);
     const latest = new Map<string, (typeof history)[number]>();
     history.forEach((item) => { if (!latest.has(item.module)) latest.set(item.module, item); });
     return Response.json({ history: history.map(toHistory), statuses: ["sales", "booking", "stock"].map((module) => ({ module, lastUpdate: latest.get(module)?.importedAt ?? null, status: latest.get(module)?.status ?? "not_updated" })) }, { headers: { "Cache-Control": "no-store" } });
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   try {
     context = await getContext(request);
     if (!WRITE_ROLES.has(context.role)) return json({ error: "Your role is read-only for imports." }, 403);
-    const db = context.db;
+    const db = context.operationsDb;
     payload = await request.json();
     const importModule = payload.module;
     const year = Number(payload.year);
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     return json({ ok: true, module: importModule, importId, importedRows: payload.rows.length, refreshRequired: true, history: toHistory(history) });
   } catch (error) {
     if (context && payload.module) {
-      try { await context.db.insert(dataImportHistory).values({ id: crypto.randomUUID(), tenantId: TENANT_ID, companyId: COMPANY_ID, module: payload.module, importYear: Number(payload.year) || 0, importMonth: Number(payload.month) || 0, filename: payload.filename ?? `${payload.module}-import.xlsx`, status: "failed", totalRows: payload.rows?.length ?? 0, validRows: 0, warningRows: 0, errorRows: 1, durationMs: 0, importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() }); } catch { /* Preserve the original import error. */ }
+      try { await context.operationsDb.insert(dataImportHistory).values({ id: crypto.randomUUID(), tenantId: TENANT_ID, companyId: COMPANY_ID, module: payload.module, importYear: Number(payload.year) || 0, importMonth: Number(payload.month) || 0, filename: payload.filename ?? `${payload.module}-import.xlsx`, status: "failed", totalRows: payload.rows?.length ?? 0, validRows: 0, warningRows: 0, errorRows: 1, durationMs: 0, importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() }); } catch { /* Preserve the original import error. */ }
     }
     return handleError(error);
   }
@@ -98,10 +98,10 @@ export async function POST(request: Request) {
 
 async function getContext(request: Request) {
   const user = await verifyFirebaseRequest(request);
-  const db = await getDb();
-  const [existing] = await db.select({ role: companyUsers.role }).from(companyUsers).where(and(eq(companyUsers.companyId, COMPANY_ID), eq(companyUsers.userId, user.id), eq(companyUsers.status, "active"))).limit(1);
+  const [companyDb, operationsDb] = await Promise.all([getCompanyDb(), getOperationsDb()]);
+  const [existing] = await companyDb.select({ role: companyUsers.role }).from(companyUsers).where(and(eq(companyUsers.companyId, COMPANY_ID), eq(companyUsers.userId, user.id), eq(companyUsers.status, "active"))).limit(1);
   const role = existing && isCompanyRole(existing.role) ? existing.role : "viewer";
-  return { db, user, role };
+  return { operationsDb, user, role };
 }
 function toHistory(row: { id: string; filename: string; module: string; importedAt: string; importedBy: string; totalRows: number; validRows: number; warningRows: number; errorRows: number; status: string }) { return { id: row.id, filename: row.filename, module: row.module, importedAt: row.importedAt, importedBy: row.importedBy, rows: row.totalRows, success: row.validRows, warning: row.warningRows, error: row.errorRows, status: row.status === "success" ? "success" : "failed", durationMs: 0, rollbackAvailable: false }; }
 function json(value: unknown, status = 200) { return Response.json(value, { status, headers: { "Cache-Control": "no-store" } }); }

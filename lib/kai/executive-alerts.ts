@@ -1,5 +1,5 @@
 /** Phase 5A: deterministic, read-only alerts. No forecast or persistence. */
-import type { ExecutiveSignal } from "./executive-intelligence";
+import { isTargetDependentExecutiveSignal, type ExecutiveSignal } from "./executive-intelligence";
 
 export const ALERT_SEVERITY = Object.freeze({ CRITICAL: "CRITICAL", WARNING: "WARNING", WATCH: "WATCH", POSITIVE: "POSITIVE", INFO: "INFO" } as const);
 export type AlertSeverity = (typeof ALERT_SEVERITY)[keyof typeof ALERT_SEVERITY];
@@ -14,9 +14,10 @@ const severity: Record<ExecutiveSignal["code"], AlertSeverity> = {
 
 /** Groups same-condition product evidence into one visible executive alert. */
 export type AlertPeriodStatus = "COMPLETED" | "MTD" | "DAILY" | "WEEKLY";
-export function evaluateExecutiveAlerts(snapshot: { period: { start?: string; end?: string; scopeLabel: string }; stock: { snapshotDate: string | null } }, signals: ExecutiveSignal[], generatedAt = new Date().toISOString(), periodStatus: AlertPeriodStatus = "COMPLETED"): ExecutiveAlert[] {
+export function evaluateExecutiveAlerts(snapshot: { period: { start?: string; end?: string; scopeLabel: string }; stock: { snapshotDate: string | null }; targetEvaluationEligible?: boolean }, signals: ExecutiveSignal[], generatedAt = new Date().toISOString(), periodStatus: AlertPeriodStatus = "COMPLETED"): ExecutiveAlert[] {
+  const targetEvaluationEligible = snapshot.targetEvaluationEligible ?? periodStatus === "COMPLETED";
   const eligible = signals.filter((signal) => {
-    if (periodStatus !== "COMPLETED" && signal.code.startsWith("TARGET_")) return false;
+    if (!targetEvaluationEligible && isTargetDependentExecutiveSignal(signal)) return false;
     // A later snapshot is not evidence of a historical Stock condition.
     if (periodStatus === "COMPLETED" && signal.code.includes("STOCK") && snapshot.stock.snapshotDate && snapshot.period.end && snapshot.stock.snapshotDate > snapshot.period.end) return false;
     return true;

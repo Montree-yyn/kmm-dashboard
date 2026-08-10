@@ -7,7 +7,8 @@ import { filterSalesRows, getSalesKpis } from "../sales/business-service";
 import { listSalesTransactions } from "../sales/repository";
 import { getCompanyMonthlyTarget, targetProgress } from "../targets/business-service";
 
-type Period = { start: string; end: string; scopeLabel: string };
+export type ExecutivePeriod = { start: string; end: string; scopeLabel: string };
+type Period = ExecutivePeriod;
 type Product = "TT" | "CH" | "EX" | "TP";
 type Metric = { units: number; value: number; gp: number; gpPercent: number | null };
 
@@ -41,6 +42,30 @@ export type ExecutiveSignalGroup = {
 
 export type ExecutiveRecommendation = { text: string; reason: string };
 
+/**
+ * A full-month Target is only evaluable for a completed calendar-month scope.
+ * This deliberately treats any day/week slice, today, the current week, MTD,
+ * and a partial month as incomplete: Target is context, never a risk input.
+ */
+export function canEvaluateFullPeriodTarget(period: Pick<ExecutivePeriod, "start" | "end">, asOf: Date | string) {
+  const asOfDate = (asOf instanceof Date ? asOf.toISOString() : asOf).slice(0, 10);
+  const monthEnd = new Date(`${period.start}T00:00:00Z`);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1, 0);
+  return period.start.endsWith("-01")
+    && period.end === monthEnd.toISOString().slice(0, 10)
+    && period.end < asOfDate;
+}
+
+/** Target-dependent cross-metric signals must obey the same temporal rule. */
+export function isTargetDependentExecutiveSignal(signal: Pick<ExecutiveSignal, "code">) {
+  return signal.code === "TARGET_AHEAD"
+    || signal.code === "TARGET_NEAR"
+    || signal.code === "TARGET_GAP"
+    || signal.code === "TARGET_MATERIAL_GAP"
+    || signal.code === "SALES_GAP_BOOKING_IMPROVING"
+    || signal.code === "SALES_GAP_BOOKING_WEAKENING";
+}
+
 function number(value: number | null) { return value ?? 0; }
 function percent(current: number, previous: number) { return previous === 0 ? null : ((current - previous) / Math.abs(previous)) * 100; }
 function dateRows<T extends { date: string }>(rows: T[], period: Period) { return rows.filter((row) => row.date >= period.start && row.date <= period.end); }
@@ -60,7 +85,7 @@ function previousMonth(period: Period): Period {
 }
 
 /** One controlled read-only payload for an executive question. Raw rows never reach Qwen. */
-export async function buildExecutiveSnapshot(companyId: string, period: Period, comparisonPeriod?: Period) {
+export async function buildExecutiveSnapshot(companyId: string, period: Period, comparisonPeriod?: Period, asOf: Date | string = period.end) {
   const previous = comparisonPeriod ?? previousMonth(period);
   const [salesRaw, bookingRaw, stockRaw] = await Promise.all([listSalesTransactions(companyId), listBookingTransactions(companyId), listStockTransactions(companyId)]);
   const sales = salesRaw.map(toCanonicalSalesRow);
@@ -90,13 +115,16 @@ export async function buildExecutiveSnapshot(companyId: string, period: Period, 
     const stockRows = stock.filter((row) => row.branch === branch);
     return { branch, sales: rowMetric, booking: { units: getOpenBookingUnit(bookingRows), value: getBookingValue(bookingRows) }, stock: { units: getStockUnit(stockRows), value: getStockValue(stockRows) } };
   }).sort((a, b) => b.sales.units - a.sales.units || b.sales.value - a.sales.value);
-  return { period, previous, sales: current, priorSales: prior, booking: bookingMetric, priorBooking: priorBookingMetric, stock: { units: getStockUnit(stock), value: getStockValue(stock), snapshotDate: stock.map((row) => row.snapshotDate).filter(Boolean).sort().at(-1) ?? null }, target, progress, products, branches };
+  return { period, previous, targetEvaluationEligible: canEvaluateFullPeriodTarget(period, asOf), sales: current, priorSales: prior, booking: bookingMetric, priorBooking: priorBookingMetric, stock: { units: getStockUnit(stock), value: getStockValue(stock), snapshotDate: stock.map((row) => row.snapshotDate).filter(Boolean).sort().at(-1) ?? null }, target, progress, products, branches };
 }
 
 export function deriveExecutiveSignals(snapshot: Awaited<ReturnType<typeof buildExecutiveSnapshot>>): ExecutiveSignal[] {
   const signals: ExecutiveSignal[] = [];
   const achievement = snapshot.progress?.achievementPercent ?? null;
-  if (achievement !== null) {
+  // Target-dependent signals are deliberately never created for incomplete
+  // periods. This is the authoritative guard; alert presentation also keeps a
+  // defensive filter so future callers cannot reintroduce the leak.
+  if (snapshot.targetEvaluationEligible && achievement !== null) {
     if (achievement >= EXECUTIVE_THRESHOLDS.achievement.achieved) signals.push({ code: "TARGET_AHEAD", severity: "positive", detail: "Sales is at or above the approved company Target.", values: { achievement, gap: snapshot.progress?.gap ?? null } });
     else if (achievement >= EXECUTIVE_THRESHOLDS.achievement.near) signals.push({ code: "TARGET_NEAR", severity: "attention", detail: "Sales is close to the approved company Target.", values: { achievement, gap: snapshot.progress?.gap ?? null } });
     else if (achievement >= EXECUTIVE_THRESHOLDS.achievement.attention) signals.push({ code: "TARGET_GAP", severity: "attention", detail: "Sales is below Target and needs attention.", values: { achievement, gap: snapshot.progress?.gap ?? null } });
@@ -116,7 +144,7 @@ export function deriveExecutiveSignals(snapshot: Awaited<ReturnType<typeof build
   }
   // Relationships are deterministic observations only. They explicitly do not
   // assert that one KPI caused another KPI to move.
-  const hasSalesGap = signals.some((signal) => signal.code === "TARGET_GAP" || signal.code === "TARGET_MATERIAL_GAP");
+  const hasSalesGap = snapshot.targetEvaluationEligible && signals.some((signal) => signal.code === "TARGET_GAP" || signal.code === "TARGET_MATERIAL_GAP");
   const bookingImproving = signals.some((signal) => signal.code === "BOOKING_IMPROVING");
   const bookingWeakening = signals.some((signal) => signal.code === "BOOKING_WEAKENING");
   const inventoryPressure = signals.some((signal) => signal.code === "HIGH_STOCK_LOW_SALES" || signal.code === "ZERO_SALES_WITH_STOCK");

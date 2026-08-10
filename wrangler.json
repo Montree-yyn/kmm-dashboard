@@ -27,10 +27,14 @@
   },
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "COMPANY_DB",
       "database_name": "kmm-company-management",
-      "database_id": "5e445153-3dca-431a-ad39-44de75a2e6a2",
-      "migrations_dir": "drizzle"
+      "database_id": "5e445153-3dca-431a-ad39-44de75a2e6a2"
+    },
+    {
+      "binding": "OPERATIONS_DB",
+      "database_name": "kmm-operations",
+      "database_id": "9e5658b5-151a-43a6-917e-596d3d825040"
     }
   ]
 }

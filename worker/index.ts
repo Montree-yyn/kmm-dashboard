@@ -4,7 +4,8 @@ import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS?: Fetcher;
-  DB: D1Database;
+  COMPANY_DB: D1Database;
+  OPERATIONS_DB: D1Database;
   AI: {
     run(model: string, input: Record<string, unknown>): Promise<unknown>;
   };

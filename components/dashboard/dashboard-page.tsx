@@ -160,6 +160,39 @@ const defaultFilters: FilterState = {
   salesperson: [],
 };
 
+function createLiveDashboardData(
+  liveSales: Awaited<ReturnType<typeof loadLiveSalesData>>,
+  liveOperations: Awaited<ReturnType<typeof loadLiveOperationalData>>,
+): DashboardData {
+  return {
+    meta: {
+      company: "KMM Company",
+      shortName: "KMM",
+      generatedAt: new Date().toISOString(),
+      sourceUpdatedAt: liveSales.meta.sourceUpdatedAt,
+      sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"],
+    },
+    // Sales targets are not yet supplied by the Dashboard API. Keep this
+    // empty rather than borrowing target values from the legacy static file.
+    plan: { year: 0, months: [], units: [], revenue: [], expense: [] },
+    sales: liveSales.sales,
+    booking: liveOperations.booking,
+    stock: liveOperations.stock,
+    marketing: [],
+  };
+}
+
+async function loadDashboardPresentationData() {
+  const [liveSales, liveOperations] = await Promise.all([
+    // Dashboard operational KPIs are D1/API-only in every runtime. Passing
+    // this explicitly avoids any Worker/client environment-detection drift
+    // from reactivating the packaged legacy payload after an API failure.
+    loadLiveSalesData({ allowFallback: false }),
+    loadLiveOperationalData({ allowFallback: false }),
+  ]);
+  return createLiveDashboardData(liveSales, liveOperations);
+}
+
 function formatCompact(value: number) {
   if (!Number.isFinite(value)) return "0";
   if (Math.abs(value) >= 1_000_000_000)
@@ -1264,14 +1297,7 @@ export function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [liveSales, liveOperations, fallbackResponse] = await Promise.all([
-        loadLiveSalesData(),
-        loadLiveOperationalData(),
-        fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }),
-      ]);
-      if (!fallbackResponse.ok) throw new Error(`Unable to load Dashboard fallback (${fallbackResponse.status})`);
-      const fallback = await fallbackResponse.json() as DashboardData;
-      setDashboardData({ ...fallback, sales: liveSales.sales, booking: liveOperations.booking, stock: liveOperations.stock, meta: { ...fallback.meta, sourceUpdatedAt: liveSales.meta.sourceUpdatedAt, sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"] } });
+      setDashboardData(await loadDashboardPresentationData());
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -1285,13 +1311,9 @@ export function DashboardPage() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([
-      loadLiveSalesData(),
-      loadLiveOperationalData(),
-      fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" }).then((response) => { if (!response.ok) throw new Error(`Unable to load Dashboard fallback (${response.status})`); return response.json() as Promise<DashboardData>; }),
-    ])
-      .then(([liveSales, liveOperations, fallback]) => {
-        if (!ignore) setDashboardData({ ...fallback, sales: liveSales.sales, booking: liveOperations.booking, stock: liveOperations.stock, meta: { ...fallback.meta, sourceUpdatedAt: liveSales.meta.sourceUpdatedAt, sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"] } });
+    loadDashboardPresentationData()
+      .then((data) => {
+        if (!ignore) setDashboardData(data);
       })
       .catch((loadError: unknown) => {
         if (!ignore)

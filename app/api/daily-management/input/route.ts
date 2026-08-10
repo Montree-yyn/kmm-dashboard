@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "../../../../db";
+import { getOperationsDb } from "../../../../db";
 import { dailyManagementInputs } from "../../../../db/schema";
 import { COMPANY_ID, TENANT_ID } from "../../../../lib/company-management/types";
 import type { DailyManagementInputSnapshot } from "../../../../lib/daily-management/input-storage";
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     const mode = url.searchParams.get("mode") === "published" ? "published" : "draft";
     const reportDate = url.searchParams.get("date");
     const branch = url.searchParams.get("branch");
-    const db = await getDb();
+    const db = await getOperationsDb();
     const filters = [eq(dailyManagementInputs.companyId, COMPANY_ID)];
     if (reportDate) filters.push(eq(dailyManagementInputs.reportDate, reportDate));
     if (branch) filters.push(eq(dailyManagementInputs.branch, branch));
@@ -103,7 +103,7 @@ export async function PUT(request: Request) {
     const body = await request.json() as { mode?: SaveMode; snapshot?: unknown };
     const mode: SaveMode = body.mode === "publish" ? "publish" : "draft";
     const snapshot = normalizeSnapshot(body.snapshot);
-    const db = await getDb();
+    const db = await getOperationsDb();
     const [existing] = await db.select().from(dailyManagementInputs).where(and(
       eq(dailyManagementInputs.companyId, COMPANY_ID),
       eq(dailyManagementInputs.reportDate, snapshot.reportDate),

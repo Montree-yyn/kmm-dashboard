@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "../../db";
+import { getOperationsDb } from "../../db";
 import { businessTargets } from "../../db/schema";
 import type { TargetMetric, TargetProductGroup } from "./types";
 
@@ -11,7 +11,7 @@ export async function findApprovedTarget(input: {
   metric: TargetMetric;
   productGroup?: TargetProductGroup;
 }) {
-  const db = await getDb();
+  const db = await getOperationsDb();
   const [row] = await db
     .select({
       targetYear: businessTargets.targetYear,

@@ -80,6 +80,9 @@ async function loadKaiTools() {
   const webSearch = require(join(kaiRoot, "tools/web-search.js"));
   const search = require(join(kaiRoot, "search/tavily-provider.js"));
   const kmmBusiness = require(join(kaiRoot, "tools/kmm-business.js"));
+  const executive = require(join(directory, "lib/kai/executive-intelligence.js"));
+  const alerts = require(join(directory, "lib/kai/executive-alerts.js"));
+  const briefing = require(join(directory, "lib/kai/executive-briefing.js"));
   const runKaiTool = async (message, options = {}) => {
     const results = await tools.runKaiTools(message, {
       history: [],
@@ -96,6 +99,9 @@ async function loadKaiTools() {
     ...webSearch,
     ...search,
     ...kmmBusiness,
+    ...executive,
+    ...alerts,
+    ...briefing,
     runKaiTool,
     cleanup: () => rm(directory, { recursive: true, force: true }),
   };
@@ -254,6 +260,47 @@ test("KAI resolves KMM date scope deterministically and keeps historical months 
     });
     assert.equal(isKmmBusinessQuestion("ยอดขายเดือนกรกฎาคม 2026"), true);
     assert.equal(isKmmBusinessQuestion("August sales across all years"), true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("incomplete periods never generate Target-dependent alerts, cross-metric risks, or recommendations", async () => {
+  const { deriveExecutiveSignals, evaluateExecutiveAlerts, canEvaluateFullPeriodTarget, executiveRecommendations, groupExecutiveSignals, composeExecutiveBriefing, cleanup } = await loadKaiTools();
+  const incompleteSnapshot = {
+    period: { start: "2026-08-01", end: "2026-08-31", scopeLabel: "สิงหาคม 2026" },
+    targetEvaluationEligible: canEvaluateFullPeriodTarget({ start: "2026-08-01", end: "2026-08-31" }, "2026-08-10T10:45:00.000Z"),
+    sales: { units: 0, value: 0, gp: 0, gpPercent: null },
+    priorSales: { units: 1, value: 1, gp: 1, gpPercent: 1 },
+    booking: { units: 0, value: 0 },
+    priorBooking: { units: 11, value: 1 },
+    stock: { units: 0, value: 0, snapshotDate: null },
+    target: { target: 30 },
+    progress: { achievementPercent: 0, gap: 30 },
+    products: [],
+    branches: [],
+  };
+  const completedAhead = { ...incompleteSnapshot, period: { start: "2026-07-01", end: "2026-07-31", scopeLabel: "กรกฎาคม 2026" }, targetEvaluationEligible: canEvaluateFullPeriodTarget({ start: "2026-07-01", end: "2026-07-31" }, "2026-08-10T10:45:00.000Z"), sales: { units: 43, value: 1, gp: 1, gpPercent: 1 }, progress: { achievementPercent: 215, gap: -23 } };
+  const completedGap = { ...completedAhead, sales: { units: 5, value: 1, gp: 1, gpPercent: 1 }, progress: { achievementPercent: 25, gap: 15 } };
+  try {
+    assert.equal(incompleteSnapshot.targetEvaluationEligible, false);
+    assert.equal(canEvaluateFullPeriodTarget({ start: "2026-08-10", end: "2026-08-10" }, "2026-08-11T00:00:00.000Z"), false);
+    assert.equal(canEvaluateFullPeriodTarget({ start: "2026-08-03", end: "2026-08-09" }, "2026-08-11T00:00:00.000Z"), false);
+    const incompleteSignals = deriveExecutiveSignals(incompleteSnapshot);
+    assert.ok(incompleteSignals.some((signal) => signal.code === "BOOKING_WEAKENING"));
+    assert.ok(!incompleteSignals.some((signal) => /TARGET|SALES_GAP_BOOKING/.test(signal.code)));
+    const injectedTargetCrossMetric = { code: "SALES_GAP_BOOKING_WEAKENING", severity: "high", detail: "must never render for an incomplete period", values: { sales: 0, booking: 0 } };
+    for (const status of ["MTD", "DAILY", "WEEKLY"]) {
+      const visible = evaluateExecutiveAlerts(incompleteSnapshot, [...incompleteSignals, injectedTargetCrossMetric], "2026-08-10T10:45:00.000Z", status);
+      assert.ok(!visible.some((alert) => /TARGET|SALES_GAP_BOOKING/.test(alert.type)));
+    }
+    const recommendations = executiveRecommendations(incompleteSnapshot, groupExecutiveSignals(incompleteSignals));
+    assert.ok(!recommendations.some((item) => /Target|ช่องว่างยอดขาย/.test(`${item.text} ${item.reason}`)));
+    const briefing = composeExecutiveBriefing(incompleteSnapshot, [], recommendations, "monthly", true);
+    assert.match(briefing, /Monthly Target Context/);
+    assert.doesNotMatch(briefing, /Achievement|Gap/);
+    assert.ok(deriveExecutiveSignals(completedAhead).some((signal) => signal.code === "TARGET_AHEAD"));
+    assert.ok(deriveExecutiveSignals(completedGap).some((signal) => signal.code === "TARGET_MATERIAL_GAP"));
   } finally {
     await cleanup();
   }

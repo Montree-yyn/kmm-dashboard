@@ -17,7 +17,10 @@ export async function loadLiveSalesData(options: { allowFallback?: boolean } = {
   const response = await fetch(`/api/sales?ts=${Date.now()}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (response.ok) return await response.json() as LiveSalesPayload;
   if (options.allowFallback === false) throw new Error(`Unable to load live D1 Sales data (${response.status}).`);
-  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_SALES_LOCAL_FALLBACK !== "true") throw new Error(`Unable to load live D1 Sales data (${response.status}).`);
+  // Production must never combine a failed operational response with the
+  // packaged legacy dataset. That dataset is retained only for local QA and
+  // rollback of the prior static deployment.
+  if (process.env.NODE_ENV === "production") throw new Error(`Unable to load live D1 Sales data (${response.status}).`);
   const fallback = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" });
   if (!fallback.ok) throw new Error(`Unable to load Sales fallback (${fallback.status}).`);
   const data = await fallback.json() as LiveSalesPayload;

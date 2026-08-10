@@ -14,7 +14,9 @@ export async function loadLiveOperationalData(options: { allowFallback?: boolean
     return response.json() as Promise<LiveOperationalData>;
   } catch (error) {
     if (options.allowFallback === false) throw error;
-    if (process.env.NEXT_PUBLIC_OPERATIONS_LOCAL_FALLBACK !== "true") throw error;
+    // The legacy static payload is a non-production, opt-in QA fallback only.
+    // A production D1 failure must remain visible to the operator.
+    if (process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_OPERATIONS_LOCAL_FALLBACK !== "true") throw error;
     const fallback = await fetch(`/dashboard-data.json?ts=${Date.now()}`, { cache: "no-store" });
     if (!fallback.ok) throw error;
     const data = await fallback.json() as { booking: BookingAdapterRow[]; stock: StockAdapterRow[] };

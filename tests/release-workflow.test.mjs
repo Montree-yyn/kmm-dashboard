@@ -7,6 +7,25 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
+test("production configuration uses explicit company and operations D1 bindings", async () => {
+  const [wrangler, database, salesRepository, operationsRepository, accessContext] = await Promise.all([
+    readFile(new URL("../wrangler.json", import.meta.url), "utf8"),
+    readFile(new URL("../db/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/sales/repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/operations/repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/kai/business/access-context.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(wrangler, /"binding": "COMPANY_DB"/);
+  assert.match(wrangler, /"binding": "OPERATIONS_DB"/);
+  assert.doesNotMatch(wrangler, /"binding": "DB"/);
+  assert.match(database, /export function getCompanyDb/);
+  assert.match(database, /export function getOperationsDb/);
+  assert.doesNotMatch(database, /export async function getDb/);
+  assert.match(salesRepository, /getOperationsDb/);
+  assert.match(operationsRepository, /getOperationsDb/);
+  assert.match(accessContext, /getCompanyDb/);
+});
+
 test("release dry-run runs checks and never deploys", async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), "kmm-release-dry-run-"));
   const npmStub = path.join(tempDir, process.platform === "win32" ? "npm.cmd" : "npm");

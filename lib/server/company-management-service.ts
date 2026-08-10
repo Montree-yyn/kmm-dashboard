@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import { getDb } from "../../db";
+import { getCompanyDb } from "../../db";
 import {
   auditLogs,
   branches,
@@ -38,7 +38,7 @@ import {
 } from "./firebase-auth";
 
 type CompanyContext = {
-  db: Awaited<ReturnType<typeof getDb>>;
+  db: Awaited<ReturnType<typeof getCompanyDb>>;
   request: Request;
   user: AuthenticatedUser;
   role: CompanyRole;
@@ -436,7 +436,7 @@ async function getCompanyContext(request: Request): Promise<CompanyContext> {
     throw error;
   }
 
-  const db = await getDb();
+  const db = await getCompanyDb();
   const [existing] = await db
     .select()
     .from(companyUsers)

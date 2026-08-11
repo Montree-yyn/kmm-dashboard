@@ -47,6 +47,8 @@ async function loadKaiTools() {
     "lib/dashboard/product-groups",
     "lib/daily-management/branch",
     "lib/marketing/location-mapping",
+    "lib/marketing/township-geography",
+    "lib/marketing/sales-area-service",
     "lib/sales/compatibility-adapter",
     "lib/sales/business-service",
     "lib/sales/repository",
@@ -75,6 +77,15 @@ async function loadKaiTools() {
     const destination = join(directory, `${name}.js`);
     await mkdir(join(destination, ".."), { recursive: true });
     await writeFile(destination, output);
+  }
+  for (const name of [
+    "data/master-townships.json",
+    "data/geography/township-approved-aliases.json",
+    "data/geography/state-region-approved-aliases.json",
+  ]) {
+    const destination = join(directory, name);
+    await mkdir(join(destination, ".."), { recursive: true });
+    await writeFile(destination, await read(name));
   }
   const require = createRequire(import.meta.url);
   const tools = require(join(kaiRoot, "tools/registry.js"));

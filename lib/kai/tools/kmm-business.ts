@@ -21,6 +21,7 @@ import { toCanonicalSalesRow } from "../../sales/compatibility-adapter";
 import { filterSalesRows, getProductSummary, getSalesKpis } from "../../sales/business-service";
 import type { SalesFilterInput } from "../../sales/types";
 import { listSalesTransactions } from "../../sales/repository";
+import { getHeatmapSalesAreaAggregate } from "../../marketing/sales-area-service";
 import { getCompanyMonthlyTarget, targetProgress } from "../../targets/business-service";
 import type { TargetMetric, TargetProductGroup } from "../../targets/types";
 import { buildExecutiveSnapshot, canEvaluateFullPeriodTarget, deriveExecutiveSignals, executiveRecommendations, groupExecutiveSignals, rankExecutivePriorities, selectExecutiveSignalGroups, type ExecutiveSignal, type ExecutiveSignalGroup } from "../executive-intelligence";
@@ -75,7 +76,8 @@ const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเค
 const ALERT_REQUEST = /(alert|แจ้งเตือน|ต้องระวัง|เรื่องด่วน|อะไรต้องระวัง|เตือนเรื่อง)/i;
 const BRIEFING_REQUEST = /(สรุปวันนี้|วันนี้เป็นอย่างไร|daily briefing|สรุปสัปดาห์นี้|weekly briefing|สรุปเดือนนี้|executive briefing|สรุปให้ผู้บริหาร|สัปดาห์นี้มีอะไรสำคัญ|เดือนนี้ควรโฟกัสอะไร|มีอะไรเปลี่ยนแปลง|สรุปเดือน.*สำหรับผู้บริหาร|แบบละเอียด)/i;
 const BUSINESS_CONTEXT = /(kmm|เดือนนี้|เดือนก่อน|เดือนที่แล้ว|วันนี้|เมื่อวาน|ตอนนี้|ปัจจุบัน|สัปดาห์นี้|ปีนี้|this month|last month|previous month|this year|by branch|tractor|combine|excavator|transplanter|สรุป)/i;
-const SALES_AREA_RANKING_REQUEST = /(?:(?:พื้นที่ขาย|สาขา).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:พื้นที่ขาย|สาขา))/i;
+const SALES_AREA_RANKING_REQUEST = /(?:(?:พื้นที่ขาย|township|sales\s*area).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:พื้นที่ขาย|township|sales\s*area))/i;
+const SALES_BRANCH_RANKING_REQUEST = /(?:(?:สาขา|branch).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:สาขา|branch))/i;
 
 export const kmmBusinessTool: KaiTool = {
   id: "kmmBusiness",
@@ -96,6 +98,7 @@ export const kmmBusinessTool: KaiTool = {
     const product = resolveProduct(context.message);
     const comparePreviousMonth = wantsPreviousMonthComparison(context.message);
     const results = await Promise.all(areas.map((area) => {
+      if (area === "sales" && SALES_AREA_RANKING_REQUEST.test(context.message)) return getSalesAreaAggregate(range, product);
       if (area === "sales") return getSalesAggregate(context.businessAccess!.companyId, range, product);
       if (area === "booking") return getBookingAggregate(context.businessAccess!.companyId, range, product);
       return getStockAggregate(context.businessAccess!.companyId, product, range);
@@ -434,6 +437,14 @@ async function getSalesAggregate(companyId: string, range: DateRange, product: P
   };
 }
 
+async function getSalesAreaAggregate(range: DateRange, product: ProductGroup | null) {
+  if (range.kind !== "dateRange") {
+    return { area: "salesArea" as const, areaBreakdown: [], coverageStart: null, coverageEnd: null, unresolvedUnits: 0, range };
+  }
+  const aggregate = await getHeatmapSalesAreaAggregate({ start: range.start, end: range.end, product });
+  return { area: "salesArea" as const, areaBreakdown: aggregate.areas, ...aggregate, range };
+}
+
 function salesMetrics(kpis: ReturnType<typeof getSalesKpis>, branch?: string) {
   const salesValue = kpis.salesValue ?? 0;
   const grossProfit = kpis.grossProfit ?? 0;
@@ -673,6 +684,7 @@ function isIsoDate(value: string) { return !Number.isNaN(new Date(`${value}T00:0
 export function formatBusinessAnswer(message: string, data: { source: string; range: DateRange; results: unknown[] }) {
   const thai = /[\u0e00-\u0e7f]/.test(message);
   if (SALES_AREA_RANKING_REQUEST.test(message)) return formatSalesAreaRanking(message, data, thai);
+  if (SALES_BRANCH_RANKING_REQUEST.test(message)) return formatSalesBranchRanking(message, data, thai);
   const branchReport = /(แยกตามสาขา|สาขาไหน|ทุกสาขา|by branch|which branch)/i.test(message);
   const lines: string[] = [];
   for (const result of data.results as Array<Record<string, unknown>>) {
@@ -710,6 +722,29 @@ export function formatBusinessAnswer(message: string, data: { source: string; ra
 }
 
 function formatSalesAreaRanking(message: string, data: { source: string; range: DateRange; results: unknown[] }, thai: boolean) {
+  const sales = (data.results as Array<Record<string, unknown>>).find((result) => result.area === "salesArea");
+  const requestedLimit = Number(message.match(/(?:อันดับ\s*1\s*[-–—]\s*|top\s*)(\d{1,2})/i)?.[1] ?? 5);
+  const limit = Math.min(Math.max(requestedLimit, 1), 10);
+  const byValue = /(มูลค่า|ยอดเงิน|revenue|sales\s*value)/i.test(message);
+  const rows = (Array.isArray(sales?.areaBreakdown) ? sales.areaBreakdown : []) as Array<Record<string, unknown>>;
+  const ranked = [...rows]
+    .sort((left, right) => Number(byValue ? right.salesValue : right.units) - Number(byValue ? left.salesValue : left.units)
+      || Number(right.salesValue) - Number(left.salesValue))
+    .slice(0, limit);
+  const lines = [thai
+    ? `อันดับพื้นที่ขายระดับ Township ตาม${byValue ? "มูลค่ายอดขาย" : "จำนวน Sales Unit"}`
+    : `Township ranking by ${byValue ? "Sales Value" : "Sales Unit"}`];
+  if (!ranked.length) lines.push(thai ? "• ไม่พบยอดขายในช่วงเวลาที่ถาม" : "• No sales were found in the requested period");
+  ranked.forEach((row, index) => lines.push(`${index + 1}. ${String(row.township)} (${String(row.stateRegion)}): ${formatNumber(row.units)} ${thai ? "คัน" : "units"} · ${formatMoney(row.salesValue)}`));
+  if (ranked.length < limit) lines.push(thai ? `มีข้อมูลเพียง ${ranked.length} พื้นที่ในช่วงที่ถาม` : `Only ${ranked.length} townships are available in the requested period.`);
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data range"}: ${formatDateScope(data.range, thai)}`);
+  if (sales?.coverageEnd) lines.push(`${thai ? "ข้อมูล Heatmap ล่าสุด" : "Heatmap data through"}: ${String(sales.coverageEnd)}`);
+  if (Number(sales?.unresolvedUnits ?? 0) > 0) lines.push(thai ? `หมายเหตุ: มี ${formatNumber(sales?.unresolvedUnits)} คันที่ยังจับคู่ Township ไม่ได้` : `Note: ${formatNumber(sales?.unresolvedUnits)} units could not be mapped to a Township.`);
+  lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: KMM Sales Heatmap`);
+  return lines.join("\n");
+}
+
+function formatSalesBranchRanking(message: string, data: { source: string; range: DateRange; results: unknown[] }, thai: boolean) {
   const sales = (data.results as Array<Record<string, unknown>>).find((result) => result.area === "sales");
   const requestedLimit = Number(message.match(/(?:อันดับ\s*1\s*[-–—]\s*|top\s*)(\d{1,2})/i)?.[1] ?? 5);
   const limit = Math.min(Math.max(requestedLimit, 1), 10);
@@ -719,9 +754,7 @@ function formatSalesAreaRanking(message: string, data: { source: string; range: 
     .sort((left, right) => Number(byValue ? right.salesValue : right.units) - Number(byValue ? left.salesValue : left.units)
       || Number(right.salesValue) - Number(left.salesValue))
     .slice(0, limit);
-  const lines = [thai
-    ? `อันดับสาขาตาม${byValue ? "มูลค่ายอดขาย" : "จำนวน Sales Unit"}`
-    : `Branch ranking by ${byValue ? "Sales Value" : "Sales Unit"}`];
+  const lines = [thai ? `อันดับสาขาตาม${byValue ? "มูลค่ายอดขาย" : "จำนวน Sales Unit"}` : `Branch ranking by ${byValue ? "Sales Value" : "Sales Unit"}`];
   if (!ranked.length) lines.push(thai ? "• ไม่พบยอดขายในช่วงเวลาที่ถาม" : "• No sales were found in the requested period");
   ranked.forEach((row, index) => lines.push(`${index + 1}. ${String(row.branch)}: ${formatNumber(row.units)} ${thai ? "คัน" : "units"} · ${formatMoney(row.salesValue)}`));
   if (ranked.length < limit) lines.push(thai ? `มีข้อมูลเพียง ${ranked.length} สาขาในแหล่งข้อมูลปัจจุบัน` : `Only ${ranked.length} branches are available in the current source.`);

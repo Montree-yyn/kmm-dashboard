@@ -102,23 +102,29 @@ test("KAI never substitutes a current Stock snapshot for a historical month", ()
   assert.deepEqual(selectKmmStockSnapshotRows(rows, { ...july, start: "2026-06-01", end: "2026-06-30" }), []);
 });
 
-test("KAI formats canonical branch rankings for Dashboard year-range questions", () => {
+test("KAI formats canonical Township rankings for Dashboard year-range questions", () => {
   const message = "สรุปพื้นที่ขายรวมเยอะที่สุด ตั้งแต่ปี 2023-2026 อันดับ 1-5";
   assert.equal(isKmmBusinessQuestion(message), true);
   const answer = formatBusinessAnswer(message, {
     source: "KMM Internal Data",
     range: { kind: "dateRange", start: "2023-01-01", end: "2026-12-31", label: "year range", scopeLabel: "2023–2026" },
     results: [{
-      area: "sales",
-      branchBreakdown: [
-        { branch: "KMM02", units: 4, salesValue: 400 },
-        { branch: "KMM01", units: 10, salesValue: 1_000 },
-        { branch: "KMM03", units: 2, salesValue: 200 },
+      area: "salesArea",
+      areaBreakdown: [
+        { township: "Thaton", stateRegion: "Mon", units: 95, salesValue: 400 },
+        { township: "Bilin", stateRegion: "Mon", units: 47, salesValue: 1_000 },
+        { township: "Mudon", stateRegion: "Mon", units: 42, salesValue: 200 },
       ],
+      coverageEnd: "2026-06-29",
+      unresolvedUnits: 3,
     }],
   });
-  assert.match(answer, /1\. KMM01: 10 คัน/);
-  assert.match(answer, /2\. KMM02: 4 คัน/);
-  assert.match(answer, /มีข้อมูลเพียง 3 สาขา/);
+  assert.match(answer, /อันดับพื้นที่ขายระดับ Township/);
+  assert.match(answer, /1\. Thaton \(Mon\): 95 คัน/);
+  assert.match(answer, /2\. Bilin \(Mon\): 47 คัน/);
+  assert.match(answer, /มีข้อมูลเพียง 3 พื้นที่/);
+  assert.match(answer, /ข้อมูล Heatmap ล่าสุด: 2026-06-29/);
+  assert.match(answer, /3 คันที่ยังจับคู่ Township ไม่ได้/);
+  assert.match(answer, /แหล่งข้อมูล: KMM Sales Heatmap/);
   assert.doesNotMatch(answer, /ผลลัพธ์คือ -3/);
 });

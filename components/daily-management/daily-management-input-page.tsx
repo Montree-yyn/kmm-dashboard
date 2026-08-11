@@ -81,8 +81,6 @@ export function DailyManagementInputPage() {
 
   useEffect(() => {
     let active = true;
-    setReady(false);
-    setHasRemoteRecord(false);
     const searchParams = new URLSearchParams(window.location.search);
     const requestedDate = searchParams.get("date") ?? "";
     const requestedBranch = canonicalDailyBranch(searchParams.get("branch"));

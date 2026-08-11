@@ -45,6 +45,8 @@ async function loadKaiTools() {
     "lib/stock/physical-identifiers",
     "lib/dashboard/model-normalization",
     "lib/dashboard/product-groups",
+    "lib/daily-management/branch",
+    "lib/marketing/location-mapping",
     "lib/sales/compatibility-adapter",
     "lib/sales/business-service",
     "lib/sales/repository",

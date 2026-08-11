@@ -15,6 +15,7 @@ import {
   getStockValue,
   normalizeProductType,
 } from "../../dashboard/stock-selectors";
+import { canonicalDailyBranch } from "../../daily-management/branch";
 import type { StockAdapterRow } from "../../operations/types";
 import { toCanonicalSalesRow } from "../../sales/compatibility-adapter";
 import { filterSalesRows, getProductSummary, getSalesKpis } from "../../sales/business-service";
@@ -70,7 +71,7 @@ const SALESPERSON_REQUEST = /(salesperson|salesman|พนักงานขา�
 const SALES_REQUEST = /(ยอดขาย|sales|ขายได้|\bgp\b|gross profit|กำไรขั้นต้น)/i;
 const BOOKING_REQUEST = /(booking|ยอดจอง|รับจอง)/i;
 const STOCK_REQUEST = /(stock|สต็อก|inventory|เหลือกี่คัน)/i;
-const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเคราะห์(?:ละเอียด)?|น่ากังวล|อะไรดีขึ้น|สินค้าไหน(?:ต้องเร่ง|ควรโฟกัส)|สาขาไหน(?:ต้องจับตา|ควรจับตา)|stock.*ขายช้า|booking.*เป็นอย่างไร|gp.*(?:ปัญหา|เป็นยังไง)|เทียบ.*target|ผู้บริหาร.*โฟกัส|ขอรายละเอียดเพิ่ม|แยกตาม(?:สินค้า|สาขา)|ทำไม.*(?:ต้องเร่ง|stock|gp|ยอดขาย.*ลด)|สัปดาห์นี้.*โฟกัส|executive|management focus|what improved|what.*concern|stock.*slow|which product|which branch|why.*(?:stock|gp|sales.*down))/i;
+const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเคราะห์(?:ละเอียด)?|น่ากังวล|อะไรดีขึ้น|สินค้าไหน(?:ต้องเร่ง|ควรโฟกัส)|สาขาไหน(?:ต้องจับตา|ควรจับตา)|stock.*ขายช้า|booking.*เป็นอย่างไร|gp.*(?:ปัญหา|เป็นยังไง)|เทียบ.*target|ผู้บริหาร.*โฟกัส|ขอรายละเอียดเพิ่ม|ทำไม.*(?:ต้องเร่ง|stock|gp|ยอดขาย.*ลด)|สัปดาห์นี้.*โฟกัส|executive|management focus|what improved|what.*concern|stock.*slow|which product|which branch|why.*(?:stock|gp|sales.*down))/i;
 const ALERT_REQUEST = /(alert|แจ้งเตือน|ต้องระวัง|เรื่องด่วน|อะไรต้องระวัง|เตือนเรื่อง)/i;
 const BRIEFING_REQUEST = /(สรุปวันนี้|วันนี้เป็นอย่างไร|daily briefing|สรุปสัปดาห์นี้|weekly briefing|สรุปเดือนนี้|executive briefing|สรุปให้ผู้บริหาร|สัปดาห์นี้มีอะไรสำคัญ|เดือนนี้ควรโฟกัสอะไร|มีอะไรเปลี่ยนแปลง|สรุปเดือน.*สำหรับผู้บริหาร|แบบละเอียด)/i;
 const BUSINESS_CONTEXT = /(kmm|เดือนนี้|เดือนก่อน|เดือนที่แล้ว|วันนี้|เมื่อวาน|ตอนนี้|ปัจจุบัน|สัปดาห์นี้|ปีนี้|this month|last month|previous month|this year|by branch|tractor|combine|excavator|transplanter|สรุป)/i;
@@ -488,7 +489,7 @@ export function summarizeKmmStockRows(rows: StockAdapterRow[], product: ProductG
   // being counted differently in a filtered KAI answer.
   const currentStock = getCurrentStockRows(rows);
   const scoped = product ? currentStock.filter((row) => normalizeProductType(row) === product) : currentStock;
-  const branchBreakdown = groupBy(scoped, (row) => row.branch || "Missing").map(([branch, branchRows]) => ({
+  const branchBreakdown = groupBy(scoped, (row) => canonicalDailyBranch(row.branch) || "Missing").map(([branch, branchRows]) => ({
     branch,
     units: getStockUnit(branchRows),
     stockValue: getStockValue(branchRows),

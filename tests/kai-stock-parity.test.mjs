@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 
-const { summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
+const { isExecutiveQuestion, isKmmBusinessQuestion, summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
 
 const stockRow = (overrides = {}) => ({
   date: "2026-08-08",
@@ -67,6 +67,22 @@ test("canonical stock de-duplication rejects any shared normalized physical iden
   assert.equal(summary.stockValue, 300);
   assert.deepEqual(summary.branchBreakdown, [
     { branch: "KMM01", units: 3, stockValue: 300 },
+  ]);
+});
+
+test("KAI routes descriptive stock branch breakdowns to the canonical stock summary", () => {
+  const message = "สรุป Stock ปัจจุบันของ KMM: จำนวน Unit, มูลค่า, snapshot date และแยกตามสาขา";
+  assert.equal(isKmmBusinessQuestion(message), true);
+  assert.equal(isExecutiveQuestion(message), false);
+
+  const summary = summarizeKmmStockRows([
+    stockRow({ chassisNumber: "CH-101", branch: "Hpa-an", msrp: 10_000 }),
+    stockRow({ chassisNumber: "CH-102", branch: "KMM01", msrp: 1_000 }),
+    stockRow({ chassisNumber: "CH-103", branch: "Mawlamyine", msrp: 1_000 }),
+  ]);
+  assert.deepEqual(summary.branchBreakdown, [
+    { branch: "KMM01", units: 2, stockValue: 11_000 },
+    { branch: "KMM02", units: 1, stockValue: 1_000 },
   ]);
 });
 

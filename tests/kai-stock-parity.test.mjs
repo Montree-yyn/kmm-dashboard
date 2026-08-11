@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 
-const { isExecutiveQuestion, isKmmBusinessQuestion, summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
+const { formatBusinessAnswer, isExecutiveQuestion, isKmmBusinessQuestion, selectKmmStockSnapshotRows, summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
 
 const stockRow = (overrides = {}) => ({
   date: "2026-08-08",
@@ -90,4 +90,35 @@ test("KAI stock responses use snapshot metadata rather than a monthly range", as
   const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../lib/kai/tools/kmm-business.ts", import.meta.url), "utf8"));
   assert.match(source, /ข้อมูล Stock ณ วันที่/);
   assert.match(source, /result\.area !== "stock"/);
+});
+
+test("KAI never substitutes a current Stock snapshot for a historical month", () => {
+  const rows = [
+    stockRow({ snapshotDate: "2026-07-31", chassisNumber: "JUL-1" }),
+    stockRow({ snapshotDate: "2026-08-08", chassisNumber: "AUG-1" }),
+  ];
+  const july = { kind: "dateRange", start: "2026-07-01", end: "2026-07-31", label: "named month", scopeLabel: "กรกฎาคม 2026" };
+  assert.deepEqual(selectKmmStockSnapshotRows(rows, july).map((row) => row.chassisNumber), ["JUL-1"]);
+  assert.deepEqual(selectKmmStockSnapshotRows(rows, { ...july, start: "2026-06-01", end: "2026-06-30" }), []);
+});
+
+test("KAI formats canonical branch rankings for Dashboard year-range questions", () => {
+  const message = "สรุปพื้นที่ขายรวมเยอะที่สุด ตั้งแต่ปี 2023-2026 อันดับ 1-5";
+  assert.equal(isKmmBusinessQuestion(message), true);
+  const answer = formatBusinessAnswer(message, {
+    source: "KMM Internal Data",
+    range: { kind: "dateRange", start: "2023-01-01", end: "2026-12-31", label: "year range", scopeLabel: "2023–2026" },
+    results: [{
+      area: "sales",
+      branchBreakdown: [
+        { branch: "KMM02", units: 4, salesValue: 400 },
+        { branch: "KMM01", units: 10, salesValue: 1_000 },
+        { branch: "KMM03", units: 2, salesValue: 200 },
+      ],
+    }],
+  });
+  assert.match(answer, /1\. KMM01: 10 คัน/);
+  assert.match(answer, /2\. KMM02: 4 คัน/);
+  assert.match(answer, /มีข้อมูลเพียง 3 สาขา/);
+  assert.doesNotMatch(answer, /ผลลัพธ์คือ -3/);
 });

@@ -254,6 +254,21 @@ test("KAI resolves KMM date scope deterministically and keeps historical months 
       scopeLabel: "สิงหาคม 2026",
       defaultedCurrentYear: true,
     });
+    assert.deepEqual(resolveKmmDateRange("สรุปยอดขาย สต็อก และยอดจอง เดือน ก.ค.", now), {
+      kind: "dateRange",
+      start: "2026-07-01",
+      end: "2026-07-31",
+      label: "named month, current year default",
+      scopeLabel: "กรกฎาคม 2026",
+      defaultedCurrentYear: true,
+    });
+    assert.deepEqual(resolveKmmDateRange("สรุปพื้นที่ขายรวมเยอะที่สุด ตั้งแต่ปี 2023-2026 อันดับ 1-5", now), {
+      kind: "dateRange",
+      start: "2023-01-01",
+      end: "2026-12-31",
+      label: "year range",
+      scopeLabel: "2023–2026",
+    });
     assert.deepEqual(resolveKmmDateRange("ยอดขายปีนี้", now), {
       kind: "dateRange",
       start: "2026-01-01",
@@ -498,7 +513,7 @@ test("KAI DateTime tool uses one authoritative runtime instant across supported 
 });
 
 test("KAI Calculator tool evaluates approved business arithmetic without eval", async () => {
-  const { runKaiTool, evaluateArithmetic, cleanup } = await loadKaiTools();
+  const { runKaiTool, evaluateArithmetic, isBusinessYearRange, cleanup } = await loadKaiTools();
   try {
     const percentageOf = await runKaiTool("12% ของ 1,250,000 เท่าไร");
     const target = await runKaiTool("150 จากเป้า 270 คิดเป็นกี่เปอร์เซ็นต์");
@@ -516,6 +531,8 @@ test("KAI Calculator tool evaluates approved business arithmetic without eval", 
     assert.equal(invalid.status, "error");
     assert.equal(invalid.answer, "ไม่สามารถคำนวณนิพจน์นี้ได้");
     assert.throws(() => evaluateArithmetic("1 + globalThis.process"));
+    assert.equal(isBusinessYearRange("สรุปพื้นที่ขายรวมเยอะที่สุด ตั้งแต่ปี 2023-2026 อันดับ 1-5"), true);
+    assert.notEqual((await runKaiTool("สรุปพื้นที่ขายรวมเยอะที่สุด ตั้งแต่ปี 2023-2026 อันดับ 1-5"))?.id, "calculator");
   } finally {
     await cleanup();
   }

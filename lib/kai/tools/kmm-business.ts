@@ -48,18 +48,18 @@ type DateRange =
     };
 
 const MONTH_REFERENCES = [
-  { month: 1, thai: "มกราคม", english: ["january", "jan"] },
-  { month: 2, thai: "กุมภาพันธ์", english: ["february", "feb"] },
-  { month: 3, thai: "มีนาคม", english: ["march", "mar"] },
-  { month: 4, thai: "เมษายน", english: ["april", "apr"] },
-  { month: 5, thai: "พฤษภาคม", english: ["may"] },
-  { month: 6, thai: "มิถุนายน", english: ["june", "jun"] },
-  { month: 7, thai: "กรกฎาคม", english: ["july", "jul"] },
-  { month: 8, thai: "สิงหาคม", english: ["august", "aug"] },
-  { month: 9, thai: "กันยายน", english: ["september", "sep", "sept"] },
-  { month: 10, thai: "ตุลาคม", english: ["october", "oct"] },
-  { month: 11, thai: "พฤศจิกายน", english: ["november", "nov"] },
-  { month: 12, thai: "ธันวาคม", english: ["december", "dec"] },
+  { month: 1, thai: "มกราคม", thaiAliases: ["ม.ค.", "มค"], english: ["january", "jan"] },
+  { month: 2, thai: "กุมภาพันธ์", thaiAliases: ["ก.พ.", "กพ"], english: ["february", "feb"] },
+  { month: 3, thai: "มีนาคม", thaiAliases: ["มี.ค.", "มีค"], english: ["march", "mar"] },
+  { month: 4, thai: "เมษายน", thaiAliases: ["เม.ย.", "เมย"], english: ["april", "apr"] },
+  { month: 5, thai: "พฤษภาคม", thaiAliases: ["พ.ค.", "พค"], english: ["may"] },
+  { month: 6, thai: "มิถุนายน", thaiAliases: ["มิ.ย.", "มิย"], english: ["june", "jun"] },
+  { month: 7, thai: "กรกฎาคม", thaiAliases: ["ก.ค.", "กค"], english: ["july", "jul"] },
+  { month: 8, thai: "สิงหาคม", thaiAliases: ["ส.ค.", "สค"], english: ["august", "aug"] },
+  { month: 9, thai: "กันยายน", thaiAliases: ["ก.ย.", "กย"], english: ["september", "sep", "sept"] },
+  { month: 10, thai: "ตุลาคม", thaiAliases: ["ต.ค.", "ตค"], english: ["october", "oct"] },
+  { month: 11, thai: "พฤศจิกายน", thaiAliases: ["พ.ย.", "พย"], english: ["november", "nov"] },
+  { month: 12, thai: "ธันวาคม", thaiAliases: ["ธ.ค.", "ธค"], english: ["december", "dec"] },
 ] as const;
 
 const AUTH_BYPASS_REQUEST = /(ignore (all )?permissions|ignore.*สิทธิ|ข้ามสิทธิ|bypass (?:authorization|permission)|เปลี่ยนบริษัท|change company|switch company)/i;
@@ -68,13 +68,14 @@ const SQL_REQUEST = /(?:\b(?:select|insert|update|delete|alter|drop|create)\b[\s
 const MUTATION_REQUEST = /(?:\b(?:delete|update|insert|alter|drop|create)\b|\b(?:change|approve|import|overwrite)\s+target\b|\bchange\s+(?:gp|sales|booking|stock)\b|ลบ(?:ข้อมูล|ยอดขาย|booking|stock|สต็อก)|แก้(?:ไข)?(?:\s*(?:gp|ยอดขาย|booking|stock|สต็อก|target|เป้า))|เปลี่ยน\s*(?:target|เป้า)|อัปเดต(?:ยอดขาย|booking|stock|สต็อก|target|เป้า)|เพิ่ม(?:ข้อมูล|ยอดขาย|booking|stock|สต็อก))/i;
 const TARGET_REQUEST = /(\btarget\b|เป้า|achievement|gap)/i;
 const SALESPERSON_REQUEST = /(salesperson|salesman|พนักงานขาย|เซลส์|ใครขายสูงสุด|จัดอันดับ.*ขาย|ยอดขายของ\s*[A-Za-zก-๙])/i;
-const SALES_REQUEST = /(ยอดขาย|sales|ขายได้|\bgp\b|gross profit|กำไรขั้นต้น)/i;
+const SALES_REQUEST = /(ยอดขาย|พื้นที่ขาย|sales|ขายได้|\bgp\b|gross profit|กำไรขั้นต้น)/i;
 const BOOKING_REQUEST = /(booking|ยอดจอง|รับจอง)/i;
 const STOCK_REQUEST = /(stock|สต็อก|inventory|เหลือกี่คัน)/i;
 const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเคราะห์(?:ละเอียด)?|น่ากังวล|อะไรดีขึ้น|สินค้าไหน(?:ต้องเร่ง|ควรโฟกัส)|สาขาไหน(?:ต้องจับตา|ควรจับตา)|stock.*ขายช้า|booking.*เป็นอย่างไร|gp.*(?:ปัญหา|เป็นยังไง)|เทียบ.*target|ผู้บริหาร.*โฟกัส|ขอรายละเอียดเพิ่ม|ทำไม.*(?:ต้องเร่ง|stock|gp|ยอดขาย.*ลด)|สัปดาห์นี้.*โฟกัส|executive|management focus|what improved|what.*concern|stock.*slow|which product|which branch|why.*(?:stock|gp|sales.*down))/i;
 const ALERT_REQUEST = /(alert|แจ้งเตือน|ต้องระวัง|เรื่องด่วน|อะไรต้องระวัง|เตือนเรื่อง)/i;
 const BRIEFING_REQUEST = /(สรุปวันนี้|วันนี้เป็นอย่างไร|daily briefing|สรุปสัปดาห์นี้|weekly briefing|สรุปเดือนนี้|executive briefing|สรุปให้ผู้บริหาร|สัปดาห์นี้มีอะไรสำคัญ|เดือนนี้ควรโฟกัสอะไร|มีอะไรเปลี่ยนแปลง|สรุปเดือน.*สำหรับผู้บริหาร|แบบละเอียด)/i;
 const BUSINESS_CONTEXT = /(kmm|เดือนนี้|เดือนก่อน|เดือนที่แล้ว|วันนี้|เมื่อวาน|ตอนนี้|ปัจจุบัน|สัปดาห์นี้|ปีนี้|this month|last month|previous month|this year|by branch|tractor|combine|excavator|transplanter|สรุป)/i;
+const SALES_AREA_RANKING_REQUEST = /(?:(?:พื้นที่ขาย|สาขา).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:พื้นที่ขาย|สาขา))/i;
 
 export const kmmBusinessTool: KaiTool = {
   id: "kmmBusiness",
@@ -97,7 +98,7 @@ export const kmmBusinessTool: KaiTool = {
     const results = await Promise.all(areas.map((area) => {
       if (area === "sales") return getSalesAggregate(context.businessAccess!.companyId, range, product);
       if (area === "booking") return getBookingAggregate(context.businessAccess!.companyId, range, product);
-      return getStockAggregate(context.businessAccess!.companyId, product);
+      return getStockAggregate(context.businessAccess!.companyId, product, range);
     }));
     if (comparePreviousMonth && areas.includes("sales")) {
       results.push(await getSalesAggregate(
@@ -420,7 +421,7 @@ async function getSalesAggregate(companyId: string, range: DateRange, product: P
   const filters: SalesFilterInput = product ? { productGroup: [product] } : {};
   const scoped = filterSalesRows(rows, filters);
   const kpis = getSalesKpis(rows, filters);
-  const branchBreakdown = groupBy(scoped, (row) => row.branch).map(([branch, branchRows]) => {
+  const branchBreakdown = groupBy(scoped, (row) => canonicalDailyBranch(row.branch) || "Missing").map(([branch, branchRows]) => {
     const branchKpis = getSalesKpis(branchRows);
     return salesMetrics(branchKpis, branch);
   }).sort((a, b) => b.units - a.units || b.salesValue - a.salesValue);
@@ -454,7 +455,7 @@ async function getBookingAggregate(companyId: string, range: DateRange, product:
     .filter((row) => rowMatchesDateScope(row.date, range));
   const filters: BookingFilters = product ? { product: [product] } : {};
   const scoped = rows.filter((row) => !product || normalizeBookingProduct(row.productType) === product);
-  const branchBreakdown = groupBy(scoped, (row) => row.branch).map(([branch, branchRows]) => ({
+  const branchBreakdown = groupBy(scoped, (row) => canonicalDailyBranch(row.branch) || "Missing").map(([branch, branchRows]) => ({
     branch,
     units: getOpenBookingUnit(branchRows),
     bookingValue: getBookingValue(branchRows),
@@ -471,10 +472,24 @@ async function getBookingAggregate(companyId: string, range: DateRange, product:
   };
 }
 
-async function getStockAggregate(companyId: string, product: ProductGroup | null) {
+async function getStockAggregate(companyId: string, product: ProductGroup | null, range: DateRange) {
   const rows = (await listStockTransactions(companyId))
     .map((row) => adaptStockRow(row as unknown as Record<string, unknown>));
-  return summarizeKmmStockRows(rows, product);
+  const scoped = selectKmmStockSnapshotRows(rows, range);
+  if (!scoped.length) {
+    return { area: "stock" as const, units: null, stockValue: null, productBreakdown: [], branchBreakdown: [], snapshotDate: null, dataAvailable: false };
+  }
+  return { ...summarizeKmmStockRows(scoped, product), dataAvailable: true };
+}
+
+export function selectKmmStockSnapshotRows(rows: StockAdapterRow[], range: DateRange) {
+  if (range.kind !== "dateRange") return [];
+  const snapshots = rows
+    .map((row) => row.snapshotDate)
+    .filter((date): date is string => Boolean(date) && date >= range.start && date <= range.end)
+    .sort();
+  const selected = snapshots.at(-1);
+  return selected ? rows.filter((row) => row.snapshotDate === selected) : [];
 }
 
 /**
@@ -538,6 +553,14 @@ export function resolveKmmDateRange(message: string, now: Date): DateRange {
       return { kind: "dateRange", start, end, label: `${start} – ${end}`, scopeLabel: `${start} – ${end}` };
     }
   }
+  const yearSpan = message.match(/(?:ตั้งแต่(?:ปี)?|ช่วงปี|ปี)?\s*(20\d{2})\s*(?:[-–—]|ถึง|to)\s*(20\d{2})/i);
+  if (yearSpan) {
+    const startYear = Number(yearSpan[1]);
+    const endYear = Number(yearSpan[2]);
+    if (startYear <= endYear) {
+      return { kind: "dateRange", start: `${startYear}-01-01`, end: `${endYear}-12-31`, label: "year range", scopeLabel: `${startYear}–${endYear}` };
+    }
+  }
   const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Yangon" }));
   if (/(วันนี้|today)/i.test(message)) return dayRange(local, "today");
   if (/(เมื่อวาน|yesterday)/i.test(message)) return dayRange(new Date(local.getFullYear(), local.getMonth(), local.getDate() - 1), "yesterday");
@@ -584,13 +607,17 @@ function previousMonthRange(now: Date) {
 
 function findNamedMonth(message: string) {
   for (const reference of MONTH_REFERENCES) {
-    const names = [reference.thai, ...reference.english];
+    const names = [reference.thai, ...reference.thaiAliases, ...reference.english];
     for (const name of names) {
-      const match = message.match(new RegExp(`(?:เดือน\\s*)?${name}\\s*(20\\d{2})?`, "i"));
+      const match = message.match(new RegExp(`(?:เดือน\\s*)?${escapeRegex(name)}\\s*(20\\d{2})?`, "i"));
       if (match) return { month: reference.month, year: match[1] ? Number(match[1]) : null };
     }
   }
   return null;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function wantsMonthAcrossYears(message: string) {
@@ -643,8 +670,9 @@ function formatMonthScope(year: number, month: number) {
 function isoDate(value: Date) { return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`; }
 function isIsoDate(value: string) { return !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()); }
 
-function formatBusinessAnswer(message: string, data: { source: string; range: DateRange; results: unknown[] }) {
+export function formatBusinessAnswer(message: string, data: { source: string; range: DateRange; results: unknown[] }) {
   const thai = /[\u0e00-\u0e7f]/.test(message);
+  if (SALES_AREA_RANKING_REQUEST.test(message)) return formatSalesAreaRanking(message, data, thai);
   const branchReport = /(แยกตามสาขา|สาขาไหน|ทุกสาขา|by branch|which branch)/i.test(message);
   const lines: string[] = [];
   for (const result of data.results as Array<Record<string, unknown>>) {
@@ -664,15 +692,40 @@ function formatBusinessAnswer(message: string, data: { source: string; range: Da
     }
     if (result.area === "stock") {
       lines.push(thai ? "Stock KMM" : "KMM Stock");
-      lines.push(`• ${thai ? "คงเหลือ" : "Available"}: ${formatNumber(result.units)} ${thai ? "คัน" : "units"}`);
-      lines.push(`• ${thai ? "มูลค่า Stock" : "Stock Value"}: ${formatMoney(result.stockValue)}`);
-      lines.push(`${thai ? "ข้อมูล Stock ณ วันที่" : "Stock snapshot"}: ${String(result.snapshotDate ?? "not available")}`);
-      if (branchReport) appendBranchLines(lines, result.branchBreakdown, "stock", thai);
+      if (result.dataAvailable === false) {
+        lines.push(thai ? "• ไม่มี Stock snapshot ในช่วงเวลาที่ถาม" : "• No Stock snapshot is available in the requested period");
+      } else {
+        lines.push(`• ${thai ? "คงเหลือ" : "Available"}: ${formatNumber(result.units)} ${thai ? "คัน" : "units"}`);
+        lines.push(`• ${thai ? "มูลค่า Stock" : "Stock Value"}: ${formatMoney(result.stockValue)}`);
+        lines.push(`${thai ? "ข้อมูล Stock ณ วันที่" : "Stock snapshot"}: ${String(result.snapshotDate ?? "not available")}`);
+        if (branchReport) appendBranchLines(lines, result.branchBreakdown, "stock", thai);
+      }
     }
   }
-  if ((data.results as Array<Record<string, unknown>>).some((result) => result.area !== "stock")) {
+  if ((data.results as Array<Record<string, unknown>>).some((result) => result.area !== "stock" || result.dataAvailable === false)) {
     lines.push(`${thai ? "ช่วงข้อมูล" : "Data range"}: ${formatDateScope(data.range, thai)}`);
   }
+  lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: ${data.source}`);
+  return lines.join("\n");
+}
+
+function formatSalesAreaRanking(message: string, data: { source: string; range: DateRange; results: unknown[] }, thai: boolean) {
+  const sales = (data.results as Array<Record<string, unknown>>).find((result) => result.area === "sales");
+  const requestedLimit = Number(message.match(/(?:อันดับ\s*1\s*[-–—]\s*|top\s*)(\d{1,2})/i)?.[1] ?? 5);
+  const limit = Math.min(Math.max(requestedLimit, 1), 10);
+  const byValue = /(มูลค่า|ยอดเงิน|revenue|sales\s*value)/i.test(message);
+  const rows = (Array.isArray(sales?.branchBreakdown) ? sales.branchBreakdown : []) as Array<Record<string, unknown>>;
+  const ranked = [...rows]
+    .sort((left, right) => Number(byValue ? right.salesValue : right.units) - Number(byValue ? left.salesValue : left.units)
+      || Number(right.salesValue) - Number(left.salesValue))
+    .slice(0, limit);
+  const lines = [thai
+    ? `อันดับสาขาตาม${byValue ? "มูลค่ายอดขาย" : "จำนวน Sales Unit"}`
+    : `Branch ranking by ${byValue ? "Sales Value" : "Sales Unit"}`];
+  if (!ranked.length) lines.push(thai ? "• ไม่พบยอดขายในช่วงเวลาที่ถาม" : "• No sales were found in the requested period");
+  ranked.forEach((row, index) => lines.push(`${index + 1}. ${String(row.branch)}: ${formatNumber(row.units)} ${thai ? "คัน" : "units"} · ${formatMoney(row.salesValue)}`));
+  if (ranked.length < limit) lines.push(thai ? `มีข้อมูลเพียง ${ranked.length} สาขาในแหล่งข้อมูลปัจจุบัน` : `Only ${ranked.length} branches are available in the current source.`);
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data range"}: ${formatDateScope(data.range, thai)}`);
   lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: ${data.source}`);
   return lines.join("\n");
 }
@@ -683,6 +736,7 @@ function formatDateScope(range: DateRange, thai: boolean) {
       ? `เดือน${monthLabel(range.month, true)} · ทุกปี`
       : `${monthLabel(range.month, false)} · all years`;
   }
+  if (range.label === "year range") return range.scopeLabel;
   if (range.defaultedCurrentYear) {
     return thai
       ? `${formatThaiDateRange(range.start, range.end)} (ไม่ได้ระบุปี จึงใช้ปีปัจจุบัน)`

@@ -16,12 +16,18 @@ const MAX_ABSOLUTE_RESULT = 1e15;
 export const calculatorTool: KaiTool = {
   id: "calculator",
   matches(message) {
+    if (isBusinessYearRange(message)) return false;
     return CALCULATOR_INTENT.test(message);
   },
   execute(context) {
     return executeCalculator(context);
   },
 };
+
+export function isBusinessYearRange(message: string) {
+  return /\b20\d{2}\s*[-–—]\s*20\d{2}\b/.test(message)
+    && /(kmm|dashboard|ยอดขาย|พื้นที่ขาย|สาขา|sales|booking|stock|สต็อก|ยอดจอง)/i.test(message);
+}
 
 export function executeCalculator({ message }: KaiToolContext): KaiToolOutput {
   const calculation = calculationFromMessage(message);

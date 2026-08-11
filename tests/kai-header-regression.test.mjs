@@ -42,6 +42,7 @@ async function loadKaiTools() {
     "lib/operations/repository",
     "lib/dashboard/booking-selectors",
     "lib/dashboard/stock-selectors",
+    "lib/stock/physical-identifiers",
     "lib/dashboard/model-normalization",
     "lib/dashboard/product-groups",
     "lib/sales/compatibility-adapter",

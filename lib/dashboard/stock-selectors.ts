@@ -1,3 +1,5 @@
+import { stockPhysicalIdentifierKeys } from "../stock/physical-identifiers";
+
 export const STOCK_UNIT_PRODUCTS = ["TT", "CH", "EX", "TP", "MAX"] as const;
 export const STOCK_VALUE_PRODUCTS = [...STOCK_UNIT_PRODUCTS, "IM", "IMO", "OT"] as const;
 
@@ -32,7 +34,6 @@ const aliases: Record<StockProduct, string[]> = {
 };
 const clean = (value: unknown) => String(value ?? "").trim().toUpperCase();
 const key = (value: unknown) => clean(value).replace(/[^A-Z0-9]/g, "");
-const identifierKey = (value: unknown) => clean(value).replace(/[\u200B-\u200D\uFEFF]/g, "");
 const numberOrZero = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
 const tractorModelPatterns = [/^NSPU[A-Z0-9-]*$/, /^MU[0-9][A-Z0-9-]*$/, /^M[0-9][A-Z0-9-]*$/, /^L[0-9][A-Z0-9-]*$/, /^B[0-9][A-Z0-9-]*$/];
@@ -70,24 +71,15 @@ export function isKmmFreeStock(row: Pick<StockRow, "kmm" | "currentStatus">) {
   return normalizeKmmValue(row) === 1 && normalizeStockStatus(row) === "FREE STOCK";
 }
 
-function duplicateKey(row: StockRow) {
-  for (const [label, value] of [["chassis", row.chassisNumber], ["engine", row.engineNumber], ["serial", row.serialNumber], ["stock", row.stockId]]) {
-    const normalized = identifierKey(value);
-    if (normalized && normalized !== "-") return `${label}:${normalized}`;
-  }
-  return null;
-}
-
-/** Current KMM stock only: KMM = 1 and Status PD = Free Stock, deduplicated by machine ID. */
+/** Current KMM stock only: KMM = 1 and Status PD = Free Stock, deduplicated on any shared physical identifier. */
 export function getCurrentStockRows<T extends StockRow>(rows: T[]) {
   const seen = new Set<string>();
   return rows.filter((row) => {
     if (!isKmmFreeStock(row)) return false;
-    const id = duplicateKey(row);
-    if (!id) return true;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
+    const ids = stockPhysicalIdentifierKeys(row);
+    const duplicate = ids.some((id) => seen.has(id));
+    ids.forEach((id) => seen.add(id));
+    return !duplicate;
   });
 }
 

@@ -53,6 +53,23 @@ test("KAI stock summary uses the Dashboard's de-duplicated vehicle population fo
   ]);
 });
 
+test("canonical stock de-duplication rejects any shared normalized physical identifier", () => {
+  const rows = [
+    stockRow({ chassisNumber: "CH-001", engineNumber: "ENG-001", serialNumber: "SN-001", stockId: "ST-001" }),
+    stockRow({ chassisNumber: "CH-002", engineNumber: "eng 001", serialNumber: "SN-002", stockId: "ST-002", branch: "KMM02" }),
+    stockRow({ chassisNumber: "ch 002", engineNumber: "ENG-003", serialNumber: "SN-003", stockId: "ST-003", branch: "KMM03" }),
+    stockRow({ chassisNumber: "CH-004", engineNumber: "N/A", serialNumber: null, stockId: "ST-004" }),
+    stockRow({ chassisNumber: "CH-005", engineNumber: "N/A", serialNumber: null, stockId: "ST-005" }),
+  ];
+
+  const summary = summarizeKmmStockRows(rows);
+  assert.equal(summary.units, 3);
+  assert.equal(summary.stockValue, 300);
+  assert.deepEqual(summary.branchBreakdown, [
+    { branch: "KMM01", units: 3, stockValue: 300 },
+  ]);
+});
+
 test("KAI stock responses use snapshot metadata rather than a monthly range", async () => {
   const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../lib/kai/tools/kmm-business.ts", import.meta.url), "utf8"));
   assert.match(source, /ข้อมูล Stock ณ วันที่/);

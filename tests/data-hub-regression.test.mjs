@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
+import { tsImport } from "tsx/esm/api";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 async function importTypeScriptModule(path) {
+  if (path === "lib/data-hub/validate-import.ts") {
+    return tsImport(`../${path}`, import.meta.url);
+  }
   const source = await read(path);
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);

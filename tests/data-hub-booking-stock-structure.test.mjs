@@ -244,12 +244,12 @@ test("Stock preserves current-stock filtering and physical-identifier deduplicat
     { kmm: 1, currentStatus: "Free Stock", chassisNumber: "B", stockId: "REUSED", productType: "TT" },
     { kmm: 1, currentStatus: "Free Stock", chassisNumber: "B", stockId: "OTHER", productType: "TT" },
   ];
-  assert.deepEqual(getCurrentStockRows(rows).map((row) => row.stockId), ["CURRENT", "REUSED", "REUSED"]);
+  assert.deepEqual(getCurrentStockRows(rows).map((row) => row.stockId), ["CURRENT", "REUSED"]);
 
   const source = getImportSourceDefinition("stock", "product");
   const canonical = rows.slice(1).map((row) => ({ as_of_date: "2026-08-08", branch: "KMM01", product: "M7040", quantity: 1, kmm_flag: row.kmm, stock_status: row.currentStatus, chassis_number: row.chassisNumber, stock_number: row.stockId }));
   const result = validateImportRows(source, ["as_of_date", "branch", "product", "quantity", "kmm_flag", "stock_status", "chassis_number", "stock_number"], canonical, { duplicateRule: "current_stock_physical_identifier" });
-  assert.equal(result.duplicateRows, 1);
+  assert.equal(result.duplicateRows, 2);
   assert.equal(result.canImport, true);
 });
 

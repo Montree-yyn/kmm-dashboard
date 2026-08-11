@@ -38,7 +38,7 @@ test("legacy static data fingerprints cannot be operational Dashboard values", a
   ), 0);
 
   assert.equal(staticSalesUnit, 1712);
-  assert.equal(stockSelectors.getStockUnit(data.stock), 76);
+  assert.equal(stockSelectors.getStockUnit(data.stock), 75);
   assert.notEqual(staticSalesUnit, 43);
   assert.notEqual(stockSelectors.getStockUnit(data.stock), 90);
 });

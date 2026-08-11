@@ -7,6 +7,7 @@ import type {
   ValidationIssue,
   ValidationSummary,
 } from "./types";
+import { stockPhysicalIdentifierKeys } from "../stock/physical-identifiers";
 
 function isEmpty(value: unknown) {
   return value === null || value === undefined || String(value).trim() === "";
@@ -126,8 +127,28 @@ export function validateImportRows(
     let key: string | null;
     if (options.duplicateRule === "current_stock_physical_identifier") {
       if (!isCurrentStockRow(row)) return;
-      key = physicalStockIdentifier(row);
-      if (!key) return;
+      const keys = stockPhysicalIdentifierKeys({
+        chassisNumber: row.chassis_number,
+        engineNumber: row.engine_number,
+        serialNumber: row.serial_number,
+        stockId: row.stock_number,
+      });
+      if (!keys.length) return;
+      const duplicateKey = keys.find((candidate) => duplicateKeys.has(candidate));
+      const firstRow = duplicateKey ? duplicateKeys.get(duplicateKey) : undefined;
+      keys.forEach((candidate) => {
+        if (!duplicateKeys.has(candidate)) duplicateKeys.set(candidate, index);
+      });
+      if (firstRow === undefined) return;
+      duplicateRows += 1;
+      warningCells += 1;
+      issues.push({
+        code: "duplicate",
+        row: options.sourceRowNumbers?.[index] ?? index + 2,
+        severity: "warning",
+        message: `Row ${options.sourceRowNumbers?.[index] ?? index + 2}: duplicates row ${options.sourceRowNumbers?.[firstRow] ?? firstRow + 2}`,
+      });
+      return;
     } else if (source.id === "sales") {
       // Prefer the pre-mapping full-source fingerprint. The real CPI workbook
       // contains separate machines whose mapped financial fields are equal but
@@ -179,18 +200,4 @@ function isCurrentStockRow(row: ImportRow) {
   const kmm = String(row.kmm_flag ?? "").trim();
   const status = String(row.stock_status ?? "").trim().toUpperCase().replace(/\s+/g, " ");
   return kmm === "1" && status === "FREE STOCK";
-}
-
-function physicalStockIdentifier(row: ImportRow) {
-  const fields: Array<[string, unknown]> = [
-    ["chassis", row.chassis_number],
-    ["engine", row.engine_number],
-    ["serial", row.serial_number],
-    ["stock", row.stock_number],
-  ];
-  for (const [label, value] of fields) {
-    const normalized = String(value ?? "").trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, "");
-    if (normalized && normalized !== "-") return `${label}:${normalized}`;
-  }
-  return null;
 }

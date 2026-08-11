@@ -270,6 +270,8 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(page, /Booking pipeline distribution/);
   assert.doesNotMatch(page, /overflow-x-auto|min-w-\[/);
   assert.match(page, /\/daily-management\/input/);
+  assert.match(page, /new URLSearchParams\(\{ date: input\.reportDate, branch: input\.branch \}\)/);
+  assert.match(page, /<a href=\{inputEditHref\(input\)\}/);
   assert.match(page, /loadDailyManagementInput\("published"/);
   assert.match(page, /loadDailyManagementReport/);
   assert.match(page, /No sample values are shown/);
@@ -291,7 +293,11 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(inputPage, /daily\.publishReport/);
   assert.match(inputPage, /persistDailyManagementInput/);
   assert.match(inputPage, /value=\{branch\.code\}/);
-  assert.doesNotMatch(inputPage, /loadDailyManagementInput\("draft", \{/);
+  assert.match(inputPage, /loadDailyManagementInput\("draft", scope\)/);
+  assert.match(inputPage, /loadDailyManagementInput\("published", scope\)/);
+  assert.match(inputPage, /new URLSearchParams\(window\.location\.search\)/);
+  assert.doesNotMatch(inputPage, /requestAnimationFrame/);
+  assert.match(inputPage, /reportDate: requestedDate, branch: requestedBranch/);
   assert.match(inputWorkbook, /Daily Input/);
   assert.match(inputWorkbook, /Actions/);
   assert.match(inputWorkbook, /Notes/);
@@ -299,9 +305,9 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(inputWorkbook, /ไฟล์นี้เป็น \$\{transactionType\} Data/);
   assert.match(inputStorage, /localStorage/);
   assert.match(inputStorage, /input-draft:v2/);
-  assert.match(inputPage, /hasRemoteDraft/);
+  assert.match(inputPage, /hasRemoteRecord/);
   assert.match(inputPage, /daily\.notSaved/);
-  assert.match(inputPage, /\(!dirty && !hasRemoteDraft\)/);
+  assert.match(inputPage, /\(!dirty && !hasRemoteRecord\)/);
   assert.doesNotMatch(inputStorage, /mock-data|2026-08-09/);
   assert.doesNotMatch(inputStorage, /fetch\(|\/api\//);
   assert.match(inputClient, /\/api\/daily-management\/input/);

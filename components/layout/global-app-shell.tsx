@@ -36,7 +36,7 @@ export function GlobalAppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGate>
       <div
-        className="min-h-screen bg-[var(--surface-canvas)] text-[var(--text-primary)]"
+        className="min-h-screen overflow-x-clip bg-[var(--surface-canvas)] text-[var(--text-primary)]"
         data-global-app-shell
       >
         <AppSidebar
@@ -47,7 +47,7 @@ export function GlobalAppShell({ children }: { children: React.ReactNode }) {
         />
         <div
           className={cn(
-            "min-h-screen transition-[padding] duration-150 motion-reduce:transition-none",
+            "min-h-screen min-w-0 transition-[padding] duration-150 motion-reduce:transition-none",
             collapsed ? "lg:pl-[76px]" : "lg:pl-[240px]",
           )}
         >

@@ -34,7 +34,11 @@ test("all application routes share one persistent shell", async () => {
   assert.match(shell, /<AuthGate>/);
   assert.match(shell, /<AppSidebar/);
   assert.match(shell, /<GlobalHeader/);
+  assert.match(shell, /overflow-x-clip/);
   assert.match(sidebar, /data-global-sidebar/);
+  assert.match(sidebar, /aria-hidden=\{!mobileOpen\}/);
+  assert.match(sidebar, /inert=\{!mobileOpen\}/);
+  assert.match(sidebar, /invisible -translate-x-full pointer-events-none/);
   assert.match(header, /data-global-header/);
 });
 

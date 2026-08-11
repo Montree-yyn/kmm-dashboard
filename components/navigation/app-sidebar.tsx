@@ -114,7 +114,17 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
     <>
       <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-[var(--border-default)] bg-[var(--surface-default)] transition-[width] duration-150 motion-reduce:transition-none lg:flex", collapsed ? "w-[76px]" : "w-[240px]")}>{renderSidebar(collapsed)}</aside>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#1F2937]/35 backdrop-blur-[2px] lg:hidden" aria-label={t("nav.close")} onClick={() => onMobileOpenChange(false)} />}
-      <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--surface-default)] shadow-[var(--shadow-overlay)] transition-transform duration-150 motion-reduce:transition-none lg:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>{renderSidebar(false)}</aside>
+      <aside
+        data-global-sidebar
+        aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--surface-default)] shadow-[var(--shadow-overlay)] transition-[transform,visibility] duration-150 motion-reduce:transition-none lg:hidden",
+          mobileOpen ? "visible translate-x-0" : "invisible -translate-x-full pointer-events-none",
+        )}
+      >
+        {renderSidebar(false)}
+      </aside>
     </>
   );
 }

@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kmm-executive-dashboard-staging",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client",
+    "run_worker_first": [
+      "/maps/vector/myanmar-townships.pmtiles",
+      "/maps/vector/protomaps-osm-v4.pmtiles"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "vars": {
+    "NEXT_PUBLIC_DAILY_MANAGEMENT_REPORT": "true",
+    "KAI_PRIMARY_MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "KAI_FALLBACK_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+    "KAI_MAX_TOKENS": "384",
+    "KAI_TEMPERATURE": "0.4"
+  },
+  "d1_databases": [
+    {
+      "binding": "COMPANY_DB",
+      "database_name": "kmm-company-management-staging",
+      "database_id": "85ebf22f-7cbd-4527-9a62-9915fb33d034",
+      "migrations_dir": "drizzle"
+    },
+    {
+      "binding": "OPERATIONS_DB",
+      "database_name": "kmm-operations-staging",
+      "database_id": "9f5ae06e-bed8-49cb-8f74-ffe8f984b02e",
+      "migrations_dir": "drizzle/operations"
+    }
+  ]
+}

@@ -128,3 +128,37 @@ test("KAI formats canonical Township rankings for Dashboard year-range questions
   assert.match(answer, /แหล่งข้อมูล: KMM Sales Heatmap/);
   assert.doesNotMatch(answer, /ผลลัพธ์คือ -3/);
 });
+
+test("KAI explains consecutive Township declines using same-period annual comparisons", () => {
+  const message = "Township ไหนที่ยอดขายลดลงเรื่อยๆ จากปี 2023-2026";
+  assert.equal(isKmmBusinessQuestion(message), true);
+  const answer = formatBusinessAnswer(message, {
+    source: "KMM Internal Data",
+    range: { kind: "dateRange", start: "2023-01-01", end: "2026-12-31", label: "year range", scopeLabel: "2023–2026" },
+    results: [{
+      area: "salesArea",
+      annualAreas: [
+        { township: "Thaton", stateRegion: "Mon", yearly: [
+          { year: 2023, units: 10, salesValue: 1_000 },
+          { year: 2024, units: 8, salesValue: 800 },
+          { year: 2025, units: 5, salesValue: 500 },
+          { year: 2026, units: 2, salesValue: 200 },
+        ] },
+        { township: "Bilin", stateRegion: "Mon", yearly: [
+          { year: 2023, units: 2, salesValue: 200 },
+          { year: 2024, units: 4, salesValue: 400 },
+          { year: 2025, units: 3, salesValue: 300 },
+          { year: 2026, units: 1, salesValue: 100 },
+        ] },
+      ],
+      samePeriodThrough: "06-30",
+      coverageEnd: "2026-06-30",
+      trendUnresolvedUnits: 2,
+    }],
+  });
+  assert.match(answer, /Township ที่Sales Unitลดลงต่อเนื่องทุกปี/);
+  assert.match(answer, /1\. Thaton \(Mon\): 2023 10 → 2024 8 → 2025 5 → 2026 2 คัน/);
+  assert.doesNotMatch(answer, /Bilin/);
+  assert.match(answer, /วิธีเทียบ: 01-01 ถึง 06-30 ของทุกปี/);
+  assert.match(answer, /2 คันในช่วงเทียบที่ยังจับคู่ Township ไม่ได้/);
+});

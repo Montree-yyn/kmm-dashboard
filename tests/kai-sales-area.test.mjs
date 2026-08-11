@@ -20,4 +20,9 @@ test("KAI Sales Area aggregation follows the Heatmap Township geography rules", 
   assert.equal(result.coverageStart, "2023-01-02");
   assert.equal(result.coverageEnd, "2026-06-29");
   assert.equal(result.unresolvedUnits, 0);
+  assert.equal(result.samePeriodThrough, "06-29");
+  assert.deepEqual(result.annualAreas.map((row) => [row.township, row.yearly.map((year) => year.units)]), [
+    ["Thaton", [1, 1, 0, 0]],
+    ["Bilin", [0, 0, 0, 1]],
+  ]);
 });

@@ -76,6 +76,7 @@ const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเค
 const ALERT_REQUEST = /(alert|แจ้งเตือน|ต้องระวัง|เรื่องด่วน|อะไรต้องระวัง|เตือนเรื่อง)/i;
 const BRIEFING_REQUEST = /(สรุปวันนี้|วันนี้เป็นอย่างไร|daily briefing|สรุปสัปดาห์นี้|weekly briefing|สรุปเดือนนี้|executive briefing|สรุปให้ผู้บริหาร|สัปดาห์นี้มีอะไรสำคัญ|เดือนนี้ควรโฟกัสอะไร|มีอะไรเปลี่ยนแปลง|สรุปเดือน.*สำหรับผู้บริหาร|แบบละเอียด)/i;
 const BUSINESS_CONTEXT = /(kmm|เดือนนี้|เดือนก่อน|เดือนที่แล้ว|วันนี้|เมื่อวาน|ตอนนี้|ปัจจุบัน|สัปดาห์นี้|ปีนี้|this month|last month|previous month|this year|by branch|tractor|combine|excavator|transplanter|สรุป)/i;
+const SALES_AREA_TREND_REQUEST = /(?:(?:พื้นที่ขาย|township|sales\s*area).*(?:ยอดขาย|sales).*(?:ลดลงเรื่อย|ลดลงต่อเนื่อง|ลดลงทุกปี|declin|decreas)|(?:ยอดขาย|sales).*(?:ลดลงเรื่อย|ลดลงต่อเนื่อง|ลดลงทุกปี|declin|decreas).*(?:พื้นที่ขาย|township|sales\s*area))/i;
 const SALES_AREA_RANKING_REQUEST = /(?:(?:พื้นที่ขาย|township|sales\s*area).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:พื้นที่ขาย|township|sales\s*area))/i;
 const SALES_BRANCH_RANKING_REQUEST = /(?:(?:สาขา|branch).*(?:เยอะที่สุด|มากที่สุด|สูงสุด|อันดับ|top)|(?:อันดับ|top).*(?:สาขา|branch))/i;
 
@@ -98,7 +99,7 @@ export const kmmBusinessTool: KaiTool = {
     const product = resolveProduct(context.message);
     const comparePreviousMonth = wantsPreviousMonthComparison(context.message);
     const results = await Promise.all(areas.map((area) => {
-      if (area === "sales" && SALES_AREA_RANKING_REQUEST.test(context.message)) return getSalesAreaAggregate(range, product);
+      if (area === "sales" && (SALES_AREA_RANKING_REQUEST.test(context.message) || SALES_AREA_TREND_REQUEST.test(context.message))) return getSalesAreaAggregate(range, product);
       if (area === "sales") return getSalesAggregate(context.businessAccess!.companyId, range, product);
       if (area === "booking") return getBookingAggregate(context.businessAccess!.companyId, range, product);
       return getStockAggregate(context.businessAccess!.companyId, product, range);
@@ -117,6 +118,7 @@ export const kmmBusinessTool: KaiTool = {
 
 export function isKmmBusinessQuestion(message: string) {
   if (isKmmSecurityRequest(message) || isTargetBusinessQuestion(message) || SALESPERSON_REQUEST.test(message)) return true;
+  if (SALES_AREA_TREND_REQUEST.test(message)) return true;
   if (isExecutiveQuestion(message) || ALERT_REQUEST.test(message) || BRIEFING_REQUEST.test(message)) return true;
   if (/(stock market|ตลาดหุ้น)/i.test(message)) return false;
   return (BUSINESS_CONTEXT.test(message) || hasNamedMonthReference(message))
@@ -683,6 +685,7 @@ function isIsoDate(value: string) { return !Number.isNaN(new Date(`${value}T00:0
 
 export function formatBusinessAnswer(message: string, data: { source: string; range: DateRange; results: unknown[] }) {
   const thai = /[\u0e00-\u0e7f]/.test(message);
+  if (SALES_AREA_TREND_REQUEST.test(message)) return formatSalesAreaTrend(message, data, thai);
   if (SALES_AREA_RANKING_REQUEST.test(message)) return formatSalesAreaRanking(message, data, thai);
   if (SALES_BRANCH_RANKING_REQUEST.test(message)) return formatSalesBranchRanking(message, data, thai);
   const branchReport = /(แยกตามสาขา|สาขาไหน|ทุกสาขา|by branch|which branch)/i.test(message);
@@ -718,6 +721,37 @@ export function formatBusinessAnswer(message: string, data: { source: string; ra
     lines.push(`${thai ? "ช่วงข้อมูล" : "Data range"}: ${formatDateScope(data.range, thai)}`);
   }
   lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: ${data.source}`);
+  return lines.join("\n");
+}
+
+function formatSalesAreaTrend(message: string, data: { source: string; range: DateRange; results: unknown[] }, thai: boolean) {
+  const sales = (data.results as Array<Record<string, unknown>>).find((result) => result.area === "salesArea");
+  const requestedLimit = Number(message.match(/(?:อันดับ\s*1\s*[-–—]\s*|top\s*)(\d{1,2})/i)?.[1] ?? 10);
+  const limit = Math.min(Math.max(requestedLimit, 1), 10);
+  const byValue = /(มูลค่า|ยอดเงิน|revenue|sales\s*value)/i.test(message);
+  const rows = (Array.isArray(sales?.annualAreas) ? sales.annualAreas : []) as Array<Record<string, unknown>>;
+  const declining = rows.map((row) => {
+    const yearly = (Array.isArray(row.yearly) ? row.yearly : []) as Array<Record<string, unknown>>;
+    const values = yearly.map((item) => Number(byValue ? item.salesValue : item.units));
+    return { row, yearly, values, drop: values.length ? values[0] - values.at(-1)! : 0 };
+  }).filter((item) => item.values.length >= 2 && item.values.every(Number.isFinite)
+    && item.values.slice(1).every((value, index) => value < item.values[index]))
+    .sort((left, right) => right.drop - left.drop)
+    .slice(0, limit);
+  const samePeriod = String(sales?.samePeriodThrough ?? "12-31");
+  const lines = [thai
+    ? `Township ที่${byValue ? "มูลค่ายอดขาย" : "Sales Unit"}ลดลงต่อเนื่องทุกปี`
+    : `Townships with consecutive annual declines in ${byValue ? "Sales Value" : "Sales Unit"}`];
+  if (!declining.length) lines.push(thai ? "• ไม่พบ Township ที่ลดลงทุกปีในช่วงที่ถาม" : "• No Township declined in every year of the requested range");
+  declining.forEach((item, index) => {
+    const series = item.yearly.map((year) => `${String(year.year)} ${formatNumber(byValue ? year.salesValue : year.units)}`).join(" → ");
+    lines.push(`${index + 1}. ${String(item.row.township)} (${String(item.row.stateRegion)}): ${series}${byValue ? "" : thai ? " คัน" : " units"}`);
+  });
+  lines.push(thai ? `วิธีเทียบ: 01-01 ถึง ${samePeriod} ของทุกปี` : `Comparison window: 01-01 through ${samePeriod} in each year`);
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data range"}: ${formatDateScope(data.range, thai)}`);
+  if (sales?.coverageEnd) lines.push(`${thai ? "ข้อมูล Heatmap ล่าสุด" : "Heatmap data through"}: ${String(sales.coverageEnd)}`);
+  if (Number(sales?.trendUnresolvedUnits ?? 0) > 0) lines.push(thai ? `หมายเหตุ: มี ${formatNumber(sales?.trendUnresolvedUnits)} คันในช่วงเทียบที่ยังจับคู่ Township ไม่ได้` : `Note: ${formatNumber(sales?.trendUnresolvedUnits)} units in the comparison window could not be mapped to a Township.`);
+  lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: KMM Sales Heatmap`);
   return lines.join("\n");
 }
 

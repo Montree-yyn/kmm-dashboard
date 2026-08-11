@@ -1,9 +1,13 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { getOperationsDb } from "../../../../db";
 import { dailyManagementInputs } from "../../../../db/schema";
 import { COMPANY_ID, TENANT_ID } from "../../../../lib/company-management/types";
 import type { DailyManagementInputSnapshot } from "../../../../lib/daily-management/input-storage";
-import { AuthError, verifyFirebaseRequest } from "../../../../lib/server/firebase-auth";
+import { AuthError } from "../../../../lib/server/firebase-auth";
+import { DailyManagementAccessError, requireDailyManagementAccess } from "../../../../lib/daily-management/access";
+import { ROLE_PERMISSIONS } from "../../../../lib/company-management/permissions";
+import { canonicalDailyBranch, isDailyManagementBranch } from "../../../../lib/daily-management/branch";
+import { isValidIsoDate } from "../../../../lib/daily-management/date";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +26,10 @@ function normalizeSnapshot(value: unknown): DailyManagementInputSnapshot {
   if (!value || typeof value !== "object") throw new InputError("ข้อมูลฟอร์มไม่ถูกต้อง");
   const input = value as Partial<DailyManagementInputSnapshot>;
   const reportDate = cleanText(input.reportDate, 10);
-  const branch = cleanText(input.branch, 80);
+  const branch = canonicalDailyBranch(cleanText(input.branch, 80));
   const preparedBy = cleanText(input.preparedBy, 120);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) throw new InputError("กรุณาเลือกวันที่รายงาน");
-  if (!branch) throw new InputError("กรุณาเลือกสาขา");
+  if (!isValidIsoDate(reportDate)) throw new InputError("กรุณาเลือกวันที่รายงานที่ถูกต้อง");
+  if (!branch || !isDailyManagementBranch(branch)) throw new InputError("กรุณาเลือกสาขาที่กำหนด");
   if (!preparedBy) throw new InputError("กรุณาระบุผู้จัดทำ");
 
   const actions = Array.isArray(input.actions) ? input.actions.slice(0, 20).map((item) => ({
@@ -67,18 +71,21 @@ function normalizeSnapshot(value: unknown): DailyManagementInputSnapshot {
 function parseSnapshot(payload: string | null, savedAt: string, publishedAt: string | null) {
   if (!payload) return null;
   const snapshot = JSON.parse(payload) as DailyManagementInputSnapshot;
-  return { ...snapshot, savedAt, publishedAt };
+  return { ...snapshot, branch: canonicalDailyBranch(snapshot.branch), savedAt, publishedAt };
 }
 
 export async function GET(request: Request) {
   try {
-    await verifyFirebaseRequest(request);
+    await requireDailyManagementAccess(request, "view");
     const url = new URL(request.url);
     const mode = url.searchParams.get("mode") === "published" ? "published" : "draft";
     const reportDate = url.searchParams.get("date");
-    const branch = url.searchParams.get("branch");
+    const branch = canonicalDailyBranch(url.searchParams.get("branch"));
+    if (reportDate && !isValidIsoDate(reportDate)) throw new InputError("วันที่รายงานไม่ถูกต้อง");
+    if (branch && !isDailyManagementBranch(branch)) throw new InputError("ขอบเขตสาขาไม่ถูกต้อง");
     const db = await getOperationsDb();
     const filters = [eq(dailyManagementInputs.companyId, COMPANY_ID)];
+    if (mode === "published") filters.push(isNotNull(dailyManagementInputs.publishedPayload));
     if (reportDate) filters.push(eq(dailyManagementInputs.reportDate, reportDate));
     if (branch) filters.push(eq(dailyManagementInputs.branch, branch));
     const [row] = await db.select().from(dailyManagementInputs)
@@ -99,9 +106,13 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const user = await verifyFirebaseRequest(request);
+    const access = await requireDailyManagementAccess(request, "view");
     const body = await request.json() as { mode?: SaveMode; snapshot?: unknown };
     const mode: SaveMode = body.mode === "publish" ? "publish" : "draft";
+    const permission = mode === "publish" ? "publish" : "edit";
+    if (!ROLE_PERMISSIONS[access.role][permission]) {
+      throw new DailyManagementAccessError("Your role does not have permission for this action.", 403);
+    }
     const snapshot = normalizeSnapshot(body.snapshot);
     const db = await getOperationsDb();
     const [existing] = await db.select().from(dailyManagementInputs).where(and(
@@ -124,9 +135,9 @@ export async function PUT(request: Request) {
       revision: (existing?.revision ?? 0) + 1,
       savedAt: now,
       publishedAt: mode === "publish" ? now : existing?.publishedAt ?? null,
-      createdBy: existing?.createdBy ?? user.id,
+      createdBy: existing?.createdBy ?? access.user.id,
       updatedAt: now,
-      updatedBy: user.id,
+      updatedBy: access.user.id,
     };
     await db.insert(dailyManagementInputs).values(values).onConflictDoUpdate({
       target: [dailyManagementInputs.companyId, dailyManagementInputs.reportDate, dailyManagementInputs.branch],
@@ -149,6 +160,6 @@ export async function PUT(request: Request) {
 class InputError extends Error {}
 
 function errorResponse(error: unknown) {
-  const status = error instanceof AuthError ? error.status : error instanceof InputError ? 400 : 500;
+  const status = error instanceof AuthError || error instanceof DailyManagementAccessError ? error.status : error instanceof InputError ? 400 : 500;
   return Response.json({ error: error instanceof Error ? error.message : "ไม่สามารถบันทึกข้อมูลได้" }, { status, headers: { "Cache-Control": "no-store" } });
 }

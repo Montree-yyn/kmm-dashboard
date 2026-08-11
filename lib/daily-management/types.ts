@@ -33,8 +33,18 @@ export type DailyManagementSnapshot = {
     mtdUnits: number;
     today: DailySalesDetail[];
     byBranch: Array<{ branch: string; units: number }>;
+    bySalesperson: Array<{ salesperson: string; units: number }>;
     topSalespeople: Array<{ salesperson: string; units: number }>;
   };
+  target: {
+    monthlyUnits: number;
+    source: string;
+    sourceVersion: string;
+    effectiveFrom: string;
+    evaluationEligible: boolean;
+    achievementPercent: number | null;
+    gap: number | null;
+  } | null;
   booking: {
     newToday: number;
     activeUnits: number;
@@ -69,5 +79,6 @@ export type DailyManagementSnapshot = {
 export type DailyManagementPayload = {
   source: "d1";
   generatedAt: string;
+  timeZone: string;
   snapshot: DailyManagementSnapshot;
 };

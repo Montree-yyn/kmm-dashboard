@@ -17,6 +17,11 @@ import type { CanonicalSalesRow } from "../sales/types";
 import type { BookingAdapterRow, StockAdapterRow } from "../operations/types";
 import type { DailyManagementSnapshot } from "./types";
 import { canonicalModelName } from "../dashboard/model-normalization";
+import { targetProgress } from "../targets/business-service";
+import { canEvaluateFullPeriodTarget } from "../kai/executive-intelligence";
+import type { ApprovedTarget } from "../targets/types";
+import { ALL_BRANCHES, canonicalDailyBranch } from "./branch";
+import { calendarMonth, dateInTimeZone } from "./date";
 
 type DailyManagementInput = {
   sales: CanonicalSalesRow[];
@@ -53,46 +58,55 @@ function agingLabel(age: number | null) {
 
 export function buildDailyManagementSnapshot(
   input: DailyManagementInput,
-  options: { asOfDate?: string | null; branch?: string | null } = {},
+  options: { asOfDate?: string | null; branch?: string | null; currentDate?: string | null } = {},
 ): DailyManagementSnapshot {
-  const salesLatestDate = latestDate(input.sales.map((row) => row.date));
-  const bookingLatestDate = latestDate(input.booking.map((row) => row.date));
-  const stockLatestDate = latestDate(
+  const latestSalesDate = latestDate(input.sales.map((row) => row.date));
+  const latestBookingDate = latestDate(input.booking.map((row) => row.date));
+  const latestStockDate = latestDate(
     input.stock.map((row) => row.snapshotDate || row.date),
   );
   const asOfDate = dateKey(options.asOfDate)
-    || latestDate([salesLatestDate, bookingLatestDate, stockLatestDate])
-    || new Date().toISOString().slice(0, 10);
-  const branch = options.branch?.trim() || null;
+    || latestDate([latestSalesDate, latestBookingDate, latestStockDate])
+    || dateKey(options.currentDate)
+    || dateInTimeZone(new Date());
+  const branchValue = canonicalDailyBranch(options.branch);
+  const branch = !branchValue || branchValue === ALL_BRANCHES ? null : branchValue;
   const [year, month] = asOfDate.split("-").map(Number);
-  const branchMatches = (value: string) => !branch || value === branch;
+  const branchMatches = (value: string) => !branch || canonicalDailyBranch(value) === branch;
+
+  const eligibleSales = input.sales.filter((row) => dateKey(row.date) <= asOfDate);
+  const eligibleBooking = input.booking.filter((row) => dateKey(row.date) <= asOfDate);
+  const eligibleStock = input.stock.filter((row) => dateKey(row.snapshotDate || row.date) <= asOfDate);
+  const salesLatestDate = latestDate(eligibleSales.map((row) => row.date));
+  const bookingLatestDate = latestDate(eligibleBooking.map((row) => row.date));
+  const stockLatestDate = latestDate(eligibleStock.map((row) => row.snapshotDate || row.date));
 
   const availableBranches = [...new Set([
-    ...input.sales.map((row) => row.branch),
-    ...input.booking.map((row) => row.branch),
-    ...input.stock.map((row) => row.branch),
+    ...input.sales.map((row) => canonicalDailyBranch(row.branch)),
+    ...input.booking.map((row) => canonicalDailyBranch(row.branch)),
+    ...input.stock.map((row) => canonicalDailyBranch(row.branch)),
   ].filter(Boolean))].sort();
 
-  const scopedSales = getEngineUnitSalesRows(input.sales).filter((row) => branchMatches(row.branch));
+  const scopedSales = getEngineUnitSalesRows(eligibleSales).filter((row) => branchMatches(row.branch));
   const todaySales = scopedSales.filter((row) => dateKey(row.date) === asOfDate);
   const mtdSales = scopedSales.filter((row) =>
     row.year === year
     && row.month === month
     && dateKey(row.date) <= asOfDate,
   );
-  const branchSales = unitsBy(mtdSales, (row) => row.branch, salesTransactionQuantity);
+  const branchSales = unitsBy(mtdSales, (row) => canonicalDailyBranch(row.branch), salesTransactionQuantity);
   const salespersonSales = unitsBy(mtdSales, (row) => row.salesperson, salesTransactionQuantity);
 
-  const scopedBooking = input.booking.filter((row) => branchMatches(row.branch));
+  const scopedBooking = eligibleBooking.filter((row) => branchMatches(row.branch));
   const todayBooking = scopedBooking.filter((row) => dateKey(row.date) === asOfDate);
   const activeBooking = getOpenBookingRows(scopedBooking as BookingRow[]);
   const purchaseStatus = (value: string) => value.trim().toUpperCase().replace(/\s+/g, " ");
 
-  const scopedStock = input.stock.filter((row) => branchMatches(row.branch));
+  const scopedStock = eligibleStock.filter((row) => branchMatches(row.branch));
   const currentStock = getCurrentStockRows(scopedStock as StockRow[]);
   const engineStock = getStockUnitRows(scopedStock as StockRow[]);
   const stockValueRows = currentStock.filter((row) => Number.isFinite(Number(row.msrp)));
-  const branchStock = unitsBy(engineStock, (row) => row.branch ?? "Unassigned", () => 1);
+  const branchStock = unitsBy(engineStock, (row) => canonicalDailyBranch(row.branch) || "Unassigned", () => 1);
   const agingOrder = ["0–30", "31–60", "61–90", ">90", "Unknown"] as const;
   const aging = agingOrder.map((label) => ({
     label,
@@ -140,14 +154,16 @@ export function buildDailyManagementSnapshot(
       mtdUnits: mtdSales.reduce((total, row) => total + salesTransactionQuantity(row), 0),
       today: todaySales.map((row) => ({
         date: row.date,
-        branch: row.branch,
+        branch: canonicalDailyBranch(row.branch),
         salesperson: row.salesperson || "Unassigned",
         model: canonicalDailyModel(row.model || row.modelCode),
         quantity: salesTransactionQuantity(row),
       })),
       byBranch: branchSales.map(({ name, units }) => ({ branch: name, units })),
+      bySalesperson: salespersonSales.map(({ name, units }) => ({ salesperson: name, units })),
       topSalespeople: salespersonSales.slice(0, 5).map(({ name, units }) => ({ salesperson: name, units })),
     },
+    target: null,
     booking: {
       newToday: todayBooking.length,
       activeUnits: activeBooking.length,
@@ -156,10 +172,10 @@ export function buildDailyManagementSnapshot(
       cHot: activeBooking.filter((row) => purchaseStatus(row.purchaseStatus ?? "") === "C HOT").length,
       today: todayBooking.map((row) => ({
         date: row.date,
-        branch: row.branch,
+        branch: canonicalDailyBranch(row.branch),
         salesperson: row.salesperson || "Unassigned",
         model: canonicalDailyModel(row.model || row.productType),
-        purchaseStatus: row.purchaseStatus || "Unclassified",
+        purchaseStatus: purchaseStatus(row.purchaseStatus ?? "") || "Unclassified",
       })),
     },
     stock: {
@@ -176,6 +192,46 @@ export function buildDailyManagementSnapshot(
       stockLocation: unavailable("The source Location column is not persisted in stock_transactions."),
       actions: unavailable("Action owner, assignment and completion state are not implemented in Phase 1."),
       notes: unavailable("Daily management notes do not yet have a governed persistence model."),
+    },
+  };
+}
+
+export function attachApprovedTarget(
+  snapshot: DailyManagementSnapshot,
+  target: ApprovedTarget | null,
+  currentDate: string,
+): DailyManagementSnapshot {
+  if (!target || snapshot.scope.branch) {
+    return {
+      ...snapshot,
+      availability: {
+        ...snapshot.availability,
+        target: unavailable(snapshot.scope.branch
+          ? "Approved branch targets are not available."
+          : "No approved company monthly target is available for this period."),
+      },
+    };
+  }
+  const period = calendarMonth(snapshot.asOfDate);
+  const evaluationEligible = snapshot.asOfDate === period.end
+    && canEvaluateFullPeriodTarget(period, currentDate);
+  const progress = evaluationEligible
+    ? targetProgress(snapshot.sales.mtdUnits, target.target)
+    : null;
+  return {
+    ...snapshot,
+    target: {
+      monthlyUnits: target.target,
+      source: target.source,
+      sourceVersion: target.sourceVersion,
+      effectiveFrom: target.effectiveFrom,
+      evaluationEligible,
+      achievementPercent: progress?.achievementPercent ?? null,
+      gap: progress?.gap ?? null,
+    },
+    availability: {
+      ...snapshot.availability,
+      target: { available: true, reason: null },
     },
   };
 }

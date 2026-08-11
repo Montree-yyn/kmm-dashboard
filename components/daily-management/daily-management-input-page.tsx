@@ -29,6 +29,7 @@ import {
 } from "../../lib/daily-management/input-storage";
 import { parseDailyManagementWorkbook } from "../../lib/daily-management/parse-input-workbook";
 import { useLocale } from "../../src/hooks/useLocale";
+import { ALL_BRANCHES, DAILY_MANAGEMENT_BRANCHES } from "../../lib/daily-management/branch";
 
 const inputClass = "h-11 w-full min-w-0 rounded-[12px] border border-[#D9DCE2] bg-white px-3.5 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[#9297A1] hover:border-[#BFC3CA] focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[#F4F5F7] disabled:text-[var(--text-secondary)]";
 const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-5`;
@@ -61,6 +62,7 @@ export function DailyManagementInputPage() {
   const { t } = useLocale();
   const [draft, setDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
   const [savedDraft, setSavedDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
+  const [hasRemoteDraft, setHasRemoteDraft] = useState(false);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "neutral" | "success" | "danger" }>({ text: "", tone: "neutral" });
   const [importError, setImportError] = useState("");
@@ -75,19 +77,24 @@ export function DailyManagementInputPage() {
     let active = true;
     const frame = window.requestAnimationFrame(() => {
       const stored = loadDailyManagementDraft();
-      setDraft(stored);
-      setSavedDraft(structuredClone(stored));
-      setReady(true);
-      void loadDailyManagementInput("draft", { date: stored.reportDate, branch: stored.branch })
+      void loadDailyManagementInput("draft")
         .then((remote) => {
-          if (!active || !remote) return;
-          setDraft(remote);
-          setSavedDraft(structuredClone(remote));
-          setMessage({ text: "โหลด Draft ล่าสุดจาก D1 แล้ว", tone: "neutral" });
+          if (!active) return;
+          const resolved = remote ?? stored;
+          setDraft(resolved);
+          setSavedDraft(structuredClone(resolved));
+          setHasRemoteDraft(Boolean(remote));
+          setMessage({ text: remote ? "โหลด Draft ล่าสุดจาก D1 แล้ว" : "เริ่ม Draft ใหม่ ยังไม่ได้บันทึกลง D1", tone: "neutral" });
         })
         .catch((error) => {
           if (!active) return;
+          setDraft(stored);
+          setSavedDraft(structuredClone(stored));
+          setHasRemoteDraft(false);
           setMessage({ text: error instanceof Error ? error.message : "เชื่อมต่อ D1 ไม่สำเร็จ", tone: "danger" });
+        })
+        .finally(() => {
+          if (active) setReady(true);
         });
     });
     return () => { active = false; window.cancelAnimationFrame(frame); };
@@ -171,6 +178,7 @@ export function DailyManagementInputPage() {
       const saved = saveDailyManagementDraft(remote);
       setDraft(saved);
       setSavedDraft(structuredClone(saved));
+      setHasRemoteDraft(true);
       setMessage({ text: "บันทึก Draft ลง D1 แล้ว", tone: "success" });
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : "บันทึก Draft ไม่สำเร็จ", tone: "danger" });
@@ -187,6 +195,7 @@ export function DailyManagementInputPage() {
       const published = publishDailyManagementInput(remote);
       setDraft(published);
       setSavedDraft(structuredClone(published));
+      setHasRemoteDraft(true);
       setMessage({ text: "Publish สำเร็จ รายงาน Daily Management อัปเดตแล้ว", tone: "success" });
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : "Publish ไม่สำเร็จ", tone: "danger" });
@@ -212,18 +221,16 @@ export function DailyManagementInputPage() {
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-[#202124] px-4 py-3 text-white shadow-[0_12px_28px_rgba(27,31,42,0.12)]">
           <span className="flex min-w-0 items-center gap-3"><span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#35373B] text-[#FF8A38]"><Sparkles size={16} /></span><span><strong className="block text-[12px]">{t("daily.webForm")}</strong><span className="block text-[10px] text-white/70">{t("daily.webFormDescription")}</span></span></span>
-          <span className="rounded-full bg-[#2C4734] px-3 py-1.5 text-[10px] font-semibold text-[#BFE6C9]">{dirty ? t("daily.unsaved") : t("daily.synced")}</span>
+          <span className="rounded-full bg-[#2C4734] px-3 py-1.5 text-[10px] font-semibold text-[#BFE6C9]">{dirty ? t("daily.unsaved") : hasRemoteDraft ? t("daily.synced") : t("daily.notSaved")}</span>
         </div>
 
         <form className="mt-4 space-y-4" onSubmit={(event) => event.preventDefault()}>
           <section className="overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_24px_rgba(27,31,42,0.05)]">
             <SectionHeader title={t("daily.reportInfo")} description={t("daily.reportInfoDescription")} />
-            <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
               <Field label={t("daily.reportDate")}><input type="date" value={draft.reportDate} onChange={(event) => patch({ reportDate: event.target.value })} className={inputClass} /></Field>
-              <Field label={t("daily.branch")}><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option>All Branches</option><option>KMM01 · Hpa-an</option><option>KMM02 · Mawlamyine</option><option>KMM03 · Tharyarwaddy</option></select></Field>
+              <Field label={t("daily.branch")}><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option value={ALL_BRANCHES}>{ALL_BRANCHES}</option>{DAILY_MANAGEMENT_BRANCHES.map((branch) => <option key={branch.code} value={branch.code}>{branch.code} · {branch.name}</option>)}</select></Field>
               <Field label={t("daily.preparedBy")}><input value={draft.preparedBy} onChange={(event) => patch({ preparedBy: event.target.value })} className={inputClass} /></Field>
-              <Field label={t("daily.mtdTarget")} hint={t("common.units")}><input type="number" min="0" value={draft.target.mtdTarget} onChange={(event) => patch({ target: { ...draft.target, mtdTarget: Number(event.target.value) } })} className={inputClass} /></Field>
-              <Field label={t("daily.expectedPace")} hint={t("common.units")}><input type="number" min="0" value={draft.target.expectedPace} onChange={(event) => patch({ target: { ...draft.target, expectedPace: Number(event.target.value) } })} className={inputClass} /></Field>
             </div>
             <div className="flex items-start gap-2 border-t border-[var(--divider)] bg-[#F8FAF9] px-5 py-3 text-[11px] leading-4 text-[#42604C]"><Check className="mt-0.5 shrink-0 text-[#2E7D47]" size={14} /><span>{t("daily.lifecycleAutomatic")}</span></div>
           </section>
@@ -276,11 +283,11 @@ export function DailyManagementInputPage() {
         </details>
 
         <div className="sticky bottom-0 z-20 mt-4 flex flex-col gap-3 rounded-[14px] border border-[var(--border-default)] bg-white/95 p-3.5 shadow-[0_14px_36px_rgba(27,31,42,0.14)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0"><p className="text-[12px] font-semibold">{validation.length ? `${validation.length} รายการต้องแก้ไข` : dirty ? "พร้อมบันทึก" : "ข้อมูลล่าสุดถูกบันทึกแล้ว"}</p><p aria-live="polite" className={`mt-0.5 text-[10px] ${message.tone === "danger" ? "text-[var(--status-danger)]" : message.tone === "success" ? "text-[var(--status-success)]" : "text-[var(--text-secondary)]"}`}>{message.text || validation[0] || `${draft.actions.length} actions · ${noteCount} notes`}</p></div>
+          <div className="min-w-0"><p className="text-[12px] font-semibold">{validation.length ? `${validation.length} รายการต้องแก้ไข` : dirty ? "พร้อมบันทึก" : hasRemoteDraft ? "ข้อมูลล่าสุดถูกบันทึกแล้ว" : "Draft ใหม่ ยังไม่ได้บันทึก"}</p><p aria-live="polite" className={`mt-0.5 text-[10px] ${message.tone === "danger" ? "text-[var(--status-danger)]" : message.tone === "success" ? "text-[var(--status-success)]" : "text-[var(--text-secondary)]"}`}>{message.text || validation[0] || `${draft.actions.length} actions · ${noteCount} notes`}</p></div>
           <div className="flex flex-wrap gap-2 sm:flex-nowrap">
             <button type="button" disabled={!dirty || !ready || busy} onClick={() => setDraft(structuredClone(savedDraft))} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] px-3.5 text-[11px] font-semibold transition hover:bg-[#F7F8F9] disabled:opacity-40"><RotateCcw size={14} />{t("common.reset")}</button>
             <button type="button" disabled={!dirty || !ready || busy || validation.length > 0} onClick={() => void saveDraft()} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[#E8A575] bg-[#FFF6EF] px-4 text-[11px] font-semibold text-[#A94700] transition hover:bg-[#FFECDD] disabled:opacity-40"><Save size={14} />{saving === "draft" ? t("common.loading") : t("common.saveDraft")}</button>
-            <button type="button" disabled={!ready || busy || validation.length > 0} onClick={() => void publish()} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] bg-[var(--brand-500)] px-4 text-[11px] font-semibold text-white shadow-[0_7px_18px_rgba(245,102,0,0.22)] transition hover:bg-[var(--brand-600)] disabled:opacity-40"><Send size={14} />{saving === "publish" ? t("common.loading") : t("daily.publishReport")}</button>
+            <button type="button" disabled={!ready || busy || validation.length > 0 || (!dirty && !hasRemoteDraft)} onClick={() => void publish()} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] bg-[var(--brand-500)] px-4 text-[11px] font-semibold text-white shadow-[0_7px_18px_rgba(245,102,0,0.22)] transition hover:bg-[var(--brand-600)] disabled:opacity-40"><Send size={14} />{saving === "publish" ? t("common.loading") : t("daily.publishReport")}</button>
           </div>
         </div>
       </main>

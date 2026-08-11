@@ -1,4 +1,5 @@
-import { dailyManagementMock } from "./mock-data";
+import { ALL_BRANCHES, canonicalDailyBranch } from "./branch";
+import { dateInTimeZone } from "./date";
 
 export type DailyManagementActionInput = {
   title: string;
@@ -34,34 +35,30 @@ export type DailyManagementInputSnapshot = {
   publishedAt: string | null;
 };
 
-const DRAFT_KEY = "kmm:daily-management:input-draft:v1";
-const PUBLISHED_KEY = "kmm:daily-management:input-published:v1";
+// v2 invalidates Phase 1 browser caches that were seeded with illustrative values.
+// D1 remains the governed source; localStorage is only a same-browser draft cache.
+const DRAFT_KEY = "kmm:daily-management:input-draft:v2";
+const PUBLISHED_KEY = "kmm:daily-management:input-published:v2";
 export const DAILY_MANAGEMENT_INPUT_PUBLISHED = "kmm:daily-management-input-published";
 
 export const defaultDailyManagementInput: DailyManagementInputSnapshot = {
   version: 1,
-  reportDate: dailyManagementMock.reportDate,
-  branch: "All Branches",
+  reportDate: dateInTimeZone(new Date()),
+  branch: ALL_BRANCHES,
   preparedBy: "KMM Sales Division",
-  target: { mtdTarget: 48, expectedPace: 14 },
+  target: { mtdTarget: 0, expectedPace: 0 },
   bookingLifecycle: {
-    waitApprove: 3,
-    waitDelivery: 74,
-    deliveredToday: 2,
-    cancelUnits: dailyManagementMock.cancellation.total,
-    cancelReason: dailyManagementMock.cancellation.reason,
+    waitApprove: 0,
+    waitDelivery: 0,
+    deliveredToday: 0,
+    cancelUnits: 0,
+    cancelReason: "",
   },
-  actions: dailyManagementMock.actions.map((item) => ({
-    title: item.title,
-    detail: item.detail,
-    owner: item.owner,
-    nextStep: item.action,
-    priority: item.tone === "negative" ? "critical" : "warning",
-  })),
+  actions: [],
   notes: {
-    situation: dailyManagementMock.notes[0].items.join("\n"),
-    decision: dailyManagementMock.notes[1].items.join("\n"),
-    tomorrowFocus: dailyManagementMock.notes[2].items.join("\n"),
+    situation: "",
+    decision: "",
+    tomorrowFocus: "",
   },
   savedAt: null,
   publishedAt: null,
@@ -75,7 +72,9 @@ function read(key: string) {
   if (typeof window === "undefined") return null;
   try {
     const value = JSON.parse(window.localStorage.getItem(key) ?? "null") as DailyManagementInputSnapshot | null;
-    return value?.version === 1 ? value : null;
+    return value?.version === 1
+      ? { ...value, branch: canonicalDailyBranch(value.branch) || ALL_BRANCHES }
+      : null;
   } catch {
     return null;
   }
@@ -85,12 +84,8 @@ export function loadDailyManagementDraft() {
   return read(DRAFT_KEY) ?? cloneDefault();
 }
 
-export function loadPublishedDailyManagementInput() {
-  return read(PUBLISHED_KEY) ?? cloneDefault();
-}
-
 export function saveDailyManagementDraft(snapshot: DailyManagementInputSnapshot) {
-  const saved = { ...structuredClone(snapshot), savedAt: new Date().toISOString() };
+  const saved = { ...structuredClone(snapshot), savedAt: snapshot.savedAt ?? new Date().toISOString() };
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify(saved));
   return saved;
 }
@@ -99,7 +94,7 @@ export function publishDailyManagementInput(snapshot: DailyManagementInputSnapsh
   const published = {
     ...structuredClone(snapshot),
     savedAt: snapshot.savedAt ?? new Date().toISOString(),
-    publishedAt: new Date().toISOString(),
+    publishedAt: snapshot.publishedAt ?? new Date().toISOString(),
   };
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify(published));
   window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(published));

@@ -313,22 +313,10 @@ export function WeatherMap({
           radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
         )}>{radar ? "Radar available" : "Radar unavailable"}</span>
       </div>
-      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6 md:flex-1">
+      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6 md:grid md:flex-1 md:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] md:gap-4">
         <div className="relative h-[360px] min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7] sm:h-[420px] md:h-full">
           <div className="absolute inset-0">
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
-          </div>
-          <div className="absolute left-3 top-3 z-10 hidden md:block">
-            <WeatherMapControls
-              activeLayer={activeLayer}
-              latestRadarFrame={latestRadarFrame}
-              onResetView={resetMapView}
-              onFrameChange={setRadarFrameTime}
-              onLayerChange={setActiveLayer}
-              radar={radar}
-              radarError={radarError}
-              selectedRadarFrame={selectedRadarFrame}
-            />
           </div>
           {!mapReady && !mapError && <div className="absolute inset-0 z-[1] grid place-items-center bg-[#edf4f1]/80 text-xs font-semibold text-[var(--text-secondary)]" role="status">Loading interactive map…</div>}
           {mapError && <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-[var(--status-warning-bg)] bg-white/95 px-3 py-2 text-[10px] font-semibold text-[var(--status-warning)]" role="status">{mapError}</div>}
@@ -337,6 +325,19 @@ export function WeatherMap({
             Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>
           </div>
         </div>
+        <aside className="hidden min-h-0 overflow-y-auto rounded-xl border border-[var(--border-default)] bg-[var(--surface-subtle)] p-2 md:block" aria-label="Weather map controls">
+          <WeatherMapControls
+            activeLayer={activeLayer}
+            latestRadarFrame={latestRadarFrame}
+            mobile
+            onResetView={resetMapView}
+            onFrameChange={setRadarFrameTime}
+            onLayerChange={setActiveLayer}
+            radar={radar}
+            radarError={radarError}
+            selectedRadarFrame={selectedRadarFrame}
+          />
+        </aside>
         <details className="group mt-3 md:hidden">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2 shadow-sm [&::-webkit-details-marker]:hidden">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#e7f4fb] text-[#0875a8]"><Radar size={15} aria-hidden="true" /></span>

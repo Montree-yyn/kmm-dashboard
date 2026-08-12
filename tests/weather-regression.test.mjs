@@ -85,6 +85,9 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /Reset map to Myanmar overview/);
   assert.match(map, /getWeatherPinIcon\(activeLayer\)/);
   assert.match(map, /Weather pin risk legend/);
+  assert.match(map, /aria-label="Weather map controls"/);
+  assert.match(map, /md:grid-cols-\[minmax\(0,1fr\)_minmax\(240px,280px\)\]/);
+  assert.doesNotMatch(map, /absolute left-3 top-3 z-10 hidden md:block/);
   assert.match(map, /tilecache|radar\.host/);
   assert.match(map, /RainViewer/);
   assert.match(map, /Radar timeline/);

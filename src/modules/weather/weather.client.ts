@@ -1,11 +1,13 @@
 import { auth } from "../../../lib/firebase";
 import type { WeatherDataPayload } from "./weather.types";
 
-export async function loadLiveWeather(): Promise<WeatherDataPayload> {
+export async function loadLiveWeather(options: { forceRefresh?: boolean } = {}): Promise<WeatherDataPayload> {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Your secure session has expired. Sign in again.");
 
-  const response = await fetch(`/api/weather?ts=${Date.now()}`, {
+  const query = new URLSearchParams({ ts: String(Date.now()) });
+  if (options.forceRefresh) query.set("refresh", "1");
+  const response = await fetch(`/api/weather?${query.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

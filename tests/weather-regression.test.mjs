@@ -20,13 +20,14 @@ test("Weather is wired into the active navigation and shell", async () => {
 });
 
 test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations", async () => {
-  const [types, locations, client, api, live, page] = await Promise.all([
+  const [types, locations, client, api, live, page, map] = await Promise.all([
     access(new URL("../src/modules/weather/weather.types.ts", import.meta.url)),
     read("src/modules/weather/data/weather.locations.ts"),
     read("src/modules/weather/weather.client.ts"),
     read("app/api/weather/route.ts"),
     read("src/modules/weather/data/weather.live.ts"),
     read("src/modules/weather/WeatherPage.tsx"),
+    read("src/modules/weather/WeatherMap.tsx"),
   ]);
 
   assert.ok(types === undefined);
@@ -39,6 +40,10 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(live, /api\.open-meteo\.com\/v1\/forecast/);
   assert.match(live, /forecast_days: "7"/);
   assert.match(live, /past_days: "1"/);
+  assert.match(live, /OPEN_METEO_TIMEOUT_MS/);
+  assert.match(live, /OPEN_METEO_MAX_ATTEMPTS/);
+  assert.match(live, /lastKnownGoodWeather/);
+  assert.match(api, /refresh/);
   assert.match(page, /Weather Overview/);
   assert.match(page, /7-Day Forecast/);
   assert.match(page, /Agriculture Impact/);
@@ -48,6 +53,10 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.doesNotMatch(page, /weather\.mock/);
   assert.match(page, /xl:grid-cols-2/);
   assert.match(page, /lg:grid-cols-3/);
-  assert.match(page, /left: "13%"/);
-  assert.match(page, /bottom: "12px"/);
+  assert.doesNotMatch(page, /Map placeholder/);
+  assert.match(map, /maplibre-gl/);
+  assert.match(map, /NavigationControl/);
+  assert.match(map, /myanmar-states\.geojson/);
+  assert.match(map, /myanmar-townships\.geojson/);
+  assert.match(map, /aria-pressed/);
 });

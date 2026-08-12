@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   CalendarDays,
@@ -24,10 +24,12 @@ import { cn } from "../../../lib/utils";
 import { useLocale } from "../../hooks/useLocale";
 import { weatherLocationSeeds } from "./data/weather.locations";
 import { buildWeatherAlerts } from "./data/weather.rules";
+import { WeatherMap } from "./WeatherMap";
 import { loadLiveWeather } from "./weather.client";
 import type {
   WeatherCondition,
   WeatherAlert,
+  WeatherCacheStatus,
   WeatherLocation,
   WeatherRiskLevel,
 } from "./weather.types";
@@ -88,15 +90,20 @@ export function WeatherPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<WeatherCacheStatus>("live");
+  const [cacheAgeSeconds, setCacheAgeSeconds] = useState(0);
 
-  const loadWeather = useCallback(async () => {
+  const loadWeather = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError("");
     try {
-      const payload = await loadLiveWeather();
+      const payload = await loadLiveWeather({ forceRefresh });
       setLiveLocations(payload.locations);
       setLastUpdated(payload.fetchedAt);
+      setCacheStatus(payload.cacheStatus);
+      setCacheAgeSeconds(payload.cacheAgeSeconds);
     } catch (loadError) {
+      setCacheStatus("stale");
       setError(loadError instanceof Error ? loadError.message : "Unable to load live weather.");
     } finally {
       setLoading(false);
@@ -104,7 +111,7 @@ export function WeatherPage() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadWeather(), 0);
+    const timer = window.setTimeout(() => void loadWeather(false), 0);
     return () => window.clearTimeout(timer);
   }, [loadWeather]);
 
@@ -145,12 +152,14 @@ export function WeatherPage() {
                 </h1>
                 <span className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]",
-                  liveLocations.length
+                  liveLocations.length && cacheStatus !== "stale"
                     ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]"
-                    : "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-600)]",
+                    : liveLocations.length
+                      ? "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
+                      : "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-600)]",
                 )}>
                   <Activity size={12} aria-hidden="true" />
-                  {liveLocations.length ? "Live" : "Connecting"}
+                  {liveLocations.length ? (cacheStatus === "stale" ? "Stale" : "Live") : "Connecting"}
                 </span>
               </div>
               <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
@@ -159,7 +168,7 @@ export function WeatherPage() {
             </div>
             <button
               type="button"
-              onClick={() => void loadWeather()}
+              onClick={() => void loadWeather(true)}
               disabled={loading}
               className="inline-flex min-h-10 w-fit items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"
               aria-label="Refresh live weather snapshot"
@@ -210,7 +219,7 @@ export function WeatherPage() {
                 <p className="font-semibold text-[var(--status-danger)]">Live weather is unavailable</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{error}</p>
               </div>
-              <button type="button" onClick={() => void loadWeather()} className="min-h-10 w-fit rounded-[var(--radius-control)] border border-[var(--status-danger)] bg-white px-3 text-xs font-semibold text-[var(--status-danger)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
+              <button type="button" onClick={() => void loadWeather(true)} className="min-h-10 w-fit rounded-[var(--radius-control)] border border-[var(--status-danger)] bg-white px-3 text-xs font-semibold text-[var(--status-danger)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
             </section>
           )}
 
@@ -262,12 +271,12 @@ export function WeatherPage() {
               </section>
 
               <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-4 text-[10px] leading-4 text-[var(--text-tertiary)] sm:flex-row sm:items-center sm:justify-between">
-                <span>Source: Open-Meteo live forecast · updated {formatUpdatedAt(lastUpdated)}.</span>
+                <span>Source: Open-Meteo live forecast · updated {formatUpdatedAt(lastUpdated)} · {formatCacheStatus(cacheStatus, cacheAgeSeconds)}.</span>
                 <span>Planning aid only; not agronomic or safety advice.</span>
               </footer>
             </>
           ) : (
-            <WeatherEmptyState onRetry={() => void loadWeather()} />
+            <WeatherEmptyState onRetry={() => void loadWeather(true)} />
           )}
         </div>
       </main>
@@ -306,6 +315,12 @@ function WeatherEmptyState({ onRetry }: { onRetry: () => void }) {
 function formatUpdatedAt(value: string | null) {
   if (!value) return "not available";
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function formatCacheStatus(status: WeatherCacheStatus, ageSeconds: number) {
+  if (status === "stale") return `last-known-good (${Math.max(1, Math.floor(ageSeconds / 60))} min old)`;
+  if (status === "cached") return `server cache (${Math.max(1, Math.floor(ageSeconds / 60))} min old)`;
+  return "live snapshot";
 }
 
 function Summary({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
@@ -388,77 +403,6 @@ function MiniMetric({ icon: Icon, label, value }: { icon?: LucideIcon; label: st
       </span>
       <span className="kmm-tabular mt-1 block truncate text-[11px] font-semibold text-[var(--text-secondary)]">{value}</span>
     </span>
-  );
-}
-
-function WeatherMap({
-  locations,
-  selectedId,
-  onSelect,
-}: {
-  locations: WeatherLocation[];
-  selectedId: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]" aria-labelledby="weather-map-title">
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-[var(--brand-100)] text-[var(--brand-600)]"><MapPinned size={16} aria-hidden="true" /></span>
-            <h2 id="weather-map-title" className="text-[19px] font-semibold">Operating Area Map</h2>
-          </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">Myanmar and the five Tak districts.</p>
-        </div>
-        <span className="rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[10px] font-semibold uppercase text-[var(--text-tertiary)]">Map placeholder</span>
-      </div>
-      <div className="p-4 sm:p-6">
-        <div className="relative min-h-[360px] overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#eaf2ef]">
-          <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "linear-gradient(rgb(255 255 255 / 65%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 65%) 1px, transparent 1px)", backgroundSize: "42px 42px" }} aria-hidden="true" />
-          <div
-            className="absolute border-2 border-[#8caea0] bg-[#cfe2d8] shadow-inner"
-            style={{
-              left: "13%",
-              top: "10%",
-              height: "72%",
-              width: "48%",
-              transform: "rotate(-8deg)",
-              borderRadius: "44% 56% 49% 51%",
-            }}
-            aria-label="Myanmar map placeholder"
-          />
-          <div
-            className="absolute border-2 border-[#8caea0] bg-[#d9e7dc]"
-            style={{
-              left: "50%",
-              top: "52%",
-              height: "32%",
-              width: "25%",
-              transform: "rotate(16deg)",
-              borderRadius: "48% 52% 54% 46%",
-            }}
-            aria-label="Thailand Tak map placeholder"
-          />
-          <span className="absolute text-xs font-bold tracking-[0.18em] text-[#5a7c70]" style={{ left: "27%", top: "40%" }}>MYANMAR</span>
-          <span className="absolute text-[10px] font-bold tracking-[0.12em] text-[#5a7c70]" style={{ left: "53%", top: "72%" }}>TAK / THAILAND</span>
-          {locations.map((location) => (
-            <button
-              key={location.id}
-              type="button"
-              onClick={() => onSelect(location.id)}
-              aria-label={location.name + ", " + location.rainRisk + "% rain risk"}
-              aria-pressed={selectedId === location.id}
-              className="group absolute -translate-x-1/2 -translate-y-1/2 focus-visible:outline-none"
-              style={{ left: location.mapX + "%", top: location.mapY + "%" } as CSSProperties}
-            >
-              <span className={cn("block size-5 rounded-full border-[3px] border-white shadow-md transition group-hover:scale-125", location.riskLevel === "HIGH" ? "bg-[var(--status-danger)]" : location.riskLevel === "MEDIUM" ? "bg-[var(--status-warning)]" : "bg-[var(--status-success)]", selectedId === location.id && "scale-125 ring-4 ring-[var(--brand-focus)]")} />
-              <span className={cn("pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 whitespace-nowrap rounded-md bg-white/90 px-1.5 py-1 text-[9px] font-bold text-[#42545d] shadow-sm", selectedId === location.id ? "block" : "hidden group-hover:block")}>{location.name}</span>
-            </button>
-          ))}
-          <span className="absolute rounded-lg border border-white/80 bg-white/85 px-3 py-2 text-[10px] font-semibold text-[#4c625e]" style={{ bottom: "12px", left: "12px" }}>STATIC PREVIEW · LIVE MAP NOT CONNECTED</span>
-        </div>
-      </div>
-    </section>
   );
 }
 

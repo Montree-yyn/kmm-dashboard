@@ -6,11 +6,15 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     await verifyFirebaseRequest(request);
-    const payload = await fetchLiveWeather();
+    const requestUrl = new URL(request.url);
+    const payload = await fetchLiveWeather({
+      forceRefresh: requestUrl.searchParams.get("refresh") === "1",
+    });
     return Response.json(payload, {
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
         "X-Weather-Source": "Open-Meteo",
+        "X-Weather-Cache": payload.cacheStatus,
       },
     });
   } catch (error) {

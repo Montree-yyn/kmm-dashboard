@@ -2,6 +2,8 @@ export type WeatherCountry = "Myanmar" | "Thailand";
 
 export type WeatherRiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
+export type WeatherCacheStatus = "live" | "cached" | "stale";
+
 export type WeatherCondition =
   | "Clear"
   | "Cloudy"
@@ -64,5 +66,7 @@ export type WeatherDataPayload = {
   source: "open-meteo";
   sourceLabel: string;
   fetchedAt: string;
+  cacheStatus: WeatherCacheStatus;
+  cacheAgeSeconds: number;
   locations: WeatherLocation[];
 };

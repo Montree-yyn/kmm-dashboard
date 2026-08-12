@@ -94,6 +94,13 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /const isRadarDataPin = activeLayer === "radar"/);
   assert.match(map, /temperature\.textContent = `\$\{location\.temperature\}°`/);
   assert.match(map, /rain\.textContent = `\$\{location\.rainRisk\}% rain`/);
+  assert.match(map, /const showLabel = selected \|\| location\.id === "MM-THA"/);
+  assert.match(map, /zIndex: selected \? "4" : showLabel \? "3" : "1"/);
+  assert.match(map, /const RISK_LABELS/);
+  assert.match(map, /LOW: "Normal"/);
+  assert.match(map, /MEDIUM: "Watch"/);
+  assert.match(map, /HIGH: "Critical"/);
+  assert.match(map, /backdropFilter: "blur\(8px\) saturate\(1\.08\)"/);
   assert.match(map, /Weather pin risk legend/);
   assert.match(map, /aria-label="Weather map controls"/);
   assert.match(map, /md:h-\[520px\]/);
@@ -113,4 +120,5 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /Open weather map fullscreen/);
   assert.match(map, /document\.addEventListener\("fullscreenchange"/);
   assert.match(map, /isFullscreen && "fixed inset-0 z-\[120\]/);
+  assert.match(locations, /name: "Tharyawaddy"/);
 });

@@ -3,7 +3,7 @@ import type { WeatherLocationSeed } from "../weather.types";
 export const weatherLocationSeeds: WeatherLocationSeed[] = [
   { id: "MM-HPA", branchCode: "KMM01", name: "Hpa-an", country: "Myanmar", region: "Kayin", latitude: 16.89, longitude: 97.63, mapX: 45, mapY: 45 },
   { id: "MM-MAW", branchCode: "KMM02", name: "Mawlamyine", country: "Myanmar", region: "Mon", latitude: 16.49, longitude: 97.63, mapX: 42, mapY: 52 },
-  { id: "MM-THA", branchCode: "KMM03", name: "Tharyarwaddy", country: "Myanmar", region: "Bago", latitude: 17.65, longitude: 95.78, mapX: 31, mapY: 38 },
+  { id: "MM-THA", branchCode: "KMM03", name: "Tharyawaddy", country: "Myanmar", region: "Bago", latitude: 17.65, longitude: 95.78, mapX: 31, mapY: 38 },
   { id: "MM-NAT", branchCode: "KMM04", name: "Nattalin", country: "Myanmar", region: "Bago", latitude: 18.45, longitude: 95.75, mapX: 31, mapY: 28 },
   { id: "MM-NAU", branchCode: "KMM05", name: "Naung Cho", country: "Myanmar", region: "Shan", latitude: 23.3, longitude: 97, mapX: 39, mapY: 14 },
   { id: "MM-MYW", branchCode: "KMM06", name: "Myawaddy", country: "Myanmar", region: "Kayin", latitude: 16.69, longitude: 98.51, mapX: 53, mapY: 49 },

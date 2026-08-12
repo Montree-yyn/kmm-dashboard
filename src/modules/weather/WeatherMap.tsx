@@ -52,6 +52,38 @@ const RISK_COLORS = {
   HIGH: "#bd241c",
 } as const;
 
+const RISK_LABELS: Record<keyof typeof RISK_COLORS, string> = {
+  LOW: "Normal",
+  MEDIUM: "Watch",
+  HIGH: "Critical",
+};
+
+const RISK_GLASS: Record<keyof typeof RISK_COLORS, {
+  background: string;
+  border: string;
+  ring: string;
+  text: string;
+}> = {
+  LOW: {
+    background: "rgb(240 253 244 / 78%)",
+    border: "rgb(22 101 52 / 48%)",
+    ring: "rgb(34 197 94 / 28%)",
+    text: "#166534",
+  },
+  MEDIUM: {
+    background: "rgb(255 247 237 / 80%)",
+    border: "rgb(194 65 12 / 50%)",
+    ring: "rgb(251 146 60 / 30%)",
+    text: "#9a3412",
+  },
+  HIGH: {
+    background: "rgb(254 242 242 / 80%)",
+    border: "rgb(185 28 28 / 55%)",
+    ring: "rgb(248 113 113 / 32%)",
+    text: "#b91c1c",
+  },
+};
+
 const MAP_FIT_PADDING = { top: 24, right: 44, bottom: 24, left: 44 };
 const MAP_MIN_ZOOM = MARKETING_MAP_DATASET?.min_zoom ?? 3;
 // The global Protomaps OSM v4 basemap supports zoom 15. The township overlay
@@ -218,7 +250,8 @@ export function WeatherMap({
       element.title = `${location.name} · ${layerValue}`;
       const selected = location.id === selectedId;
       const isRadarDataPin = activeLayer === "radar";
-      const color = RISK_COLORS[location.riskLevel];
+      const risk = RISK_GLASS[location.riskLevel];
+      const showLabel = selected || location.id === "MM-THA";
       Object.assign(element.style, {
         alignItems: "center",
         background: "transparent",
@@ -232,7 +265,7 @@ export function WeatherMap({
         padding: "0",
         position: "relative",
         width: isRadarDataPin ? "72px" : "44px",
-        zIndex: selected ? "2" : "1",
+        zIndex: selected ? "4" : showLabel ? "3" : "1",
       });
       element.addEventListener("click", () => {
         onSelectRef.current(location.id);
@@ -247,11 +280,12 @@ export function WeatherMap({
       const pin = document.createElement("span");
       Object.assign(pin.style, {
         alignItems: "center",
-        background: color,
-        border: selected ? "3px solid #ffffff" : "2px solid #ffffff",
+        backdropFilter: "blur(8px) saturate(1.08)",
+        background: risk.background,
+        border: `${selected ? "2px" : "1px"} solid ${risk.border}`,
         borderRadius: isRadarDataPin ? "10px" : "999px",
-        boxShadow: selected ? `0 0 0 4px rgb(255 122 0 / 35%), 0 2px 8px rgb(0 0 0 / 20%)` : "0 2px 8px rgb(0 0 0 / 22%)",
-        color: "#ffffff",
+        boxShadow: selected ? `0 0 0 3px ${risk.ring}, 0 4px 12px rgb(15 23 42 / 18%)` : "0 2px 10px rgb(15 23 42 / 16%)",
+        color: risk.text,
         display: "flex",
         flexDirection: isRadarDataPin ? "column" : "row",
         gap: isRadarDataPin ? "1px" : "0",
@@ -289,11 +323,13 @@ export function WeatherMap({
       const label = document.createElement("span");
       label.textContent = location.name;
       Object.assign(label.style, {
-        background: "rgb(255 255 255 / 94%)",
-        border: "1px solid rgb(203 213 225 / 85%)",
+        backdropFilter: "blur(8px) saturate(1.08)",
+        background: "rgb(255 255 255 / 72%)",
+        border: `1px solid ${risk.border}`,
         borderRadius: "6px",
-        color: "#334155",
-        display: selected ? "block" : "none",
+        boxShadow: "0 2px 8px rgb(15 23 42 / 12%)",
+        color: risk.text,
+        display: showLabel ? "block" : "none",
         fontSize: "10px",
         fontWeight: "700",
         left: "50%",
@@ -568,13 +604,16 @@ function WeatherMapControls({
         </div>
       )}
       <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[var(--text-tertiary)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")} aria-label="Weather pin risk legend">
-        <span className="font-semibold">Pin risk</span>
-        {Object.entries(RISK_COLORS).map(([risk, color]) => (
-          <span key={risk} className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-            {risk[0] + risk.slice(1).toLowerCase()}
-          </span>
-        ))}
+        <span className="font-semibold">Weather status</span>
+        {Object.entries(RISK_COLORS).map(([riskLevel, color]) => {
+          const riskKey = riskLevel as keyof typeof RISK_COLORS;
+          return (
+            <span key={riskLevel} className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+              {RISK_LABELS[riskKey]}
+            </span>
+          );
+        })}
       </div>
       {activeLayer === "radar" && !radar && <p className={cn("px-1 leading-4 text-[var(--status-warning)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")}>{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
     </div>

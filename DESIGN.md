@@ -53,6 +53,9 @@ YoY is calculated only when exactly one year is selected. With no year or multip
 
 ## Charts and data
 
+- Dashboard chart color is semantic and intentionally scarce: observed/current values use KMM orange, sourced targets or plans use gray, achieved/healthy states use green, watch states use yellow, and critical or urgent states use red. Product categories use an orange ramp rather than borrowing semantic status colors. Every risk color is paired with a label, status word, line style, or position.
+- A missing target remains unavailable; the interface never turns an observed value green without a sourced target or an approved healthy-state rule.
+
 - Trend: line/area only for continuous time series with at least eight observed periods. Sparse Stock history is explicitly withheld instead of drawing a misleading line.
 - Year choices are derived from the active company's source data rather than a hard-coded list; the two latest available years are selected initially.
 - Booking lifecycle: stacked monthly columns use the status values returned by the source; no lifecycle stage is fabricated.

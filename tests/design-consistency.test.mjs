@@ -170,9 +170,11 @@ test("project charts preserve the approved color conditions", async () => {
   assert.match(globals, /--chart-neutral: #86868b/);
   assert.match(globals, /--chart-ink: #35363a/);
   assert.match(globals, /--chart-warm-gray: #9b948a/);
-  for (const page of [dashboard, stock]) {
-    assert.match(page, /TT: "#F56600"[\s\S]*?CH: "#35363A"[\s\S]*?EX: "#86868B"[\s\S]*?TP: "#B6B7BA"[\s\S]*?MAX: "#245487"/);
-  }
+  assert.match(dashboard, /DASHBOARD_PRODUCT_COLORS[\s\S]*?TT: "#A54100"[\s\S]*?CH: "#C95700"[\s\S]*?EX: "#F56600"[\s\S]*?TP: "#F58B3D"[\s\S]*?MAX: "#F7A35C"/);
+  assert.match(dashboard, /dashboardLifecycleColor/);
+  assert.match(dashboard, /columnTones=\{\["healthy", "current", "watch", "critical"\]\}/);
+  assert.match(dashboard, /semanticGapColors/);
+  assert.match(stock, /TT: "#F56600"[\s\S]*?CH: "#35363A"[\s\S]*?EX: "#86868B"[\s\S]*?TP: "#B6B7BA"[\s\S]*?MAX: "#245487"/);
   assert.match(booking, /businessStatusColor\(item\.label, index\)/);
   assert.match(chartData, /status === "delivered"[\s\S]*?#35363A[\s\S]*?status === "cancelled"[\s\S]*?#9B948A[\s\S]*?status === "open"[\s\S]*?#F56600/);
 });

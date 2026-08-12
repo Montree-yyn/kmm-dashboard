@@ -472,13 +472,21 @@ function KpiSection({
   );
 }
 
-const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#F56600",
-  CH: "#35363A",
-  EX: "#86868B",
-  TP: "#B6B7BA",
-  MAX: "#245487",
+const DASHBOARD_PRODUCT_COLORS: Record<string, string> = {
+  TT: "#A54100",
+  CH: "#C95700",
+  EX: "#F56600",
+  TP: "#F58B3D",
+  MAX: "#F7A35C",
 };
+
+function dashboardLifecycleColor(label: string) {
+  const status = label.trim().toLowerCase();
+  if (status === "delivered" || status.includes("complete")) return "var(--chart-health)";
+  if (status === "cancelled" || status === "canceled") return "var(--chart-critical)";
+  if (status === "open" || status.includes("confirm")) return "var(--chart-watch)";
+  return "var(--chart-current)";
+}
 
 function filterForCharts<
   T extends {
@@ -890,7 +898,7 @@ function YearTrendChart({
 
 function HorizontalBarChart({
   data,
-  color = "#FF7A00",
+  color = "#F56600",
 }: {
   data: { label: string; value: number }[];
   color?: string;
@@ -1284,6 +1292,7 @@ function ChartsSection({
             series={bookingLifecycle.series.map((item) => ({
               ...item,
               label: displayBookingStatus(item.label),
+              color: dashboardLifecycleColor(item.label),
             }))}
             unit={t("common.records")}
           />
@@ -1299,9 +1308,12 @@ function ChartsSection({
             rightLabel={t("metric.stockUnit")}
             leftShortLabel={t("common.booking")}
             rightShortLabel={t("common.stock")}
+            leftColor="#F56600"
+            rightColor="#F7A35C"
             shortageLabel={t("comparison.shortage")}
             surplusLabel={t("comparison.surplus")}
             balancedLabel={t("comparison.balanced")}
+            semanticGapColors
           />
         </ChartCard>
       </div>
@@ -1317,7 +1329,7 @@ function ChartsSection({
               id: item.label,
               label: item.label,
               value: item.value,
-              color: PRODUCT_COLORS[item.label] ?? "#D1D5DB",
+              color: DASHBOARD_PRODUCT_COLORS[item.label] ?? "#FBC49D",
             }))}
             formatValue={formatCompact}
           />
@@ -1330,6 +1342,7 @@ function ChartsSection({
           <HeatmapMatrix
             columns={[...STOCK_AGE_BANDS]}
             rows={agingRisk}
+            columnTones={["healthy", "current", "watch", "critical"]}
             categoryLabel={t("filter.productGroup")}
             lowerLabel={t("common.lowerConcentration")}
             higherLabel={t("common.higherConcentration")}

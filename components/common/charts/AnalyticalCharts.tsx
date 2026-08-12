@@ -18,6 +18,8 @@ export type HeatmapDatum = {
   values: number[];
 };
 
+export type HeatmapTone = "healthy" | "current" | "watch" | "critical";
+
 export type RankedDatum = {
   label: string;
   value: number;
@@ -34,6 +36,13 @@ const readableTextColor = (background: string) => {
   );
   const luminance = (red * 299 + green * 587 + blue * 114) / 255000;
   return luminance > 0.62 ? "#171718" : "#FFFFFF";
+};
+
+const HEATMAP_TONE_RGB: Record<HeatmapTone, string> = {
+  healthy: "46 125 79",
+  current: "245 102 0",
+  watch: "201 133 0",
+  critical: "180 35 24",
 };
 
 function ChartLegend({
@@ -158,6 +167,7 @@ export function PairedBarChart({
   shortageLabel = "Shortage",
   surplusLabel = "Surplus",
   balancedLabel = "Balanced",
+  semanticGapColors = false,
   limit = 10,
   formatValue = formatNumber,
 }: {
@@ -171,6 +181,7 @@ export function PairedBarChart({
   shortageLabel?: string;
   surplusLabel?: string;
   balancedLabel?: string;
+  semanticGapColors?: boolean;
   limit?: number;
   formatValue?: (value: number) => string;
 }) {
@@ -236,9 +247,15 @@ export function PairedBarChart({
               <span
                 className={cn(
                   "kmm-tabular w-fit rounded-[var(--radius-control)] border px-2.5 py-1 text-[11px] font-semibold sm:ml-auto",
-                  difference < 0
-                    ? "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-700)]"
-                    : "border-[var(--border-default)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]",
+                  semanticGapColors
+                    ? difference < 0
+                      ? "border-[var(--status-danger-bg)] bg-[var(--status-danger-bg)] text-[var(--status-danger)]"
+                      : difference > 0
+                        ? "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
+                        : "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]"
+                    : difference < 0
+                      ? "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-700)]"
+                      : "border-[var(--border-default)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]",
                 )}
               >
                 {gapLabel}
@@ -315,6 +332,7 @@ export function HeatmapMatrix({
   rows,
   limit = 10,
   criticalColumn = columns.length - 1,
+  columnTones,
   formatValue = formatNumber,
   categoryLabel = "Category",
   lowerLabel = "Lower concentration",
@@ -324,6 +342,7 @@ export function HeatmapMatrix({
   rows: HeatmapDatum[];
   limit?: number;
   criticalColumn?: number;
+  columnTones?: HeatmapTone[];
   formatValue?: (value: number) => string;
   categoryLabel?: string;
   lowerLabel?: string;
@@ -344,7 +363,15 @@ export function HeatmapMatrix({
     <div role="img" aria-label={`Aging heatmap with columns ${columns.join(", ")}`}>
       <div className="mb-1 hidden grid-cols-[minmax(140px,1.3fr)_repeat(4,minmax(62px,1fr))] gap-1.5 px-1 text-[10px] font-semibold text-[var(--text-tertiary)] sm:grid">
         <span>{categoryLabel}</span>
-        {columns.map((column) => <span key={column} className="text-center">{column}</span>)}
+        {columns.map((column, columnIndex) => {
+          const tone = columnTones?.[columnIndex];
+          return (
+            <span key={column} className="inline-flex items-center justify-center gap-1.5 text-center">
+              {tone && <i className="size-2 rounded-full" style={{ backgroundColor: `rgb(${HEATMAP_TONE_RGB[tone]})` }} aria-hidden="true" />}
+              {column}
+            </span>
+          );
+        })}
       </div>
       <div className="space-y-1.5">
         {visible.map((row) => (
@@ -359,15 +386,14 @@ export function HeatmapMatrix({
               const value = row.values[columnIndex] ?? 0;
               const strength = value > 0 ? 0.1 + Math.sqrt(value / max) * 0.72 : 0.035;
               const critical = columnIndex === criticalColumn;
+              const tone = columnTones?.[columnIndex] ?? (critical ? "critical" : "current");
               const textColor = strength > 0.52 ? "#FFFFFF" : "var(--text-primary)";
               return (
                 <span
                   key={column}
                   className="kmm-tabular min-h-12 rounded-[var(--radius-control)] border border-black/[0.04] px-1.5 py-1.5 text-center text-xs font-semibold"
                   style={{
-                    backgroundColor: critical
-                      ? `rgba(165, 27, 19, ${strength})`
-                      : `rgba(245, 102, 0, ${strength})`,
+                    backgroundColor: `rgb(${HEATMAP_TONE_RGB[tone]} / ${strength})`,
                     color: textColor,
                   }}
                   title={`${row.label}, ${column}: ${formatValue(value)}`}
@@ -380,13 +406,15 @@ export function HeatmapMatrix({
           </div>
         ))}
       </div>
-      <div className="mt-4 flex items-center gap-2 text-[10px] text-[var(--text-tertiary)]">
-        <span>{lowerLabel}</span>
-        {[0.12, 0.28, 0.46, 0.7].map((opacity) => (
-          <i key={opacity} className="h-2.5 flex-1 rounded-[3px]" style={{ backgroundColor: `rgba(245, 102, 0, ${opacity})` }} />
-        ))}
-        <span>{higherLabel}</span>
-      </div>
+      {!columnTones && (
+        <div className="mt-4 flex items-center gap-2 text-[10px] text-[var(--text-tertiary)]">
+          <span>{lowerLabel}</span>
+          {[0.12, 0.28, 0.46, 0.7].map((opacity) => (
+            <i key={opacity} className="h-2.5 flex-1 rounded-[3px]" style={{ backgroundColor: `rgba(245, 102, 0, ${opacity})` }} />
+          ))}
+          <span>{higherLabel}</span>
+        </div>
+      )}
     </div>
   );
 }

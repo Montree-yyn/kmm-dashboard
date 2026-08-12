@@ -6,7 +6,7 @@ import { PresentationDock, type RotationInterval } from "../presentation/Present
 import { PresentationProvider } from "../presentation/presentation-context";
 import { usePresentationMode } from "../../hooks/usePresentationMode";
 
-const routes = ["/dashboard", "/sales", "/booking", "/stock", "/marketing", "/team"] as const;
+const routes = ["/dashboard", "/sales", "/booking", "/stock", "/marketing", "/weather", "/team"] as const;
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;

@@ -48,6 +48,11 @@ const routeTitles: Array<{
     subtitle: "route.marketing.subtitle",
   },
   {
+    prefix: "/weather",
+    title: "route.weather.title",
+    subtitle: "route.weather.subtitle",
+  },
+  {
     prefix: "/data-hub",
     title: "route.dataHub.title",
     subtitle: "route.dataHub.subtitle",

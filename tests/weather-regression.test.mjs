@@ -58,6 +58,7 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(page, /Current conditions/);
   assert.match(page, /Operating areas/);
   assert.match(page, /Next 12 hours/);
+  assert.match(page, /formatWeatherNumber/);
   assert.match(page, /7-Day Forecast/);
   assert.match(page, /Agriculture Impact/);
   assert.match(page, /Weather Alerts/);
@@ -76,6 +77,7 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /myanmar-townships\.geojson/);
   assert.match(map, /WeatherRadarPayload/);
   assert.match(map, /weather-radar-layer/);
+  assert.match(map, /const pin = document\.createElement\("span"\)/);
   assert.match(map, /tilecache|radar\.host/);
   assert.match(map, /RainViewer/);
   assert.match(map, /Radar timeline/);

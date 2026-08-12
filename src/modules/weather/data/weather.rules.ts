@@ -1,7 +1,7 @@
 import type { WeatherAlert, WeatherLocation, WeatherRiskLevel } from "../weather.types";
 
 export function getSevenDayRainfall(location: WeatherLocation) {
-  return location.forecast.reduce((total, day) => total + day.rainfallMm, 0);
+  return roundRainfall(location.forecast.reduce((total, day) => total + day.rainfallMm, 0));
 }
 
 export function getWeatherRiskLevel(location: Pick<WeatherLocation, "rainRisk" | "forecast">): WeatherRiskLevel {
@@ -56,4 +56,8 @@ export function buildWeatherAlerts(locations: WeatherLocation[]): WeatherAlert[]
   }
 
   return alerts;
+}
+
+function roundRainfall(value: number) {
+  return Math.round(value * 10) / 10;
 }

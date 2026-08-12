@@ -165,25 +165,38 @@ export function WeatherMap({
       const color = RISK_COLORS[location.riskLevel];
       Object.assign(element.style, {
         alignItems: "center",
+        background: "transparent",
+        border: "0",
+        boxShadow: "none",
+        cursor: "pointer",
+        display: "flex",
+        fontFamily: "inherit",
+        height: "44px",
+        justifyContent: "center",
+        padding: "0",
+        position: "relative",
+        transition: "transform 140ms ease, box-shadow 140ms ease",
+        width: "44px",
+      });
+      element.addEventListener("mouseenter", () => { element.style.transform = "scale(1.12)"; });
+      element.addEventListener("mouseleave", () => { element.style.transform = "scale(1)"; });
+      element.addEventListener("click", () => onSelectRef.current(location.id));
+
+      const pin = document.createElement("span");
+      Object.assign(pin.style, {
+        alignItems: "center",
         background: color,
         border: selected ? "3px solid #ffffff" : "2px solid #ffffff",
         borderRadius: "999px",
         boxShadow: selected ? `0 0 0 4px rgb(255 122 0 / 35%), 0 2px 8px rgb(0 0 0 / 20%)` : "0 2px 8px rgb(0 0 0 / 22%)",
         color: "#ffffff",
-        cursor: "pointer",
         display: "flex",
-        fontFamily: "inherit",
-        fontSize: "10px",
-        fontWeight: "700",
-        height: selected ? "48px" : "44px",
+        height: selected ? "34px" : "28px",
         justifyContent: "center",
-        padding: "0",
-        transition: "transform 140ms ease, box-shadow 140ms ease",
-        width: selected ? "48px" : "44px",
+        width: selected ? "34px" : "28px",
       });
-      element.addEventListener("mouseenter", () => { element.style.transform = "scale(1.12)"; });
-      element.addEventListener("mouseleave", () => { element.style.transform = "scale(1)"; });
-      element.addEventListener("click", () => onSelectRef.current(location.id));
+      pin.textContent = "";
+      element.append(pin);
 
       const label = document.createElement("span");
       label.textContent = location.name;

@@ -33,6 +33,16 @@ export type WeatherForecastDay = {
   temperatureLow: number;
 };
 
+export type WeatherHourlyPoint = {
+  time: string;
+  label: string;
+  temperature: number;
+  rainProbability: number;
+  rainfallMm: number;
+  windSpeed: number;
+  condition: WeatherCondition;
+};
+
 export type WeatherLocation = {
   id: string;
   branchCode: string;
@@ -50,6 +60,7 @@ export type WeatherLocation = {
   humidity: number;
   windSpeed: number;
   riskLevel: WeatherRiskLevel;
+  hourly: WeatherHourlyPoint[];
   forecast: WeatherForecastDay[];
 };
 
@@ -69,4 +80,20 @@ export type WeatherDataPayload = {
   cacheStatus: WeatherCacheStatus;
   cacheAgeSeconds: number;
   locations: WeatherLocation[];
+};
+
+export type WeatherRadarFrame = {
+  time: number;
+  path: string;
+};
+
+export type WeatherRadarPayload = {
+  source: "rainviewer";
+  sourceLabel: string;
+  host: string;
+  fetchedAt: string;
+  generatedAt: string;
+  cacheStatus: WeatherCacheStatus;
+  cacheAgeSeconds: number;
+  frames: WeatherRadarFrame[];
 };

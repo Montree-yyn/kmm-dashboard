@@ -20,12 +20,14 @@ test("Weather is wired into the active navigation and shell", async () => {
 });
 
 test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations", async () => {
-  const [types, locations, client, api, live, page, map] = await Promise.all([
+  const [types, locations, client, api, radarApi, live, radarData, page, map] = await Promise.all([
     access(new URL("../src/modules/weather/weather.types.ts", import.meta.url)),
     read("src/modules/weather/data/weather.locations.ts"),
     read("src/modules/weather/weather.client.ts"),
     read("app/api/weather/route.ts"),
+    read("app/api/weather/radar/route.ts"),
     read("src/modules/weather/data/weather.live.ts"),
+    read("src/modules/weather/data/weather.radar.ts"),
     read("src/modules/weather/WeatherPage.tsx"),
     read("src/modules/weather/WeatherMap.tsx"),
   ]);
@@ -34,24 +36,35 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.equal((locations.match(/id: "MM-/g) ?? []).length, 6);
   assert.equal((locations.match(/id: "TH-/g) ?? []).length, 5);
   assert.match(client, /\/api\/weather/);
+  assert.match(client, /\/api\/weather\/radar/);
   assert.match(client, /Authorization: `Bearer \$\{token\}`/);
   assert.match(api, /verifyFirebaseRequest/);
   assert.match(api, /fetchLiveWeather/);
+  assert.match(radarApi, /verifyFirebaseRequest/);
+  assert.match(radarApi, /fetchWeatherRadar/);
   assert.match(live, /api\.open-meteo\.com\/v1\/forecast/);
+  assert.match(live, /precipitation_probability/);
+  assert.match(live, /buildHourlyForecast/);
   assert.match(live, /forecast_days: "7"/);
   assert.match(live, /past_days: "1"/);
   assert.match(live, /OPEN_METEO_TIMEOUT_MS/);
   assert.match(live, /OPEN_METEO_MAX_ATTEMPTS/);
   assert.match(live, /lastKnownGoodWeather/);
   assert.match(api, /refresh/);
+  assert.match(radarData, /api\.rainviewer\.com\/public\/weather-maps\.json/);
+  assert.match(radarData, /RAINVIEWER_CACHE_TTL_MS/);
+  assert.match(radarData, /RAINVIEWER_FRAME_LIMIT/);
   assert.match(page, /Weather Overview/);
+  assert.match(page, /Current conditions/);
+  assert.match(page, /Operating areas/);
+  assert.match(page, /Next 12 hours/);
   assert.match(page, /7-Day Forecast/);
   assert.match(page, /Agriculture Impact/);
   assert.match(page, /Weather Alerts/);
   assert.match(page, /Recommended Actions/);
-  assert.match(page, /Open-Meteo live forecast/);
+  assert.match(page, /Forecast: Open-Meteo/);
   assert.doesNotMatch(page, /weather\.mock/);
-  assert.match(page, /xl:grid-cols-2/);
+  assert.match(page, /xl:grid-cols-\[minmax\(0,1\.55fr\)_minmax\(320px,0\.78fr\)\]/);
   assert.match(page, /lg:grid-cols-3/);
   assert.doesNotMatch(page, /Map placeholder/);
   assert.match(map, /maplibre-gl/);
@@ -61,6 +74,11 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /getMapDataset\("mm-townships-pmtiles"\)/);
   assert.match(map, /myanmar-states\.geojson/);
   assert.match(map, /myanmar-townships\.geojson/);
+  assert.match(map, /WeatherRadarPayload/);
+  assert.match(map, /weather-radar-layer/);
+  assert.match(map, /tilecache|radar\.host/);
+  assert.match(map, /RainViewer/);
+  assert.match(map, /Radar timeline/);
   assert.match(map, /aria-pressed/);
   assert.match(map, /h-\[520px\]/);
   assert.match(map, /md:h-\[620px\]/);

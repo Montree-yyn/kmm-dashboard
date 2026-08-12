@@ -5,11 +5,15 @@ import {
   Activity,
   CalendarDays,
   CheckCircle2,
+  Clock3,
   Cloud,
   CloudLightning,
   CloudRain,
   CloudSun,
   Droplets,
+  Eye,
+  Gauge,
+  LocateFixed,
   MapPinned,
   RefreshCw,
   ShieldCheck,
@@ -25,12 +29,14 @@ import { useLocale } from "../../hooks/useLocale";
 import { weatherLocationSeeds } from "./data/weather.locations";
 import { buildWeatherAlerts } from "./data/weather.rules";
 import { WeatherMap } from "./WeatherMap";
-import { loadLiveWeather } from "./weather.client";
+import { loadLiveWeather, loadWeatherRadar } from "./weather.client";
 import type {
   WeatherCondition,
   WeatherAlert,
   WeatherCacheStatus,
+  WeatherHourlyPoint,
   WeatherLocation,
+  WeatherRadarPayload,
   WeatherRiskLevel,
 } from "./weather.types";
 
@@ -92,22 +98,35 @@ export function WeatherPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [cacheStatus, setCacheStatus] = useState<WeatherCacheStatus>("live");
   const [cacheAgeSeconds, setCacheAgeSeconds] = useState(0);
+  const [radar, setRadar] = useState<WeatherRadarPayload | null>(null);
+  const [radarError, setRadarError] = useState("");
 
   const loadWeather = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError("");
-    try {
-      const payload = await loadLiveWeather({ forceRefresh });
+    const [weatherResult, radarResult] = await Promise.allSettled([
+      loadLiveWeather({ forceRefresh }),
+      loadWeatherRadar({ forceRefresh }),
+    ]);
+    if (weatherResult.status === "fulfilled") {
+      const payload = weatherResult.value;
       setLiveLocations(payload.locations);
       setLastUpdated(payload.fetchedAt);
       setCacheStatus(payload.cacheStatus);
       setCacheAgeSeconds(payload.cacheAgeSeconds);
-    } catch (loadError) {
+    } else {
       setCacheStatus("stale");
+      const loadError = weatherResult.reason;
       setError(loadError instanceof Error ? loadError.message : "Unable to load live weather.");
-    } finally {
-      setLoading(false);
     }
+    if (radarResult.status === "fulfilled") {
+      setRadar(radarResult.value);
+      setRadarError("");
+    } else {
+      const loadError = radarResult.reason;
+      setRadarError(loadError instanceof Error ? loadError.message : "Weather radar is temporarily unavailable.");
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -170,7 +189,7 @@ export function WeatherPage() {
               type="button"
               onClick={() => void loadWeather(true)}
               disabled={loading}
-              className="inline-flex min-h-10 w-fit items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-11 w-fit items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"
               aria-label="Refresh live weather snapshot"
             >
               <RefreshCw className={cn(loading && "animate-spin motion-reduce:animate-none")} size={14} aria-hidden="true" />
@@ -198,7 +217,7 @@ export function WeatherPage() {
                   onClick={() => setScope(option.value)}
                   aria-pressed={scope === option.value}
                   className={cn(
-                    "inline-flex min-h-10 items-center gap-2 rounded-lg border px-3.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+                    "inline-flex min-h-11 items-center gap-2 rounded-lg border px-3.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
                     scope === option.value
                       ? "border-[var(--brand-500)] bg-[var(--brand-100)] text-[var(--brand-600)]"
                       : "border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
@@ -219,7 +238,7 @@ export function WeatherPage() {
                 <p className="font-semibold text-[var(--status-danger)]">Live weather is unavailable</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{error}</p>
               </div>
-              <button type="button" onClick={() => void loadWeather(true)} className="min-h-10 w-fit rounded-[var(--radius-control)] border border-[var(--status-danger)] bg-white px-3 text-xs font-semibold text-[var(--status-danger)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
+              <button type="button" onClick={() => void loadWeather(true)} className="min-h-11 w-fit rounded-[var(--radius-control)] border border-[var(--status-danger)] bg-white px-3 text-xs font-semibold text-[var(--status-danger)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
             </section>
           )}
 
@@ -227,42 +246,31 @@ export function WeatherPage() {
             <WeatherLoadingState />
           ) : liveLocations.length ? (
             <>
-              <section aria-labelledby="weather-overview-title">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 id="weather-overview-title" className="text-[19px] font-semibold">
-                  Weather Overview
-                </h2>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {locations.length} monitored locations · select a card to focus detail
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--text-tertiary)]">
-                <Summary icon={Thermometer} label="Avg temp" value={averageTemperature + "°C"} />
-                <Summary icon={CloudRain} label="Avg rain 24h" value={averageRain + " mm"} />
-                <Summary icon={ShieldCheck} label="High risk" value={String(highRiskCount)} />
-              </div>
-            </div>
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 md:grid-cols-3 xl:grid-cols-6">
-              {locations.map((location) => (
-                <WeatherCard
-                  key={location.id}
-                  location={location}
-                  selected={selectedLocation?.id === location.id}
-                  onSelect={() => setSelectedId(location.id)}
-                />
-              ))}
-            </div>
-              </section>
+              <CurrentConditions
+                location={selectedLocation}
+                averageTemperature={averageTemperature}
+                averageRain={averageRain}
+                highRiskCount={highRiskCount}
+              />
 
-              <section className="grid gap-5 xl:grid-cols-2" aria-label="Weather map and forecast">
+              <LocationRail
+                locations={locations}
+                selectedId={selectedLocation?.id ?? ""}
+                onSelect={setSelectedId}
+              />
+
+              <section className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.78fr)]" aria-label="Live weather radar and selected location forecast">
                 <WeatherMap
                   locations={locations}
                   selectedId={selectedLocation?.id ?? ""}
                   onSelect={setSelectedId}
+                  radar={radar}
+                  radarError={radarError}
                 />
-                <ForecastTable locations={locations} />
+                <LocationDetailPanel location={selectedLocation} />
               </section>
+
+              <ForecastTable locations={locations} />
 
               <section className="grid gap-5 lg:grid-cols-3" aria-label="Weather actions">
                 <AgricultureImpact location={selectedLocation} locations={locations} />
@@ -271,7 +279,7 @@ export function WeatherPage() {
               </section>
 
               <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-4 text-[10px] leading-4 text-[var(--text-tertiary)] sm:flex-row sm:items-center sm:justify-between">
-                <span>Source: Open-Meteo live forecast · updated {formatUpdatedAt(lastUpdated)} · {formatCacheStatus(cacheStatus, cacheAgeSeconds)}.</span>
+                <span>Forecast: Open-Meteo · radar: {radar ? `RainViewer (${formatRadarCacheStatus(radar.cacheStatus)})` : "unavailable"} · updated {formatUpdatedAt(lastUpdated)} · {formatCacheStatus(cacheStatus, cacheAgeSeconds)}.</span>
                 <span>Planning aid only; not agronomic or safety advice.</span>
               </footer>
             </>
@@ -307,7 +315,7 @@ function WeatherEmptyState({ onRetry }: { onRetry: () => void }) {
       <CloudRain className="mx-auto text-[var(--brand-600)]" size={28} aria-hidden="true" />
       <h2 className="mt-3 text-base font-semibold">No live weather snapshot</h2>
       <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">The dashboard has not received live conditions yet. Try again when the weather provider is reachable.</p>
-      <button type="button" onClick={onRetry} className="mt-5 min-h-10 rounded-[var(--radius-control)] bg-[var(--brand-600)] px-4 text-xs font-semibold text-white hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
+      <button type="button" onClick={onRetry} className="mt-5 min-h-11 rounded-[var(--radius-control)] bg-[var(--brand-600)] px-4 text-xs font-semibold text-white hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
     </section>
   );
 }
@@ -323,74 +331,174 @@ function formatCacheStatus(status: WeatherCacheStatus, ageSeconds: number) {
   return "live snapshot";
 }
 
-function Summary({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function formatRadarCacheStatus(status: WeatherCacheStatus) {
+  if (status === "stale") return "cached fallback";
+  if (status === "cached") return "cached scan";
+  return "live scan";
+}
+
+function CurrentConditions({
+  location,
+  averageTemperature,
+  averageRain,
+  highRiskCount,
+}: {
+  location: WeatherLocation | undefined;
+  averageTemperature: number;
+  averageRain: number;
+  highRiskCount: number;
+}) {
+  if (!location) return null;
+  const risk = riskMeta[location.riskLevel];
+  const ConditionIcon = conditionIcons[location.condition];
+  const today = location.forecast[0];
+
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon size={13} aria-hidden="true" />
-      <span>{label}</span>
-      <strong className="kmm-tabular font-semibold text-[var(--text-secondary)]">{value}</strong>
-    </span>
+    <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="weather-overview-title">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="weather-overview-title" className="text-[19px] font-semibold">Current conditions</h2>
+            <span className="rounded-full bg-[var(--brand-100)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--brand-600)]">Selected area</span>
+          </div>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Weather Overview · choose an operating area below to update the detail view.</p>
+          <div className="mt-5 flex flex-wrap items-center gap-4">
+            <span className={cn("grid size-14 place-items-center rounded-2xl", risk.background)}>
+              <ConditionIcon className={cn("size-8", risk.text)} aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold text-[var(--text-secondary)]">Now · {location.name}</p>
+              <p className="kmm-tabular text-[44px] font-semibold leading-none tracking-[-0.04em]">{location.temperature}°<span className="ml-1 text-xl font-medium text-[var(--text-secondary)]">C</span></p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{location.condition} · {location.branchCode} · {location.region}</p>
+            </div>
+            <span className={cn("rounded-xl px-3 py-2 text-xs font-semibold", risk.background, risk.text)}>
+              {risk.label}
+              <span className="mt-0.5 block text-[10px] font-normal">{location.rainRisk}% rain risk</span>
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[520px]">
+          <MetricTile icon={CloudRain} label="Avg rain 24h" value={averageRain + " mm"} />
+          <MetricTile icon={Thermometer} label="Avg temperature" value={averageTemperature + "°C"} />
+          <MetricTile icon={Droplets} label="Rain at area" value={location.rainfall24h + " mm"} />
+          <MetricTile icon={ShieldCheck} label="High-risk areas" value={String(highRiskCount)} />
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-2 border-t border-[var(--divider)] pt-4 sm:grid-cols-4">
+        <MiniMetric icon={Droplets} label="Rainfall · 24h" value={location.rainfall24h + " mm"} />
+        <MiniMetric icon={Thermometer} label="Humidity" value={location.humidity + "%"} />
+        <MiniMetric icon={Wind} label="Wind" value={location.windSpeed + " km/h"} />
+        <MiniMetric icon={CalendarDays} label="Today high / low" value={today ? `${today.temperatureHigh}° / ${today.temperatureLow}°` : "—"} />
+      </div>
+    </section>
   );
 }
 
-function WeatherCard({
-  location,
-  selected,
-  onSelect,
-}: {
-  location: WeatherLocation;
-  selected: boolean;
-  onSelect: () => void;
-}) {
+function MetricTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] px-3 py-3">
+      <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)]"><Icon size={12} aria-hidden="true" /><span>{label}</span></div>
+      <p className="kmm-tabular mt-2 text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function LocationRail({ locations, selectedId, onSelect }: { locations: WeatherLocation[]; selectedId: string; onSelect: (id: string) => void }) {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5" aria-labelledby="weather-locations-title">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 id="weather-locations-title" className="text-[17px] font-semibold">Operating areas</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">Select a location to focus the radar pin and next 12 hours.</p>
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">{locations.length} monitored</span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11" aria-label="Weather locations">
+        {locations.map((location) => {
+          const selected = location.id === selectedId;
+          const risk = riskMeta[location.riskLevel];
+          return (
+            <button
+              key={location.id}
+              type="button"
+              onClick={() => onSelect(location.id)}
+              aria-pressed={selected}
+              className={cn(
+                "min-h-[68px] rounded-[var(--radius-control-lg)] border px-2.5 py-2 text-left transition hover:border-[var(--brand-500)] hover:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+                selected ? "border-[var(--brand-500)] bg-[var(--brand-50)] shadow-[0_0_0_2px_var(--brand-focus)]" : "border-[var(--divider)] bg-[var(--surface-subtle)]",
+              )}
+            >
+              <span className="flex items-center justify-between gap-1">
+                <span className="flex min-w-0 items-center gap-1.5"><span className={cn("size-2 shrink-0 rounded-full", risk.bar)} aria-hidden="true" /><span className="truncate text-[11px] font-semibold">{location.name}</span></span>
+                <span className="shrink-0 text-[9px] font-bold uppercase text-[var(--text-tertiary)]">{location.country === "Myanmar" ? "MM" : "TH"}</span>
+              </span>
+              <span className="mt-2 flex items-baseline justify-between gap-1"><span className="kmm-tabular text-lg font-semibold">{location.temperature}°</span><span className="kmm-tabular text-[10px] font-semibold text-[var(--text-secondary)]">{location.rainRisk}% rain</span></span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function LocationDetailPanel({ location }: { location: WeatherLocation | undefined }) {
+  if (!location) {
+    return <section className="flex h-[520px] items-center justify-center rounded-[var(--radius-card)] border border-dashed border-[var(--border-default)] bg-[var(--surface-default)] p-6 text-sm text-[var(--text-secondary)] md:h-[620px] xl:h-[680px]">Select a location to see hourly detail.</section>;
+  }
   const risk = riskMeta[location.riskLevel];
   const ConditionIcon = conditionIcons[location.condition];
-
+  const rainfall7d = location.forecast.reduce((total, day) => total + day.rainfallMm, 0);
+  const hourly = location.hourly.slice(0, 12);
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        "group min-w-[250px] snap-start rounded-[var(--radius-card)] border bg-[var(--surface-default)] p-4 text-left shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--brand-focus)] sm:min-w-0",
-        selected ? "border-[var(--brand-500)] shadow-[0_0_0_3px_var(--brand-focus)]" : "border-[var(--border-default)]",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold">{location.name}</span>
-          <span className="mt-1 block text-[11px] text-[var(--text-tertiary)]">{location.branchCode} · {location.region}</span>
-        </span>
-        <span className={cn("shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase", risk.background, risk.text)}>
-          {location.country === "Myanmar" ? "MM" : "TH"}
-        </span>
-      </div>
-      <div className="mt-5 flex items-end justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className={cn("grid size-10 place-items-center rounded-xl", risk.background)}>
-            <ConditionIcon className={cn("size-5", risk.text)} aria-hidden="true" />
-          </span>
-          <span>
-            <span className="block text-xs text-[var(--text-secondary)]">{location.condition}</span>
-            <span className="kmm-tabular mt-0.5 block text-2xl font-semibold">{location.temperature}°</span>
-          </span>
+    <section className="flex h-[520px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-detail-title">
+      <div className="border-b border-[var(--divider)] px-5 py-5 sm:px-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Selected location</p>
+            <h2 id="weather-detail-title" className="mt-1 truncate text-[21px] font-semibold">{location.name}</h2>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">{location.country} · {location.region} · {location.branchCode}</p>
+          </div>
+          <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase", risk.background, risk.text)}>{risk.label.replace(" impact", "")}</span>
         </div>
-        <span className="kmm-tabular text-right text-xs font-semibold text-[var(--text-secondary)]">
-          {location.rainRisk}%
-          <span className="mt-0.5 block text-[10px] font-normal text-[var(--text-tertiary)]">rain risk</span>
-        </span>
+        <div className="mt-5 flex items-center gap-3">
+          <span className={cn("grid size-12 place-items-center rounded-2xl", risk.background)}><ConditionIcon className={cn("size-6", risk.text)} aria-hidden="true" /></span>
+          <div><p className="text-xs text-[var(--text-secondary)]">Current condition</p><p className="kmm-tabular mt-0.5 text-3xl font-semibold">{location.temperature}°C</p></div>
+          <div className="ml-auto text-right"><p className="text-xs text-[var(--text-secondary)]">Rain risk</p><p className={cn("kmm-tabular mt-0.5 text-2xl font-semibold", risk.text)}>{location.rainRisk}%</p></div>
+        </div>
       </div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--surface-subtle)]">
-        <span className={cn("block h-full rounded-full", risk.bar)} style={{ width: location.rainRisk + "%" }} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="grid grid-cols-2 gap-2">
+          <MiniMetric icon={Droplets} label="Rain · 24h" value={location.rainfall24h + " mm"} />
+          <MiniMetric icon={Wind} label="Wind" value={location.windSpeed + " km/h"} />
+          <MiniMetric icon={Thermometer} label="Humidity" value={location.humidity + "%"} />
+          <MiniMetric icon={Gauge} label="Rain · 7d" value={rainfall7d + " mm"} />
+        </div>
+        <div className="mt-6">
+          <div className="flex items-end justify-between gap-2">
+            <div><h3 className="text-sm font-semibold">Next 12 hours</h3><p className="mt-1 text-[11px] text-[var(--text-secondary)]">Rain probability and temperature by hour.</p></div>
+            <Clock3 size={15} className="text-[var(--text-tertiary)]" aria-hidden="true" />
+          </div>
+          {hourly.length ? <div className="mt-3 -mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2" aria-label="Hourly weather forecast">{hourly.map((point) => <HourlyForecastTile key={point.time} point={point} />)}</div> : <p className="mt-3 rounded-lg bg-[var(--surface-subtle)] p-3 text-xs text-[var(--text-secondary)]">Hourly detail is not available in this snapshot.</p>}
+        </div>
+        <div className={cn("mt-5 rounded-[var(--radius-control-lg)] p-4", risk.background)}>
+          <div className="flex items-start gap-3"><span className={cn("grid size-8 shrink-0 place-items-center rounded-lg bg-white/75", risk.text)}><LocateFixed size={15} aria-hidden="true" /></span><div><p className={cn("text-xs font-semibold", risk.text)}>Field access signal</p><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{location.riskLevel === "HIGH" ? "Observed rain and the forecast suggest confirming route access before outdoor visits." : location.riskLevel === "MEDIUM" ? "Keep a backup route and use lower-rain windows for outdoor work." : "No major weather constraint is indicated for routine field activity."}</p></div></div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2 text-[10px] text-[var(--text-tertiary)]"><span className="flex items-center gap-1.5"><Eye size={12} aria-hidden="true" />Observed now</span><span className="text-right">Forecast signal only</span></div>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-[var(--divider)] pt-3">
-        <MiniMetric icon={Droplets} label="Rain" value={location.rainfall24h + " mm"} />
-        <MiniMetric icon={Thermometer} label="Humidity" value={location.humidity + "%"} />
-        <MiniMetric icon={Wind} label="Wind" value={location.windSpeed + " km/h"} />
-      </div>
-      <div className={cn("mt-3 rounded-lg px-2.5 py-2 text-[11px] font-semibold", risk.background, risk.text)}>
-        {risk.label}
-      </div>
-    </button>
+    </section>
+  );
+}
+
+function HourlyForecastTile({ point }: { point: WeatherHourlyPoint }) {
+  const ConditionIcon = conditionIcons[point.condition];
+  return (
+    <div className="min-w-[76px] snap-start rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] px-2.5 py-3 text-center">
+      <p className="text-[10px] font-semibold text-[var(--text-secondary)]">{point.label}</p>
+      <ConditionIcon className="mx-auto my-2 size-4 text-[#0875a8]" aria-hidden="true" />
+      <p className="kmm-tabular text-sm font-semibold">{point.temperature}°</p>
+      <p className="kmm-tabular mt-1 text-[10px] font-semibold text-[#0875a8]">{point.rainProbability}%</p>
+      <p className="mt-0.5 text-[9px] text-[var(--text-tertiary)]">rain</p>
+    </div>
   );
 }
 
@@ -471,7 +579,7 @@ function Alerts({ alerts, locations, onSelect }: { alerts: WeatherAlert[]; locat
     <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="weather-alerts-title">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger)]"><TriangleAlert size={16} /></span><h2 id="weather-alerts-title" className="text-[19px] font-semibold">Weather Alerts</h2></div><span className="kmm-tabular rounded-full bg-[var(--status-danger-bg)] px-2.5 py-1 text-xs font-bold text-[var(--status-danger)]">{alerts.length}</span></div>
       <p className="mt-2 text-sm text-[var(--text-secondary)]">Conditions that may change field priorities.</p>
-      <div className="mt-5 space-y-3">{alerts.map((alert) => <article key={alert.id} className="rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] p-3.5"><div className="flex items-start gap-3"><span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", alert.severity === "HIGH" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[var(--status-warning-bg)] text-[var(--status-warning)]")}><TriangleAlert size={15} /></span><div className="min-w-0"><p className="text-xs font-semibold">{alert.title}</p><p className="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">{alert.description}</p><div className="mt-3 flex flex-wrap gap-2"><span className="kmm-tabular rounded-md border border-[var(--border-default)] bg-white px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{alert.metric}</span>{alert.locationIds.map((id) => locations.find((location) => location.id === id)).filter((location): location is WeatherLocation => Boolean(location)).map((location) => <button key={location.id} type="button" onClick={() => onSelect(location.id)} className="rounded-md border border-[var(--border-default)] bg-white px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-500)] hover:text-[var(--brand-600)]">{location.name}</button>)}</div></div></div></article>)}</div>
+      <div className="mt-5 space-y-3">{alerts.map((alert) => <article key={alert.id} className="rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] p-3.5"><div className="flex items-start gap-3"><span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", alert.severity === "HIGH" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[var(--status-warning-bg)] text-[var(--status-warning)]")}><TriangleAlert size={15} /></span><div className="min-w-0"><p className="text-xs font-semibold">{alert.title}</p><p className="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">{alert.description}</p><div className="mt-3 flex flex-wrap gap-2"><span className="kmm-tabular inline-flex min-h-11 items-center rounded-md border border-[var(--border-default)] bg-white px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{alert.metric}</span>{alert.locationIds.map((id) => locations.find((location) => location.id === id)).filter((location): location is WeatherLocation => Boolean(location)).map((location) => <button key={location.id} type="button" onClick={() => onSelect(location.id)} className="inline-flex min-h-11 items-center rounded-md border border-[var(--border-default)] bg-white px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-500)] hover:text-[var(--brand-600)]">{location.name}</button>)}</div></div></div></article>)}</div>
       {!alerts.length && <p className="mt-5 rounded-lg border border-dashed border-[var(--border-default)] p-5 text-center text-sm text-[var(--text-secondary)]">No alerts in this scope.</p>}
     </section>
   );

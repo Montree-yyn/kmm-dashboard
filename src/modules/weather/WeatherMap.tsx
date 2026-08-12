@@ -2,20 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker, StyleSpecification } from "maplibre-gl";
-import { Cloud, CloudRain, MapPinned, Thermometer, Wind } from "lucide-react";
+import { Cloud, CloudRain, Radar, Thermometer, Wind } from "lucide-react";
 import { registerPmtilesProtocol } from "../../../lib/maps/register-pmtiles-protocol";
 import { cn } from "../../../lib/utils";
 import { getMapDataset } from "../../../lib/maps/datasets";
 import { createMarketingBasemapStyle } from "../../../src/kme/apps/kmm-dashboard/marketing/basemap";
-import type { WeatherLocation } from "./weather.types";
+import type { WeatherLocation, WeatherRadarPayload } from "./weather.types";
 
-type WeatherMapLayer = "cloud" | "rain" | "wind" | "temperature";
+type WeatherMapLayer = "radar" | "cloud" | "rain" | "wind" | "temperature";
 
 const mapLayers: Array<{ value: WeatherMapLayer; label: string; icon: typeof Cloud }> = [
-  { value: "cloud", label: "Cloud", icon: Cloud },
-  { value: "rain", label: "Rain", icon: CloudRain },
-  { value: "wind", label: "Wind", icon: Wind },
-  { value: "temperature", label: "Temperature", icon: Thermometer },
+  { value: "radar", label: "Radar", icon: Radar },
+  { value: "cloud", label: "Cloud pins", icon: Cloud },
+  { value: "rain", label: "Rain pins", icon: CloudRain },
+  { value: "wind", label: "Wind pins", icon: Wind },
+  { value: "temperature", label: "Temp pins", icon: Thermometer },
 ];
 
 const MARKETING_BASEMAP_STYLE = createMarketingBasemapStyle();
@@ -57,10 +58,14 @@ export function WeatherMap({
   locations,
   selectedId,
   onSelect,
+  radar,
+  radarError,
 }: {
   locations: WeatherLocation[];
   selectedId: string;
   onSelect: (id: string) => void;
+  radar: WeatherRadarPayload | null;
+  radarError?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -70,7 +75,8 @@ export function WeatherMap({
   const onSelectRef = useRef(onSelect);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
-  const [activeLayer, setActiveLayer] = useState<WeatherMapLayer>("rain");
+  const [activeLayer, setActiveLayer] = useState<WeatherMapLayer>("radar");
+  const [radarFrameTime, setRadarFrameTime] = useState<number | null>(null);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -169,11 +175,11 @@ export function WeatherMap({
         fontFamily: "inherit",
         fontSize: "10px",
         fontWeight: "700",
-        height: selected ? "38px" : "32px",
+        height: selected ? "48px" : "44px",
         justifyContent: "center",
         padding: "0",
         transition: "transform 140ms ease, box-shadow 140ms ease",
-        width: selected ? "38px" : "32px",
+        width: selected ? "48px" : "44px",
       });
       element.addEventListener("mouseenter", () => { element.style.transform = "scale(1.12)"; });
       element.addEventListener("mouseleave", () => { element.style.transform = "scale(1)"; });
@@ -206,17 +212,63 @@ export function WeatherMap({
 
   }, [activeLayer, locations, mapReady, selectedId]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const sourceId = "weather-radar";
+    const layerId = "weather-radar-layer";
+    const removeRadarLayer = () => {
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    };
+    const frame = radar?.frames.find((candidate) => candidate.time === radarFrameTime) ?? radar?.frames.at(-1);
+    if (activeLayer !== "radar" || !radar || !frame) {
+      removeRadarLayer();
+      return;
+    }
+    removeRadarLayer();
+    const tileUrl = `${radar.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    map.addSource(sourceId, {
+      type: "raster",
+      tiles: [tileUrl],
+      tileSize: 256,
+      attribution: "Weather data by RainViewer",
+    });
+    map.addLayer(
+      {
+        id: layerId,
+        type: "raster",
+        source: sourceId,
+        paint: {
+          "raster-opacity": 0.58,
+          "raster-fade-duration": 0,
+        },
+      },
+      "weather-state-line",
+    );
+    return () => {
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    };
+  }, [activeLayer, mapReady, radar, radarFrameTime]);
+
+  const latestRadarFrame = radar?.frames.at(-1);
+  const selectedRadarFrame = radar?.frames.find((frame) => frame.time === radarFrameTime) ?? latestRadarFrame;
+
   return (
     <section className="flex h-[520px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-map-title">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
         <div>
           <div className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-[var(--brand-100)] text-[var(--brand-600)]"><MapPinned size={16} aria-hidden="true" /></span>
-            <h2 id="weather-map-title" className="text-[19px] font-semibold">Operating Area Map</h2>
+            <span className="grid size-8 place-items-center rounded-lg bg-[#e7f4fb] text-[#0875a8]"><Radar size={16} aria-hidden="true" /></span>
+            <h2 id="weather-map-title" className="text-[19px] font-semibold">Live Weather Radar</h2>
           </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">Myanmar and the five Tak districts.</p>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">Observed precipitation over Myanmar and the five Tak districts.</p>
         </div>
-        <span className="rounded-full border border-[var(--status-success-bg)] bg-[var(--status-success-bg)] px-2.5 py-1 text-[10px] font-semibold uppercase text-[var(--status-success)]">MapLibre live map</span>
+        <span className={cn(
+          "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase",
+          radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
+        )}>{radar ? "Radar available" : "Radar unavailable"}</span>
       </div>
       <div className="relative mt-4 min-h-0 flex-1 p-4 sm:mt-6 sm:p-6">
         <div className="relative h-full min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7]">
@@ -224,19 +276,21 @@ export function WeatherMap({
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
           </div>
           <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-5rem)] rounded-xl border border-white/80 bg-white/92 p-2 shadow-sm backdrop-blur-sm">
-            <p className="px-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Live pin metric</p>
-            <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Weather map layer">
+            <p className="px-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Radar + pin metric</p>
+            <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Weather radar and pin metric">
               {mapLayers.map((layer) => {
                 const Icon = layer.icon;
                 const selected = activeLayer === layer.value;
+                const disabled = layer.value === "radar" && !radar;
                 return (
                   <button
                     key={layer.value}
                     type="button"
                     onClick={() => setActiveLayer(layer.value)}
+                    disabled={disabled}
                     aria-pressed={selected}
                     className={cn(
-                      "inline-flex min-h-8 items-center gap-1 rounded-lg border px-2 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+                      "inline-flex min-h-11 items-center gap-1 rounded-lg border px-2 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45",
                       selected
                         ? "border-[var(--brand-500)] bg-[var(--brand-100)] text-[var(--brand-600)]"
                         : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
@@ -248,10 +302,44 @@ export function WeatherMap({
                 );
               })}
             </div>
+            {activeLayer === "radar" && radar && (
+              <div className="mt-2 border-t border-[var(--divider)] pt-2">
+                <div className="flex items-center justify-between gap-2 px-1 text-[9px] text-[var(--text-tertiary)]">
+                  <span>Radar timeline · past 2 hours</span>
+                  <span className="font-semibold text-[#0875a8]">{selectedRadarFrame ? formatRadarTime(selectedRadarFrame.time) : "Loading"}</span>
+                </div>
+                <div className="mt-1 flex gap-1 overflow-x-auto pb-0.5" role="group" aria-label="Radar timeline">
+                  {radar.frames.slice(-6).map((frame) => {
+                    const selectedFrame = frame.time === selectedRadarFrame?.time;
+                    return (
+                      <button
+                        key={frame.time}
+                        type="button"
+                        onClick={() => setRadarFrameTime(frame.time)}
+                        aria-pressed={selectedFrame}
+                        className={cn(
+                          "min-h-11 shrink-0 rounded-md border px-2 text-[9px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+                          selectedFrame ? "border-[#0875a8] bg-[#e7f4fb] text-[#0875a8]" : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
+                        )}
+                      >
+                        {frame.time === latestRadarFrame?.time ? "Last scan" : formatRadarRelativeTime(frame.time, latestRadarFrame?.time)}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-center gap-2 px-1 text-[9px] text-[var(--text-tertiary)]" aria-label="Radar intensity legend">
+                  <span>Light</span><span className="size-2 rounded-full bg-[#5cc8ff]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#55c66a]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#ffd34e]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#e54b3f]" aria-hidden="true" /><span>Heavy</span>
+                </div>
+              </div>
+            )}
+            {activeLayer === "radar" && !radar && <p className="mt-2 px-1 text-[9px] leading-4 text-[var(--status-warning)]">{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
           </div>
           {!mapReady && !mapError && <div className="absolute inset-0 z-[1] grid place-items-center bg-[#edf4f1]/80 text-xs font-semibold text-[var(--text-secondary)]" role="status">Loading interactive map…</div>}
           {mapError && <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-[var(--status-warning-bg)] bg-white/95 px-3 py-2 text-[10px] font-semibold text-[var(--status-warning)]" role="status">{mapError}</div>}
-          <div className="absolute bottom-3 left-3 z-10 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-[10px] font-semibold text-[#4c625e] shadow-sm">Drag · scroll to zoom · click a live pin</div>
+          <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-lg border border-white/80 bg-white/92 px-3 py-2 text-[10px] font-semibold leading-4 text-[#4c625e] shadow-sm">Drag · scroll to zoom · click a live pin · radar shows observed rain</div>
+          <div className="absolute bottom-3 right-3 z-10 rounded-lg border border-white/80 bg-white/92 px-2.5 py-1.5 text-[9px] text-[#4c625e] shadow-sm">
+            Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>
+          </div>
         </div>
       </div>
     </section>
@@ -259,8 +347,19 @@ export function WeatherMap({
 }
 
 function getLayerValue(location: WeatherLocation, layer: WeatherMapLayer) {
+  if (layer === "radar") return `${location.rainRisk}% rain risk`;
   if (layer === "cloud") return location.condition;
   if (layer === "rain") return `${location.rainRisk}% rain`;
   if (layer === "wind") return `${location.windSpeed} km/h`;
   return `${location.temperature}°C`;
+}
+
+function formatRadarTime(seconds: number) {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(seconds * 1000));
+}
+
+function formatRadarRelativeTime(seconds: number, latestSeconds: number | undefined) {
+  if (!latestSeconds) return formatRadarTime(seconds);
+  const minutes = Math.max(0, Math.round((latestSeconds - seconds) / 60));
+  return minutes ? `−${minutes}m` : "Last scan";
 }

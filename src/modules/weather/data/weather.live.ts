@@ -5,6 +5,7 @@ import type {
   WeatherCacheStatus,
   WeatherDataPayload,
   WeatherForecastDay,
+  WeatherHourlyPoint,
   WeatherLocation,
   WeatherLocationSeed,
 } from "../weather.types";
@@ -29,7 +30,11 @@ type OpenMeteoDaily = {
 
 type OpenMeteoHourly = {
   time?: string[];
+  temperature_2m?: Array<number | null>;
+  precipitation_probability?: Array<number | null>;
   precipitation?: Array<number | null>;
+  wind_speed_10m?: Array<number | null>;
+  weather_code?: Array<number | null>;
 };
 
 type OpenMeteoLocationResponse = {
@@ -83,7 +88,7 @@ export async function fetchLiveWeather(
     latitude: seeds.map((location) => location.latitude).join(","),
     longitude: seeds.map((location) => location.longitude).join(","),
     current: "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code",
-    hourly: "precipitation",
+    hourly: "temperature_2m,precipitation_probability,precipitation,wind_speed_10m,weather_code",
     daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max",
     past_days: "1",
     forecast_days: "7",
@@ -181,10 +186,31 @@ function mapWeatherLocation(seed: WeatherLocationSeed, weather: OpenMeteoLocatio
     humidity: round(numberOr(current.relative_humidity_2m, 0)),
     windSpeed: round(numberOr(current.wind_speed_10m, 0)),
     riskLevel: "LOW",
+    hourly: buildHourlyForecast(weather.hourly, current.time),
     forecast,
   };
   location.riskLevel = getWeatherRiskLevel(location);
   return location;
+}
+
+function buildHourlyForecast(hourly: OpenMeteoHourly | undefined, currentTime: string | undefined): WeatherHourlyPoint[] {
+  const times = hourly?.time ?? [];
+  if (!times.length) return [];
+  const foundIndex = currentTime ? times.findIndex((time) => time >= currentTime) : 0;
+  const safeStartIndex = foundIndex >= 0 ? foundIndex : Math.max(0, times.length - 1);
+  return times.slice(safeStartIndex, safeStartIndex + 12).map((time, offset) => {
+    const index = safeStartIndex + offset;
+    const weatherCode = numberAt(hourly?.weather_code, index, 3);
+    return {
+      time,
+      label: offset === 0 ? "Now" : time.slice(11, 16),
+      temperature: round(numberAt(hourly?.temperature_2m, index, 0)),
+      rainProbability: round(numberAt(hourly?.precipitation_probability, index, 0)),
+      rainfallMm: round(numberAt(hourly?.precipitation, index, 0)),
+      windSpeed: round(numberAt(hourly?.wind_speed_10m, index, 0)),
+      condition: weatherConditionFromCode(weatherCode),
+    };
+  });
 }
 
 function buildForecast(daily: OpenMeteoDaily, currentDate: string): WeatherForecastDay[] {

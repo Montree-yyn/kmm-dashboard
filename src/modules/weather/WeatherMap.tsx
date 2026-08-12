@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker, StyleSpecification } from "maplibre-gl";
-import { ChevronDown, Cloud, CloudRain, LocateFixed, Radar, Thermometer, Wind } from "lucide-react";
+import { ChevronDown, Cloud, CloudRain, LocateFixed, Maximize2, Minimize2, Radar, Thermometer, Wind } from "lucide-react";
 import { registerPmtilesProtocol } from "../../../lib/maps/register-pmtiles-protocol";
 import { cn } from "../../../lib/utils";
 import { getMapDataset } from "../../../lib/maps/datasets";
@@ -54,7 +54,12 @@ const RISK_COLORS = {
 
 const MAP_FIT_PADDING = { top: 24, right: 44, bottom: 24, left: 44 };
 const MAP_MIN_ZOOM = MARKETING_MAP_DATASET?.min_zoom ?? 3;
-const MAP_MAX_ZOOM = Math.min(MARKETING_MAP_DATASET?.max_zoom ?? 10, 7.8);
+// The global Protomaps OSM v4 basemap supports zoom 15. The township overlay
+// dataset has a lower max zoom, but it must not cap the basemap camera.
+const MAP_MAX_ZOOM = 15;
+// RainViewer's public radar tile pyramid intentionally stops at zoom 7.
+const RADAR_TILE_MAX_ZOOM = 7;
+const MAP_PIN_FOCUS_ZOOM = 11;
 const MAP_OVERVIEW_ZOOM = Math.min(
   Math.max(MARKETING_MAP_DATASET?.default_zoom ?? 4, MAP_MIN_ZOOM),
   MAP_MAX_ZOOM,
@@ -73,6 +78,7 @@ export function WeatherMap({
   radar: WeatherRadarPayload | null;
   radarError?: string;
 }) {
+  const fullscreenRef = useRef<HTMLElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<MapLibreMarker[]>([]);
@@ -83,10 +89,43 @@ export function WeatherMap({
   const [mapError, setMapError] = useState("");
   const [activeLayer, setActiveLayer] = useState<WeatherMapLayer>("radar");
   const [radarFrameTime, setRadarFrameTime] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreen || document.fullscreenElement) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!mapRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => mapRef.current?.resize());
+    return () => window.cancelAnimationFrame(frame);
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -178,6 +217,7 @@ export function WeatherMap({
       element.setAttribute("aria-label", `Weather at ${location.name}: ${layerValue}`);
       element.title = `${location.name} · ${layerValue}`;
       const selected = location.id === selectedId;
+      const isRadarDataPin = activeLayer === "radar";
       const color = RISK_COLORS[location.riskLevel];
       Object.assign(element.style, {
         alignItems: "center",
@@ -187,30 +227,57 @@ export function WeatherMap({
         cursor: "pointer",
         display: "flex",
         fontFamily: "inherit",
-        height: "44px",
+        height: isRadarDataPin ? "54px" : "44px",
         justifyContent: "center",
         padding: "0",
         position: "relative",
-        width: "44px",
+        width: isRadarDataPin ? "72px" : "44px",
         zIndex: selected ? "2" : "1",
       });
-      element.addEventListener("click", () => onSelectRef.current(location.id));
+      element.addEventListener("click", () => {
+        onSelectRef.current(location.id);
+        map.flyTo({
+          center: [location.longitude, location.latitude],
+          zoom: Math.min(MAP_MAX_ZOOM, Math.max(map.getZoom(), MAP_PIN_FOCUS_ZOOM)),
+          duration: 450,
+          essential: true,
+        });
+      });
 
       const pin = document.createElement("span");
       Object.assign(pin.style, {
         alignItems: "center",
         background: color,
         border: selected ? "3px solid #ffffff" : "2px solid #ffffff",
-        borderRadius: "999px",
+        borderRadius: isRadarDataPin ? "10px" : "999px",
         boxShadow: selected ? `0 0 0 4px rgb(255 122 0 / 35%), 0 2px 8px rgb(0 0 0 / 20%)` : "0 2px 8px rgb(0 0 0 / 22%)",
         color: "#ffffff",
         display: "flex",
-        height: selected ? "34px" : "28px",
+        flexDirection: isRadarDataPin ? "column" : "row",
+        gap: isRadarDataPin ? "1px" : "0",
         justifyContent: "center",
+        height: isRadarDataPin ? (selected ? "44px" : "38px") : (selected ? "34px" : "28px"),
+        minWidth: isRadarDataPin ? (selected ? "66px" : "60px") : undefined,
+        padding: isRadarDataPin ? "3px 5px" : "0",
         transition: "transform 140ms ease",
-        width: selected ? "34px" : "28px",
+        width: isRadarDataPin ? "auto" : (selected ? "34px" : "28px"),
+        whiteSpace: "nowrap",
       });
-      pin.innerHTML = getWeatherPinIcon(activeLayer);
+      if (isRadarDataPin) {
+        const temperature = document.createElement("span");
+        temperature.textContent = `${location.temperature}°`;
+        temperature.style.fontSize = "14px";
+        temperature.style.fontWeight = "800";
+        temperature.style.lineHeight = "1";
+        const rain = document.createElement("span");
+        rain.textContent = `${location.rainRisk}% rain`;
+        rain.style.fontSize = "9px";
+        rain.style.fontWeight = "700";
+        rain.style.lineHeight = "1";
+        pin.append(temperature, rain);
+      } else {
+        pin.innerHTML = getWeatherPinIcon(activeLayer);
+      }
       element.append(pin);
       const setHovered = (hovered: boolean) => {
         // MapLibre owns the outer marker transform; scale only the visual pin.
@@ -277,6 +344,7 @@ export function WeatherMap({
         type: "raster",
         tiles: [tileUrl],
         tileSize: 256,
+        maxzoom: RADAR_TILE_MAX_ZOOM,
         attribution: "Weather data by RainViewer",
       });
       map.addLayer(
@@ -302,23 +370,66 @@ export function WeatherMap({
   const latestRadarFrame = radar?.frames.at(-1);
   const selectedRadarFrame = radar?.frames.find((frame) => frame.time === radarFrameTime) ?? latestRadarFrame;
 
+  const toggleFullscreen = () => {
+    const element = fullscreenRef.current;
+    if (!element) return;
+    if (isFullscreen) {
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => setIsFullscreen(false));
+      } else {
+        setIsFullscreen(false);
+      }
+      return;
+    }
+    if (element.requestFullscreen) {
+      void element.requestFullscreen().catch(() => setIsFullscreen(true));
+    } else {
+      setIsFullscreen(true);
+    }
+  };
+
   return (
-    <section className="flex h-auto flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]" aria-labelledby="weather-map-title">
+    <section
+      ref={fullscreenRef}
+      className={cn(
+        "flex h-auto flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]",
+        isFullscreen && "fixed inset-0 z-[120] h-[100dvh] w-screen max-w-none rounded-none border-0 bg-[var(--surface-canvas)] shadow-2xl",
+      )}
+      aria-labelledby="weather-map-title"
+    >
       <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-lg bg-[#e7f4fb] text-[#0875a8]"><Radar size={16} aria-hidden="true" /></span>
-            <h2 id="weather-map-title" className="text-[19px] font-semibold">Live Weather Radar</h2>
+            <h2 id="weather-map-title" className="truncate text-[19px] font-semibold">Live Weather Radar</h2>
           </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">Observed precipitation over Myanmar and the five Tak districts.</p>
+          <p className="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">Observed precipitation over Myanmar and the five Tak districts.</p>
         </div>
-        <span className={cn(
-          "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase",
-          radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
-        )}>{radar ? "Radar available" : "Radar unavailable"}</span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+            title={isFullscreen ? "Exit weather map fullscreen" : "Open weather map fullscreen"}
+            aria-label={isFullscreen ? "Exit weather map fullscreen" : "Open weather map fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 size={15} aria-hidden="true" /> : <Maximize2 size={15} aria-hidden="true" />}
+            <span className="hidden sm:inline">{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+          </button>
+          <span className={cn(
+            "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase",
+            radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
+          )}>{radar ? "Radar available" : "Radar unavailable"}</span>
+        </div>
       </div>
-      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6">
-        <div className="relative h-[360px] min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7] sm:h-[420px] md:h-[520px] xl:h-[620px]">
+      <div className={cn(
+        "relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6",
+        isFullscreen && "flex min-h-0 flex-1 flex-col overflow-y-auto",
+      )}>
+        <div className={cn(
+          "relative min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7]",
+          isFullscreen ? "min-h-[260px] flex-1" : "h-[360px] sm:h-[420px] md:h-[520px] xl:h-[620px]",
+        )}>
           <div className="absolute inset-0">
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
           </div>
@@ -326,7 +437,7 @@ export function WeatherMap({
           {mapError && <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-[var(--status-warning-bg)] bg-white/95 px-3 py-2 text-[10px] font-semibold text-[var(--status-warning)]" role="status">{mapError}</div>}
         </div>
         <div className="mt-2 flex flex-col gap-1 px-1 text-[10px] leading-4 text-[#4c625e] sm:flex-row sm:items-center sm:justify-between">
-          <span>Drag · pinch or scroll to zoom · tap a live pin · radar shows observed rain</span>
+          <span>Drag · pinch or scroll to zoom · tap a pin to focus the area · radar shows observed rain</span>
           <span>Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
         </div>
         <details className="group mt-3">

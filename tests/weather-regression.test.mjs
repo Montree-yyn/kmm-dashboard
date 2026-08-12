@@ -83,10 +83,17 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /setLngLat\(\[location\.longitude, location\.latitude\]\)/);
   assert.match(map, /pin\.style\.transform = hovered \? "scale\(1\.12\)" : "scale\(1\)"/);
   assert.doesNotMatch(map, /element\.style\.transform\s*=/);
-  assert.match(map, /MAP_MAX_ZOOM/);
+  assert.match(map, /const MAP_MAX_ZOOM = 15/);
+  assert.match(map, /const RADAR_TILE_MAX_ZOOM = 7/);
+  assert.match(map, /maxzoom: RADAR_TILE_MAX_ZOOM/);
+  assert.match(map, /MAP_PIN_FOCUS_ZOOM/);
+  assert.match(map, /map\.flyTo\(/);
   assert.match(map, /maxZoom: MAP_OVERVIEW_ZOOM/);
   assert.match(map, /Reset map to Myanmar overview/);
   assert.match(map, /getWeatherPinIcon\(activeLayer\)/);
+  assert.match(map, /const isRadarDataPin = activeLayer === "radar"/);
+  assert.match(map, /temperature\.textContent = `\$\{location\.temperature\}°`/);
+  assert.match(map, /rain\.textContent = `\$\{location\.rainRisk\}% rain`/);
   assert.match(map, /Weather pin risk legend/);
   assert.match(map, /aria-label="Weather map controls"/);
   assert.match(map, /md:h-\[520px\]/);
@@ -101,4 +108,9 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /h-auto/);
   assert.match(map, /Map controls/);
   assert.match(map, /<details className="group mt-3">/);
+  assert.match(map, /requestFullscreen/);
+  assert.match(map, /Exit weather map fullscreen/);
+  assert.match(map, /Open weather map fullscreen/);
+  assert.match(map, /document\.addEventListener\("fullscreenchange"/);
+  assert.match(map, /isFullscreen && "fixed inset-0 z-\[120\]/);
 });

@@ -11,6 +11,8 @@ const runtime = await tsImport("../lib/kai/runtime-query.ts", import.meta.url);
 const queryRoute = read("app/api/kai/query/route.ts");
 const kaiClient = read("lib/kai/client.ts");
 const queryPlanMigration = read("drizzle/operations/0015_seed_kai_phase2a_query_plans.sql");
+const businessQaMigration = read("drizzle/operations/0016_fix_kai_business_qa_scope.sql");
+const stockMappingMigration = read("drizzle/operations/0017_reconcile_kai_stock_unit_mapping.sql");
 
 function findLocalOperationsDatabase() {
   const root = path.join(repoRoot, ".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
@@ -141,6 +143,36 @@ test("Phase 2A stores executable plans in the Knowledge Layer", () => {
   assert.match(queryPlanMigration, /"source":"booking_transactions"/);
   assert.match(queryPlanMigration, /"source":"stock_transactions"/);
   assert.match(queryPlanMigration, /"stock_age_days"/);
+  assert.match(businessQaMigration, /"snapshot_mode":"latest"/);
+  assert.match(businessQaMigration, /"snapshot_field":"as_of_date"/);
+  assert.match(businessQaMigration, /"field":"product_type","operator":"in"/);
+  assert.match(stockMappingMigration, /08-TX/);
+  assert.match(stockMappingMigration, /classifyStockModelFallback/);
+});
+
+test("Runtime yields richer business questions to the legacy deterministic tool", { skip: !databasePath }, async () => {
+  const database = new LocalSqliteDatabase(databasePath);
+  for (const question of [
+    "เดือนนี้สาขาไหนขายสูงสุด",
+    "เดือนนี้สาขาไหนมี Booking มากที่สุด",
+    "เดือนนี้สาขาไหนมี Stock มากที่สุด",
+    "สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ",
+    "ยอดขายเดือนนี้เทียบเดือนที่แล้ว",
+  ]) {
+    await assert.rejects(
+      runtime.executeKaiRuntimeQuery(database, question, {
+        companyId: "kmm-company",
+        timeZone: "Asia/Yangon",
+        now: new Date("2026-08-12T12:00:00.000Z"),
+      }),
+      (error) => error?.code === "unsupported_question",
+      question,
+    );
+  }
+  assert.equal(
+    database.history.filter((query) => /FROM (?:sales|booking|stock)_transactions/i.test(query)).length,
+    0,
+  );
 });
 
 test("five supported questions execute through local Operations D1", { skip: !databasePath }, async () => {
@@ -162,6 +194,19 @@ test("five supported questions execute through local Operations D1", { skip: !da
     assert.match(query.trim().toUpperCase(), /^SELECT\b/);
     assert.doesNotMatch(query, /;\s*(?:INSERT|UPDATE|DELETE|ALTER|DROP)\b/i);
   }
+});
+
+test("Runtime Stock Aging matches the latest Dashboard Unit snapshot", { skip: !databasePath }, async () => {
+  const database = new LocalSqliteDatabase(databasePath);
+  const result = await runtime.executeKaiRuntimeQuery(database, "Stock เกิน 90 วันมีรุ่นอะไรบ้าง", {
+    companyId: "kmm-company",
+    timeZone: "Asia/Yangon",
+    now: new Date("2026-08-12T12:00:00.000Z"),
+  });
+  assert.equal(result.data.snapshotDate, "2026-08-08");
+  assert.equal(result.data.total, 35);
+  assert.match(result.response.text, /Snapshot: 2026-08-08/);
+  assert.match(result.response.text, /Total: 35/);
 });
 
 test("runtime query rejects an unsupported question without executing user SQL", { skip: !databasePath }, async () => {

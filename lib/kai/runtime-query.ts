@@ -108,6 +108,8 @@ type QueryPlan = {
   source: string;
   response_kind: "sales_summary" | "sales_year_compare" | "booking_summary" | "booking_aging" | "stock_aging_model";
   period_mode: "current_month" | "year_compare" | "reference_date";
+  snapshot_mode?: "latest";
+  snapshot_field?: string;
   date_field?: string;
   filters?: QueryFilter[];
   aggregates?: QueryAggregate[];
@@ -245,6 +247,19 @@ export function buildRuntimeSql(
     const predicate = buildFilter(filter, parameters, context);
     whereParts.push(predicate);
   }
+  if (plan.snapshot_mode === "latest") {
+    const snapshotField = quoteIdentifier(plan.snapshot_field ?? "snapshot_date");
+    const companyFilter = (plan.filters ?? []).find((filter) =>
+      filter.field === "company_id" && filter.parameter === "companyId",
+    );
+    const latestWhere = companyFilter
+      ? ` WHERE ${quoteIdentifier(companyFilter.field)} = ?`
+      : "";
+    if (companyFilter) parameters.push(context.companyId);
+    whereParts.push(
+      `${snapshotField} = (SELECT MAX(${snapshotField}) FROM ${quoteIdentifier(plan.source)}${latestWhere})`,
+    );
+  }
   if (period && plan.date_field) {
     whereParts.push(`${quoteIdentifier(plan.date_field)} >= ?`);
     parameters.push(period.start);
@@ -294,6 +309,12 @@ function resolveQuestion(question: string, knowledge: RuntimeKnowledge) {
   const exact = knowledge.questions.find((row) => normalizeRuntimeQuestion(row.question) === normalized);
   if (exact) return exact;
 
+  // Richer questions belong to the legacy deterministic business tool until
+  // their own executable Phase 2A plan exists. Without this guard a generic
+  // alias such as "ขาย" can incorrectly claim a branch ranking or a
+  // cross-metric question as SALES_CURRENT_MONTH.
+  if (isRichRuntimeQuestion(question)) return undefined;
+
   const availableQueryIntents = new Set(knowledge.queries.map((row) => row.intent));
   const aliases = [...knowledge.aliases]
     .filter((row) => availableQueryIntents.has(row.intent))
@@ -310,6 +331,14 @@ function resolveQuestion(question: string, knowledge: RuntimeKnowledge) {
     required_metric: "",
     response_type: "summary",
   };
+}
+
+function isRichRuntimeQuestion(question: string) {
+  return [
+    /(?:สาขา|branch).*(?:มากที่สุด|สูงสุด|อันดับ|ranking|top)|(?:อันดับ|ranking|top).*(?:สาขา|branch)/i,
+    /(?:รุ่น|model|สินค้า|product).*(?:มากที่สุด|สูงสุด|อันดับ|ranking|top)/i,
+    /(?:stock|สต็อก).*(?:สูง.*(?:ยอดขาย|sales)|ต่ำ.*(?:ยอดขาย|sales)|ขายต่ำ|sales.*ต่ำ)/i,
+  ].some((pattern) => pattern.test(question));
 }
 
 function isUnsafeRuntimeQuestion(question: string) {
@@ -338,7 +367,7 @@ function parsePlan(value: string, intent: string): QueryPlan {
   } catch {
     throw new KaiRuntimeQueryError(
       `Query template ${intent} is not an executable Phase 2A plan.`,
-      "knowledge_error",
+      "unsupported_question",
     );
   }
   if (!parsed || typeof parsed !== "object") {
@@ -351,6 +380,12 @@ function parsePlan(value: string, intent: string): QueryPlan {
   if (plan.version !== 1 || typeof plan.source !== "string" || typeof plan.response_kind !== "string" || typeof plan.period_mode !== "string") {
     throw new KaiRuntimeQueryError(
       `Query template ${intent} has an unsupported plan version.`,
+      "knowledge_error",
+    );
+  }
+  if (plan.snapshot_mode !== undefined && plan.snapshot_mode !== "latest") {
+    throw new KaiRuntimeQueryError(
+      `Query template ${intent} has an unsupported snapshot mode.`,
       "knowledge_error",
     );
   }
@@ -379,6 +414,7 @@ function validatePlan(plan: QueryPlan, dictionary: KnowledgeDictionaryRow[]) {
     ]),
     ...(plan.select ?? []).map((selection) => selection.field),
     ...(plan.dedupe_by ?? []),
+    ...(plan.snapshot_mode === "latest" ? [plan.snapshot_field ?? "snapshot_date"] : []),
   ];
   const missing = [...new Set(fields)].filter((field) => !mappedFields.has(field));
   if (missing.length) {
@@ -644,6 +680,7 @@ function formatStockAging(rows: Array<Record<string, unknown>>, dedupeBy: string
   return {
     thresholdDays,
     total: uniqueRows.length,
+    snapshotDate: uniqueRows.map((row) => String(row.snapshot_date ?? "")).find(Boolean) ?? null,
     models: groupAgingRows(uniqueRows, "model", "aging_days"),
   };
 }
@@ -709,7 +746,7 @@ function formatResponse(kind: QueryPlan["response_kind"], data: Record<string, u
   if (kind === "booking_aging") {
     return `Booking Aging > ${formatNumber(data.thresholdDays)} days; Total: ${formatNumber(data.total)}; Models: ${formatGroupSummary(data.models)}; Branches: ${formatGroupSummary(data.branches)}`;
   }
-  return `Stock Aging > ${formatNumber(data.thresholdDays)} days; Total: ${formatNumber(data.total)}; Models: ${formatGroupSummary(data.models)}`;
+  return `Stock Aging > ${formatNumber(data.thresholdDays)} days; Snapshot: ${String(data.snapshotDate ?? "N/A")}; Total: ${formatNumber(data.total)}; Models: ${formatGroupSummary(data.models)}`;
 }
 
 function periodLabel(value: unknown) {

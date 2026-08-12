@@ -84,7 +84,9 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /RainViewer/);
   assert.match(map, /Radar timeline/);
   assert.match(map, /aria-pressed/);
-  assert.match(map, /h-\[520px\]/);
+  assert.match(map, /h-auto/);
+  assert.match(map, /Map controls/);
+  assert.match(map, /md:hidden/);
   assert.match(map, /md:h-\[620px\]/);
   assert.match(map, /xl:h-\[680px\]/);
 });

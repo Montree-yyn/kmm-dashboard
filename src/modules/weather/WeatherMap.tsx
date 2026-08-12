@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker, StyleSpecification } from "maplibre-gl";
-import { Cloud, CloudRain, Radar, Thermometer, Wind } from "lucide-react";
+import { ChevronDown, Cloud, CloudRain, Radar, Thermometer, Wind } from "lucide-react";
 import { registerPmtilesProtocol } from "../../../lib/maps/register-pmtiles-protocol";
 import { cn } from "../../../lib/utils";
 import { getMapDataset } from "../../../lib/maps/datasets";
@@ -231,6 +231,7 @@ export function WeatherMap({
     const sourceId = "weather-radar";
     const layerId = "weather-radar-layer";
     const removeRadarLayer = () => {
+      if (!map.isStyleLoaded()) return;
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
@@ -260,6 +261,7 @@ export function WeatherMap({
       "weather-state-line",
     );
     return () => {
+      if (!map.isStyleLoaded()) return;
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
@@ -269,7 +271,7 @@ export function WeatherMap({
   const selectedRadarFrame = radar?.frames.find((frame) => frame.time === radarFrameTime) ?? latestRadarFrame;
 
   return (
-    <section className="flex h-[520px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-map-title">
+    <section className="flex h-auto flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-map-title">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
         <div>
           <div className="flex items-center gap-2">
@@ -283,79 +285,145 @@ export function WeatherMap({
           radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
         )}>{radar ? "Radar available" : "Radar unavailable"}</span>
       </div>
-      <div className="relative mt-4 min-h-0 flex-1 p-4 sm:mt-6 sm:p-6">
-        <div className="relative h-full min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7]">
+      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6 md:flex-1">
+        <div className="relative h-[360px] min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7] sm:h-[420px] md:h-full">
           <div className="absolute inset-0">
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
           </div>
-          <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-5rem)] rounded-xl border border-white/80 bg-white/92 p-2 shadow-sm backdrop-blur-sm">
-            <p className="px-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Radar + pin metric</p>
-            <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Weather radar and pin metric">
-              {mapLayers.map((layer) => {
-                const Icon = layer.icon;
-                const selected = activeLayer === layer.value;
-                const disabled = layer.value === "radar" && !radar;
-                return (
-                  <button
-                    key={layer.value}
-                    type="button"
-                    onClick={() => setActiveLayer(layer.value)}
-                    disabled={disabled}
-                    aria-pressed={selected}
-                    className={cn(
-                      "inline-flex min-h-11 items-center gap-1 rounded-lg border px-2 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45",
-                      selected
-                        ? "border-[var(--brand-500)] bg-[var(--brand-100)] text-[var(--brand-600)]"
-                        : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
-                    )}
-                  >
-                    <Icon size={12} aria-hidden="true" />
-                    {layer.label}
-                  </button>
-                );
-              })}
-            </div>
-            {activeLayer === "radar" && radar && (
-              <div className="mt-2 border-t border-[var(--divider)] pt-2">
-                <div className="flex items-center justify-between gap-2 px-1 text-[9px] text-[var(--text-tertiary)]">
-                  <span>Radar timeline · past 2 hours</span>
-                  <span className="font-semibold text-[#0875a8]">{selectedRadarFrame ? formatRadarTime(selectedRadarFrame.time) : "Loading"}</span>
-                </div>
-                <div className="mt-1 flex gap-1 overflow-x-auto pb-0.5" role="group" aria-label="Radar timeline">
-                  {radar.frames.slice(-6).map((frame) => {
-                    const selectedFrame = frame.time === selectedRadarFrame?.time;
-                    return (
-                      <button
-                        key={frame.time}
-                        type="button"
-                        onClick={() => setRadarFrameTime(frame.time)}
-                        aria-pressed={selectedFrame}
-                        className={cn(
-                          "min-h-11 shrink-0 rounded-md border px-2 text-[9px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
-                          selectedFrame ? "border-[#0875a8] bg-[#e7f4fb] text-[#0875a8]" : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
-                        )}
-                      >
-                        {frame.time === latestRadarFrame?.time ? "Last scan" : formatRadarRelativeTime(frame.time, latestRadarFrame?.time)}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex items-center gap-2 px-1 text-[9px] text-[var(--text-tertiary)]" aria-label="Radar intensity legend">
-                  <span>Light</span><span className="size-2 rounded-full bg-[#5cc8ff]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#55c66a]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#ffd34e]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#e54b3f]" aria-hidden="true" /><span>Heavy</span>
-                </div>
-              </div>
-            )}
-            {activeLayer === "radar" && !radar && <p className="mt-2 px-1 text-[9px] leading-4 text-[var(--status-warning)]">{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
+          <div className="absolute left-3 top-3 z-10 hidden md:block">
+            <WeatherMapControls
+              activeLayer={activeLayer}
+              latestRadarFrame={latestRadarFrame}
+              onFrameChange={setRadarFrameTime}
+              onLayerChange={setActiveLayer}
+              radar={radar}
+              radarError={radarError}
+              selectedRadarFrame={selectedRadarFrame}
+            />
           </div>
           {!mapReady && !mapError && <div className="absolute inset-0 z-[1] grid place-items-center bg-[#edf4f1]/80 text-xs font-semibold text-[var(--text-secondary)]" role="status">Loading interactive map…</div>}
           {mapError && <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-[var(--status-warning-bg)] bg-white/95 px-3 py-2 text-[10px] font-semibold text-[var(--status-warning)]" role="status">{mapError}</div>}
-          <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-lg border border-white/80 bg-white/92 px-3 py-2 text-[10px] font-semibold leading-4 text-[#4c625e] shadow-sm">Drag · scroll to zoom · click a live pin · radar shows observed rain</div>
-          <div className="absolute bottom-3 right-3 z-10 rounded-lg border border-white/80 bg-white/92 px-2.5 py-1.5 text-[9px] text-[#4c625e] shadow-sm">
+          <div className="absolute bottom-3 left-3 z-10 hidden max-w-[calc(100%-1.5rem)] rounded-lg border border-white/80 bg-white/92 px-3 py-2 text-[10px] font-semibold leading-4 text-[#4c625e] shadow-sm md:block">Drag · scroll to zoom · click a live pin · radar shows observed rain</div>
+          <div className="absolute bottom-3 right-3 z-10 hidden rounded-lg border border-white/80 bg-white/92 px-2.5 py-1.5 text-[9px] text-[#4c625e] shadow-sm md:block">
             Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>
           </div>
         </div>
+        <details className="group mt-3 md:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2 shadow-sm [&::-webkit-details-marker]:hidden">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#e7f4fb] text-[#0875a8]"><Radar size={15} aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold text-[var(--text-primary)]">Map controls</span>
+              <span className="block truncate text-[10px] text-[var(--text-secondary)]">{mapLayers.find((layer) => layer.value === activeLayer)?.label ?? "Radar"} · {selectedRadarFrame ? formatRadarTime(selectedRadarFrame.time) : "Loading"}</span>
+            </span>
+            <ChevronDown size={17} className="shrink-0 text-[var(--text-secondary)] transition-transform group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="mt-2">
+            <WeatherMapControls
+              activeLayer={activeLayer}
+              latestRadarFrame={latestRadarFrame}
+              mobile
+              onFrameChange={setRadarFrameTime}
+              onLayerChange={setActiveLayer}
+              radar={radar}
+              radarError={radarError}
+              selectedRadarFrame={selectedRadarFrame}
+            />
+          </div>
+        </details>
+        <div className="mt-2 flex flex-col gap-1 px-1 text-[10px] leading-4 text-[#4c625e] md:hidden">
+          <span>Drag · pinch or scroll to zoom · tap a live pin · radar shows observed rain</span>
+          <span>Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
+        </div>
       </div>
     </section>
+  );
+}
+
+function WeatherMapControls({
+  activeLayer,
+  latestRadarFrame,
+  mobile = false,
+  onFrameChange,
+  onLayerChange,
+  radar,
+  radarError,
+  selectedRadarFrame,
+}: {
+  activeLayer: WeatherMapLayer;
+  latestRadarFrame: WeatherRadarPayload["frames"][number] | undefined;
+  mobile?: boolean;
+  onFrameChange: (time: number) => void;
+  onLayerChange: (layer: WeatherMapLayer) => void;
+  radar: WeatherRadarPayload | null;
+  radarError?: string;
+  selectedRadarFrame: WeatherRadarPayload["frames"][number] | undefined;
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border border-white/80 bg-white/95 shadow-sm",
+      mobile ? "p-3" : "max-w-[calc(100vw-5rem)] p-2 backdrop-blur-sm",
+    )}>
+      <p className={cn("px-1 font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]", mobile ? "text-[10px]" : "text-[9px]")}>Radar + pin metric</p>
+      <div className={cn("mt-1 gap-1", mobile ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-wrap")} role="group" aria-label="Weather radar and pin metric">
+        {mapLayers.map((layer) => {
+          const Icon = layer.icon;
+          const selected = activeLayer === layer.value;
+          const disabled = layer.value === "radar" && !radar;
+          return (
+            <button
+              key={layer.value}
+              type="button"
+              onClick={() => onLayerChange(layer.value)}
+              disabled={disabled}
+              aria-pressed={selected}
+              className={cn(
+                "inline-flex min-h-11 min-w-0 items-center gap-1 rounded-lg border font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45",
+                mobile ? "w-full justify-start px-3 text-xs" : "px-2 text-[10px]",
+                mobile && layer.value === "temperature" && "col-span-2 sm:col-span-1",
+                selected
+                  ? "border-[var(--brand-500)] bg-[var(--brand-100)] text-[var(--brand-600)]"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
+              )}
+            >
+              <Icon size={mobile ? 14 : 12} aria-hidden="true" />
+              {layer.label}
+            </button>
+          );
+        })}
+      </div>
+      {activeLayer === "radar" && radar && (
+        <div className={cn("border-t border-[var(--divider)]", mobile ? "mt-3 pt-3" : "mt-2 pt-2")}>
+          <div className={cn("flex items-center justify-between gap-2 px-1 text-[var(--text-tertiary)]", mobile ? "text-[10px]" : "text-[9px]")}>
+            <span>Radar timeline · past 2 hours</span>
+            <span className="font-semibold text-[#0875a8]">{selectedRadarFrame ? formatRadarTime(selectedRadarFrame.time) : "Loading"}</span>
+          </div>
+          <div className="mt-1 flex gap-1 overflow-x-auto pb-0.5" role="group" aria-label="Radar timeline">
+            {radar.frames.slice(-6).map((frame) => {
+              const selectedFrame = frame.time === selectedRadarFrame?.time;
+              return (
+                <button
+                  key={frame.time}
+                  type="button"
+                  onClick={() => onFrameChange(frame.time)}
+                  aria-pressed={selectedFrame}
+                  className={cn(
+                    "min-h-11 shrink-0 rounded-md border font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+                    mobile ? "px-3 text-[10px]" : "px-2 text-[9px]",
+                    selectedFrame ? "border-[#0875a8] bg-[#e7f4fb] text-[#0875a8]" : "border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]",
+                  )}
+                >
+                  {frame.time === latestRadarFrame?.time ? "Last scan" : formatRadarRelativeTime(frame.time, latestRadarFrame?.time)}
+                </button>
+              );
+            })}
+          </div>
+          <div className={cn("flex items-center gap-2 px-1 text-[var(--text-tertiary)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")} aria-label="Radar intensity legend">
+            <span>Light</span><span className="size-2 rounded-full bg-[#5cc8ff]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#55c66a]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#ffd34e]" aria-hidden="true" /><span className="size-2 rounded-full bg-[#e54b3f]" aria-hidden="true" /><span>Heavy</span>
+          </div>
+        </div>
+      )}
+      {activeLayer === "radar" && !radar && <p className={cn("px-1 leading-4 text-[var(--status-warning)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")}>{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
+    </div>
   );
 }
 

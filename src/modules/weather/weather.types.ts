@@ -3,10 +3,23 @@ export type WeatherCountry = "Myanmar" | "Thailand";
 export type WeatherRiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 export type WeatherCondition =
+  | "Clear"
   | "Cloudy"
   | "Partly Cloudy"
   | "Rain"
   | "Thunderstorms";
+
+export type WeatherLocationSeed = {
+  id: string;
+  branchCode: string;
+  name: string;
+  country: WeatherCountry;
+  region: string;
+  latitude: number;
+  longitude: number;
+  mapX: number;
+  mapY: number;
+};
 
 export type WeatherForecastDay = {
   date: string;
@@ -45,4 +58,11 @@ export type WeatherAlert = {
   severity: WeatherRiskLevel;
   metric: string;
   locationIds: string[];
+};
+
+export type WeatherDataPayload = {
+  source: "open-meteo";
+  sourceLabel: string;
+  fetchedAt: string;
+  locations: WeatherLocation[];
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   Activity,
   CalendarDays,
@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sprout,
+  Sun,
   Thermometer,
   TriangleAlert,
   Wind,
@@ -21,9 +22,12 @@ import {
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { useLocale } from "../../hooks/useLocale";
-import { weatherAlerts, weatherLocations } from "./data/weather.mock";
+import { weatherLocationSeeds } from "./data/weather.locations";
+import { buildWeatherAlerts } from "./data/weather.rules";
+import { loadLiveWeather } from "./weather.client";
 import type {
   WeatherCondition,
+  WeatherAlert,
   WeatherLocation,
   WeatherRiskLevel,
 } from "./weather.types";
@@ -34,14 +38,14 @@ const scopes: Array<{ value: Scope; label: string; count: number }> = [
   {
     value: "myanmar",
     label: "Myanmar",
-    count: weatherLocations.filter((location) => location.country === "Myanmar").length,
+    count: weatherLocationSeeds.filter((location) => location.country === "Myanmar").length,
   },
   {
     value: "thailand",
     label: "Thailand · Tak",
-    count: weatherLocations.filter((location) => location.country === "Thailand").length,
+    count: weatherLocationSeeds.filter((location) => location.country === "Thailand").length,
   },
-  { value: "all", label: "All locations", count: weatherLocations.length },
+  { value: "all", label: "All locations", count: weatherLocationSeeds.length },
 ];
 
 const riskMeta: Record<
@@ -69,6 +73,7 @@ const riskMeta: Record<
 };
 
 const conditionIcons: Record<WeatherCondition, LucideIcon> = {
+  Clear: Sun,
   Cloudy: Cloud,
   "Partly Cloudy": CloudSun,
   Rain: CloudRain,
@@ -78,17 +83,39 @@ const conditionIcons: Record<WeatherCondition, LucideIcon> = {
 export function WeatherPage() {
   const { t } = useLocale();
   const [scope, setScope] = useState<Scope>("all");
-  const [selectedId, setSelectedId] = useState(weatherLocations[0]?.id ?? "");
-  const [refreshCount, setRefreshCount] = useState(0);
+  const [selectedId, setSelectedId] = useState(weatherLocationSeeds[0]?.id ?? "");
+  const [liveLocations, setLiveLocations] = useState<WeatherLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const loadWeather = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await loadLiveWeather();
+      setLiveLocations(payload.locations);
+      setLastUpdated(payload.fetchedAt);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load live weather.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadWeather(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadWeather]);
 
   const locations = useMemo(
     () =>
-      weatherLocations.filter((location) => {
+      liveLocations.filter((location) => {
         if (scope === "myanmar") return location.country === "Myanmar";
         if (scope === "thailand") return location.country === "Thailand";
         return true;
       }),
-    [scope],
+    [liveLocations, scope],
   );
   const selectedLocation =
     locations.find((location) => location.id === selectedId) ?? locations[0];
@@ -99,9 +126,11 @@ export function WeatherPage() {
   const averageTemperature = locations.length
     ? Math.round((locations.reduce((total, location) => total + location.temperature, 0) / locations.length) * 10) / 10
     : 0;
+  const weatherAlerts = useMemo(() => buildWeatherAlerts(liveLocations), [liveLocations]);
   const visibleAlerts = weatherAlerts.filter((alert) =>
     alert.locationIds.some((locationId) => locations.some((location) => location.id === locationId)),
   );
+  const initialLoading = loading && liveLocations.length === 0;
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]" data-weather-page>
@@ -114,9 +143,14 @@ export function WeatherPage() {
                 <h1 className="text-[28px] font-semibold leading-tight sm:text-[30px]">
                   {t("route.weather.title")}
                 </h1>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--brand-100)] bg-[var(--brand-50)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--brand-600)]">
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]",
+                  liveLocations.length
+                    ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]"
+                    : "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-600)]",
+                )}>
                   <Activity size={12} aria-hidden="true" />
-                  Prototype
+                  {liveLocations.length ? "Live" : "Connecting"}
                 </span>
               </div>
               <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
@@ -125,12 +159,13 @@ export function WeatherPage() {
             </div>
             <button
               type="button"
-              onClick={() => setRefreshCount((value) => value + 1)}
-              className="inline-flex min-h-10 w-fit items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-              aria-label="Refresh mock weather snapshot"
+              onClick={() => void loadWeather()}
+              disabled={loading}
+              className="inline-flex min-h-10 w-fit items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"
+              aria-label="Refresh live weather snapshot"
             >
-              <RefreshCw size={14} aria-hidden="true" />
-              {refreshCount ? "Mock refreshed" : "Refresh mock"}
+              <RefreshCw className={cn(loading && "animate-spin motion-reduce:animate-none")} size={14} aria-hidden="true" />
+              {loading ? "Refreshing…" : "Refresh live weather"}
             </button>
           </header>
 
@@ -169,7 +204,21 @@ export function WeatherPage() {
             </div>
           </section>
 
-          <section aria-labelledby="weather-overview-title">
+          {error && (
+            <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-[var(--status-danger-bg)] bg-[var(--status-danger-bg)] p-4 text-sm sm:flex-row sm:items-center sm:justify-between" role="alert">
+              <div>
+                <p className="font-semibold text-[var(--status-danger)]">Live weather is unavailable</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{error}</p>
+              </div>
+              <button type="button" onClick={() => void loadWeather()} className="min-h-10 w-fit rounded-[var(--radius-control)] border border-[var(--status-danger)] bg-white px-3 text-xs font-semibold text-[var(--status-danger)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
+            </section>
+          )}
+
+          {initialLoading ? (
+            <WeatherLoadingState />
+          ) : liveLocations.length ? (
+            <>
+              <section aria-labelledby="weather-overview-title">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 id="weather-overview-title" className="text-[19px] font-semibold">
@@ -195,31 +244,68 @@ export function WeatherPage() {
                 />
               ))}
             </div>
-          </section>
+              </section>
 
-          <section className="grid gap-5 xl:grid-cols-2" aria-label="Weather map and forecast">
-            <WeatherMap
-              locations={locations}
-              selectedId={selectedLocation?.id ?? ""}
-              onSelect={setSelectedId}
-            />
-            <ForecastTable locations={locations} />
-          </section>
+              <section className="grid gap-5 xl:grid-cols-2" aria-label="Weather map and forecast">
+                <WeatherMap
+                  locations={locations}
+                  selectedId={selectedLocation?.id ?? ""}
+                  onSelect={setSelectedId}
+                />
+                <ForecastTable locations={locations} />
+              </section>
 
-          <section className="grid gap-5 lg:grid-cols-3" aria-label="Weather actions">
-            <AgricultureImpact location={selectedLocation} locations={locations} />
-            <Alerts alerts={visibleAlerts} locations={locations} onSelect={setSelectedId} />
-            <RecommendedActions locations={locations} />
-          </section>
+              <section className="grid gap-5 lg:grid-cols-3" aria-label="Weather actions">
+                <AgricultureImpact location={selectedLocation} locations={locations} />
+                <Alerts alerts={visibleAlerts} locations={locations} onSelect={setSelectedId} />
+                <RecommendedActions locations={locations} />
+              </section>
 
-          <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-4 text-[10px] leading-4 text-[var(--text-tertiary)] sm:flex-row sm:items-center sm:justify-between">
-            <span>Source: Phase 1A mock dataset · no live weather API connected.</span>
-            <span>Planning aid only; not agronomic or safety advice.</span>
-          </footer>
+              <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-4 text-[10px] leading-4 text-[var(--text-tertiary)] sm:flex-row sm:items-center sm:justify-between">
+                <span>Source: Open-Meteo live forecast · updated {formatUpdatedAt(lastUpdated)}.</span>
+                <span>Planning aid only; not agronomic or safety advice.</span>
+              </footer>
+            </>
+          ) : (
+            <WeatherEmptyState onRetry={() => void loadWeather()} />
+          )}
         </div>
       </main>
     </div>
   );
+}
+
+function WeatherLoadingState() {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-6 shadow-[var(--shadow-card)]" role="status" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <RefreshCw className="animate-spin text-[var(--brand-600)] motion-reduce:animate-none" size={18} aria-hidden="true" />
+        <div>
+          <h2 className="text-base font-semibold">Loading live weather</h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Requesting current conditions and a seven-day forecast for 11 operating areas.</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-hidden="true">
+        {[1, 2, 3].map((item) => <div key={item} className="h-28 animate-pulse rounded-[var(--radius-control-lg)] bg-[var(--surface-subtle)] motion-reduce:animate-none" />)}
+      </div>
+    </section>
+  );
+}
+
+function WeatherEmptyState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-dashed border-[var(--border-default)] bg-[var(--surface-default)] p-8 text-center shadow-[var(--shadow-card)]" role="status">
+      <CloudRain className="mx-auto text-[var(--brand-600)]" size={28} aria-hidden="true" />
+      <h2 className="mt-3 text-base font-semibold">No live weather snapshot</h2>
+      <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">The dashboard has not received live conditions yet. Try again when the weather provider is reachable.</p>
+      <button type="button" onClick={onRetry} className="mt-5 min-h-10 rounded-[var(--radius-control)] bg-[var(--brand-600)] px-4 text-xs font-semibold text-white hover:bg-[var(--brand-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Try again</button>
+    </section>
+  );
+}
+
+function formatUpdatedAt(value: string | null) {
+  if (!value) return "not available";
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function Summary({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
@@ -436,7 +522,7 @@ function Count({ label, value, className }: { label: string; value: number; clas
   return <div className="rounded-lg border border-[var(--divider)] bg-[var(--surface-subtle)] px-3 py-2.5"><p className="text-[10px] text-[var(--text-tertiary)]">{label}</p><p className={cn("kmm-tabular mt-1 text-xl font-semibold", className)}>{value}</p></div>;
 }
 
-function Alerts({ alerts, locations, onSelect }: { alerts: typeof weatherAlerts; locations: WeatherLocation[]; onSelect: (id: string) => void }) {
+function Alerts({ alerts, locations, onSelect }: { alerts: WeatherAlert[]; locations: WeatherLocation[]; onSelect: (id: string) => void }) {
   return (
     <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="weather-alerts-title">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger)]"><TriangleAlert size={16} /></span><h2 id="weather-alerts-title" className="text-[19px] font-semibold">Weather Alerts</h2></div><span className="kmm-tabular rounded-full bg-[var(--status-danger-bg)] px-2.5 py-1 text-xs font-bold text-[var(--status-danger)]">{alerts.length}</span></div>
@@ -458,7 +544,7 @@ function RecommendedActions({ locations }: { locations: WeatherLocation[] }) {
   return (
     <section className="rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6" aria-labelledby="weather-actions-title">
       <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-[#edf1f8] text-[#496a9a]"><ShieldCheck size={16} /></span><h2 id="weather-actions-title" className="text-[19px] font-semibold">Recommended Actions</h2></div>
-      <p className="mt-2 text-sm text-[var(--text-secondary)]">Practical next steps for the current mock signal.</p>
+      <p className="mt-2 text-sm text-[var(--text-secondary)]">Practical next steps for the current live forecast signal.</p>
       <div className="mt-5 space-y-2.5">{actions.map((action) => { const Icon = action.icon; return <article key={action.title} className="flex items-start gap-3 rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] p-3.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--brand-100)] text-[var(--brand-600)]"><Icon size={15} /></span><div><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold">{action.title}</p><span className="rounded-full border border-[var(--border-default)] bg-white px-2 py-0.5 text-[9px] font-semibold text-[var(--text-tertiary)]">{action.count}</span></div><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{action.description}</p></div></article>; })}</div>
       <p className="mt-4 text-[10px] leading-4 text-[var(--text-tertiary)]">Phase 1A does not write to Sales, Booking or Team workflows.</p>
     </section>

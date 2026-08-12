@@ -9,6 +9,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFileSync(path.join(repoRoot, file), "utf8");
 const runtime = await tsImport("../lib/kai/runtime-query.ts", import.meta.url);
 const queryRoute = read("app/api/kai/query/route.ts");
+const kaiClient = read("lib/kai/client.ts");
 const queryPlanMigration = read("drizzle/operations/0015_seed_kai_phase2a_query_plans.sql");
 
 function findLocalOperationsDatabase() {
@@ -121,6 +122,14 @@ test("Phase 2A route is local, authenticated, and read-only", () => {
   assert.match(queryRoute, /OPERATIONS_DB/);
   assert.doesNotMatch(queryRoute, /WorkersAI|TAVILY|\.complete\(|fetch\(/);
   assert.doesNotMatch(queryRoute, /\.insert\(|\.update\(|\.delete\(|\b(?:INSERT|UPDATE|DELETE|ALTER|DROP)\b/);
+});
+
+test("KAI panel routes supported questions through Runtime Query before legacy chat", () => {
+  assert.match(kaiClient, /fetch\("\/api\/kai\/query"/);
+  assert.match(kaiClient, /payload\.response\?\.text/);
+  assert.match(kaiClient, /payload\.error\?\.code === "unsupported_question"/);
+  assert.match(kaiClient, /fetch\("\/api\/kai\/chat"/);
+  assert.match(kaiClient, /model: "deterministic"/);
 });
 
 test("Phase 2A stores executable plans in the Knowledge Layer", () => {

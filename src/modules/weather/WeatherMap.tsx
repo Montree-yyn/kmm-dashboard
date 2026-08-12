@@ -231,9 +231,13 @@ export function WeatherMap({
     const sourceId = "weather-radar";
     const layerId = "weather-radar-layer";
     const removeRadarLayer = () => {
-      if (!map.isStyleLoaded()) return;
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      try {
+        if (!map.isStyleLoaded()) return;
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // MapLibre can replace its style while React is cleaning up an old effect.
+      }
     };
     const frame = radar?.frames.find((candidate) => candidate.time === radarFrameTime) ?? radar?.frames.at(-1);
     if (activeLayer !== "radar" || !radar || !frame) {
@@ -241,29 +245,36 @@ export function WeatherMap({
       return;
     }
     removeRadarLayer();
+    try {
+      if (map.getSource(sourceId)) return;
+    } catch {
+      return;
+    }
     const tileUrl = `${radar.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-    map.addSource(sourceId, {
-      type: "raster",
-      tiles: [tileUrl],
-      tileSize: 256,
-      attribution: "Weather data by RainViewer",
-    });
-    map.addLayer(
-      {
-        id: layerId,
+    try {
+      map.addSource(sourceId, {
         type: "raster",
-        source: sourceId,
-        paint: {
-          "raster-opacity": 0.58,
-          "raster-fade-duration": 0,
+        tiles: [tileUrl],
+        tileSize: 256,
+        attribution: "Weather data by RainViewer",
+      });
+      map.addLayer(
+        {
+          id: layerId,
+          type: "raster",
+          source: sourceId,
+          paint: {
+            "raster-opacity": 0.58,
+            "raster-fade-duration": 0,
+          },
         },
-      },
-      "weather-state-line",
-    );
+        "weather-state-line",
+      );
+    } catch {
+      removeRadarLayer();
+    }
     return () => {
-      if (!map.isStyleLoaded()) return;
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      removeRadarLayer();
     };
   }, [activeLayer, mapReady, radar, radarFrameTime]);
 

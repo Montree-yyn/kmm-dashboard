@@ -20,7 +20,7 @@ test("approved pages share the Golden Reference shell tokens", async () => {
   assert.match(shell, /data-global-app-shell/);
 });
 
-test("Dashboard and Sales use the same executive page hierarchy", async () => {
+test("Dashboard prioritizes the lead KPI while Sales keeps the shared executive shell", async () => {
   const [dashboard, sales] = await Promise.all([
     read("components/dashboard/dashboard-page.tsx"),
     read("components/sales/sales-page.tsx"),
@@ -30,10 +30,14 @@ test("Dashboard and Sales use the same executive page hierarchy", async () => {
     assert.match(page, /min-h-\[calc\(100vh-72px\)\]/);
     assert.match(page, /max-w-\[1600px\]/);
     assert.match(page, /p-4 sm:p-5 xl:p-6/);
-    assert.match(page, /mb-2 h-1 w-8 rounded-full bg-\[var\(--brand-500\)\]/);
-    assert.match(page, /text-\[28px\].*sm:text-\[30px\]/);
-    assert.match(page, /repeat\(5,minmax\(0,1fr\)\)/);
   }
+  assert.match(dashboard, /h-7 w-1 shrink-0 rounded-full bg-\[var\(--brand-500\)\]/);
+  assert.match(dashboard, /text-\[26px\].*sm:text-\[28px\]/);
+  assert.match(dashboard, /grid-cols-2 gap-3 xl:grid-cols-6/);
+  assert.match(dashboard, /className="col-span-2"/);
+  assert.match(sales, /mb-2 h-1 w-8 rounded-full bg-\[var\(--brand-500\)\]/);
+  assert.match(sales, /text-\[28px\].*sm:text-\[30px\]/);
+  assert.match(sales, /repeat\(5,minmax\(0,1fr\)\)/);
 });
 
 test("all operational pages use the shared filter presentation", async () => {
@@ -184,7 +188,8 @@ test("Sprint 4 page refinement keeps an executive hierarchy without changing dat
   assert.match(dashboard, /aria-labelledby="dashboard-primary-trend"/);
   assert.match(dashboard, /t\("section\.salesTrajectory"\)/);
   assert.match(dashboard, /t\("section\.rankingsMix"\)/);
-  assert.match(dashboard, /height=\{460\}/);
+  assert.match(dashboard, /height=\{410\}/);
+  assert.match(dashboard, /Recent operational activity list/);
 
   assert.match(sales, /t\("section\.salesTrajectory"\)/);
   assert.match(sales, /t\("section\.rankingsMix"\)/);

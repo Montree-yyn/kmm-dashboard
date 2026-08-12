@@ -320,6 +320,7 @@ function GlobalFilter({
   return (
     <FilterBar
       filterGridClassName="grid-cols-1 sm:grid-cols-3 xl:grid-cols-3"
+      className="[&_label]:mb-1"
       ariaLabel={t("common.filters")}
       actions={
         <>
@@ -417,11 +418,12 @@ function KpiSection({
   return (
     <section
       aria-label="Executive KPIs"
-      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
+      className="grid grid-cols-2 gap-3 xl:grid-cols-6 2xl:gap-4"
     >
       <KpiCard
         variant="executive"
         featured
+        className="col-span-2"
         title={t("metric.salesUnit")}
         value={businessKpis.salesUnit}
         unit={t("common.units")}
@@ -949,8 +951,8 @@ function AttentionPanel({
       );
 
   return (
-    <Card className="h-full min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--divider)] pb-4">
+    <Card className="h-full min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--divider)] pb-3">
         <div>
           <h2 className="text-[19px] font-semibold text-[var(--text-primary)]">{t("dashboard.attentionTitle")}</h2>
           <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("dashboard.attentionDescription")}</p>
@@ -958,9 +960,9 @@ function AttentionPanel({
         <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{t("dashboard.liveScope")}</span>
       </div>
 
-      <div className="mt-4 space-y-3">
-        <Link href="/booking" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)]/55 p-3 transition-colors hover:border-[var(--brand-300)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-warning)]">
+      <div className="mt-3 space-y-2">
+        <Link href="/booking" className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)]/55 p-3 transition-colors hover:border-[var(--brand-300)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-warning)]">
             <ClipboardList size={18} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
@@ -970,8 +972,8 @@ function AttentionPanel({
           <ChevronRight className="shrink-0 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" size={17} aria-hidden="true" />
         </Link>
 
-        <Link href="/stock" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-danger-bg)] bg-[var(--status-danger-bg)]/55 p-3 transition-colors hover:border-[var(--status-danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-danger)]">
+        <Link href="/stock" className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-danger-bg)] bg-[var(--status-danger-bg)]/55 p-3 transition-colors hover:border-[var(--status-danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-danger)]">
             {criticalStock > 0 ? <TriangleAlert size={18} aria-hidden="true" /> : <CheckCircle2 size={18} aria-hidden="true" />}
           </span>
           <span className="min-w-0 flex-1">
@@ -981,8 +983,8 @@ function AttentionPanel({
           <ChevronRight className="shrink-0 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" size={17} aria-hidden="true" />
         </Link>
 
-        <Link href="/data-hub" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-info-bg)] bg-[var(--status-info-bg)]/55 p-3 transition-colors hover:border-[var(--status-info)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-info)]">
+        <Link href="/data-hub" className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-info-bg)] bg-[var(--status-info-bg)]/55 p-3 transition-colors hover:border-[var(--status-info)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-info)]">
             <Database size={18} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1063,6 +1065,16 @@ function StockHealthCard({ rows }: { rows: StockRow[] }) {
 
 function RecentActivityTable({ rows }: { rows: ActivityRow[] }) {
   const { t } = useLocale();
+  const statusTone = (status: string) => {
+    const normalizedStatus = status.trim().toLowerCase();
+    const completed = normalizedStatus.includes("complete") || normalizedStatus.includes("deliver");
+    return completed
+      ? "bg-[var(--status-success-bg)] text-[var(--status-success)]"
+      : normalizedStatus
+        ? "bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
+        : "bg-[var(--surface-muted)] text-[var(--text-secondary)]";
+  };
+
   return (
     <Card className="overflow-hidden rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-0 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between gap-3 border-b border-[var(--divider)] px-5 py-4 sm:px-6">
@@ -1073,41 +1085,48 @@ function RecentActivityTable({ rows }: { rows: ActivityRow[] }) {
         <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{rows.length} {t("common.records")}</span>
       </div>
       {rows.length ? (
-        <ResponsiveDataTable ariaLabel="Recent operational activity table">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-            <thead className="bg-[var(--surface-subtle)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-              <tr>
-                <th className="px-5 py-3 sm:px-6">{t("common.date")}</th>
-                <th className="px-4 py-3">{t("filter.branch")}</th>
-                <th className="px-4 py-3">{t("common.activity")}</th>
-                <th className="px-4 py-3">{t("common.owner")}</th>
-                <th className="px-5 py-3 text-right sm:px-6">{t("common.status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => {
-                const normalizedStatus = row.status.trim().toLowerCase();
-                const completed = normalizedStatus.includes("complete") || normalizedStatus.includes("deliver");
-                const statusTone = completed
-                  ? "bg-[var(--status-success-bg)] text-[var(--status-success)]"
-                  : normalizedStatus
-                    ? "bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
-                    : "bg-[var(--surface-muted)] text-[var(--text-secondary)]";
-                return (
-                  <tr key={`${row.date}-${row.branch}-${index}`} className="border-t border-[var(--divider)] transition-colors hover:bg-[var(--surface-subtle)]">
-                    <td className="kmm-tabular whitespace-nowrap px-5 py-3.5 text-[var(--text-secondary)] sm:px-6">{row.date}</td>
-                    <td className="px-4 py-3.5 font-medium text-[var(--text-primary)]">{row.branch || "—"}</td>
-                    <td className="max-w-[360px] px-4 py-3.5 text-[var(--text-secondary)]"><span className="line-clamp-2">{row.activity}</span></td>
-                    <td className="px-4 py-3.5 text-[var(--text-secondary)]">{row.salesperson}</td>
-                    <td className="px-5 py-3.5 text-right sm:px-6">
-                      <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold", statusTone)}>{row.status || "Not provided"}</span>
-                    </td>
+        <>
+          <ul className="divide-y divide-[var(--divider)] md:hidden" aria-label="Recent operational activity list">
+            {rows.map((row, index) => (
+              <li key={`${row.date}-${row.branch}-mobile-${index}`} className="space-y-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <time className="kmm-tabular text-xs font-medium text-[var(--text-tertiary)]">{row.date}</time>
+                  <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold", statusTone(row.status))}>{row.status || "Not provided"}</span>
+                </div>
+                <p className="text-sm font-semibold leading-5 text-[var(--text-primary)]">{row.activity}</p>
+                <p className="text-xs text-[var(--text-secondary)]">{row.branch || "—"} · {row.salesperson}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
+            <ResponsiveDataTable ariaLabel="Recent operational activity table">
+              <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                <thead className="bg-[var(--surface-subtle)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                  <tr>
+                    <th className="px-5 py-3 sm:px-6">{t("common.date")}</th>
+                    <th className="px-4 py-3">{t("filter.branch")}</th>
+                    <th className="px-4 py-3">{t("common.activity")}</th>
+                    <th className="px-4 py-3">{t("common.owner")}</th>
+                    <th className="px-5 py-3 text-right sm:px-6">{t("common.status")}</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </ResponsiveDataTable>
+                </thead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <tr key={`${row.date}-${row.branch}-${index}`} className="border-t border-[var(--divider)] transition-colors hover:bg-[var(--surface-subtle)]">
+                      <td className="kmm-tabular whitespace-nowrap px-5 py-3.5 text-[var(--text-secondary)] sm:px-6">{row.date}</td>
+                      <td className="px-4 py-3.5 font-medium text-[var(--text-primary)]">{row.branch || "—"}</td>
+                      <td className="max-w-[360px] px-4 py-3.5 text-[var(--text-secondary)]"><span className="line-clamp-2">{row.activity}</span></td>
+                      <td className="px-4 py-3.5 text-[var(--text-secondary)]">{row.salesperson}</td>
+                      <td className="px-5 py-3.5 text-right sm:px-6">
+                        <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold", statusTone(row.status))}>{row.status || "Not provided"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveDataTable>
+          </div>
+        </>
       ) : (
         <p className="px-6 py-10 text-center text-sm text-[var(--text-secondary)]">{t("dashboard.noRecentActivity")}</p>
       )}
@@ -1204,28 +1223,21 @@ function ChartsSection({
   };
 
   return (
-    <section className="space-y-8" aria-label="Executive charts">
-      <section className="space-y-3" aria-labelledby="dashboard-primary-trend">
-        <div>
-          <h2 id="dashboard-primary-trend" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            {t("section.salesTrajectory")}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            {t("section.salesTrajectoryDescription")}
-          </p>
-        </div>
-        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
-        <YearTrendChart
-          title={t("chart.salesTrendTitle")}
-          unitRows={salesUnitTrendRows}
-          valueRows={salesValueTrendRows}
-          unitLabel={t("metric.salesUnit")}
-          valueLabel={t("metric.salesValue")}
-          currency={currency}
-          height={460}
-          className="shadow-[var(--shadow-hover)]"
-        />
-        <AttentionPanel openBookings={openBookings} criticalStock={criticalStock} sourceUpdatedAt={data.meta.sourceUpdatedAt} />
+    <section className="space-y-6" aria-label="Executive charts">
+      <section aria-labelledby="dashboard-primary-trend">
+        <h2 id="dashboard-primary-trend" className="sr-only">{t("section.salesTrajectory")}</h2>
+        <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-[minmax(0,7fr)_minmax(288px,3fr)]">
+          <YearTrendChart
+            title={t("chart.salesTrendTitle")}
+            unitRows={salesUnitTrendRows}
+            valueRows={salesValueTrendRows}
+            unitLabel={t("metric.salesUnit")}
+            valueLabel={t("metric.salesValue")}
+            currency={currency}
+            height={410}
+            className="shadow-[var(--shadow-hover)]"
+          />
+          <AttentionPanel openBookings={openBookings} criticalStock={criticalStock} sourceUpdatedAt={data.meta.sourceUpdatedAt} />
         </div>
       </section>
 
@@ -1238,7 +1250,7 @@ function ChartsSection({
             {t("section.rankingsMixDescription")}
           </p>
         </div>
-        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.9fr)]">
+        <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
           <ChartCard
             className="min-w-0 shadow-[var(--shadow-hover)] [&_h2]:tracking-normal"
             title={t("chart.branchPerformanceTitle")}
@@ -1261,7 +1273,7 @@ function ChartsSection({
             {t("section.dashboardSecondaryDescription")}
           </p>
         </div>
-      <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-2">
+      <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-2">
         <ChartCard
           className="min-w-0 [&_h2]:tracking-normal"
           title={t("chart.bookingLifecycleTitle")}
@@ -1294,7 +1306,7 @@ function ChartsSection({
         </ChartCard>
       </div>
 
-      <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+      <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
         <ChartCard
           className="min-w-0 [&_h2]:tracking-normal"
           title={t("chart.productMixTitle")}
@@ -1519,31 +1531,30 @@ export function DashboardPage() {
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
-          <div className="space-y-5 xl:space-y-6">
+          <div className="space-y-4 xl:space-y-5">
             <section
-              className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               aria-labelledby="dashboard-title"
             >
-              <div className="min-w-0">
-                <div
-                  className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
-                  aria-hidden="true"
-                />
-                <h1
-                  id="dashboard-title"
-                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-                >
-                  {t("route.dashboard.title")}
-                </h1>
-                <p className="mt-1 text-sm font-normal leading-5 text-[var(--text-secondary)]">
-                  {t("route.dashboard.subtitle").replaceAll("KMM", companyCode)}
-                </p>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="mt-1 h-7 w-1 shrink-0 rounded-full bg-[var(--brand-500)]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <h1
+                    id="dashboard-title"
+                    className="text-[26px] font-semibold leading-8 tracking-normal text-[var(--text-primary)] sm:text-[28px]"
+                  >
+                    {t("route.dashboard.title")}
+                  </h1>
+                  <p className="text-sm font-normal leading-5 text-[var(--text-secondary)]">
+                    {t("route.dashboard.subtitle").replaceAll("KMM", companyCode)}
+                  </p>
+                </div>
               </div>
-              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-                {dashboardData && (
+              {dashboardData && (
+                <div className="flex min-w-0 items-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-default)] px-3 py-2 shadow-[var(--shadow-card)]">
                   <FreshnessIndicator timestamp={dashboardData.meta.sourceUpdatedAt} className="font-normal" />
-                )}
-              </div>
+                </div>
+              )}
             </section>
 
             <section aria-label="Dashboard filters">

@@ -39,12 +39,12 @@ Browsers without `backdrop-filter` fall back to solid white. Reduced-motion user
 
 ## Executive Dashboard hierarchy
 
-1. Active-company title and honest freshness status. Active-filter chips are intentionally omitted; the selected values stay visible in the controls.
-2. Five existing KPIs; the first KPI is featured and factual monthly sparklines are shown only for an explicitly selected year.
+1. Active-company title and honest freshness status use one compact row. The compact filter surface stays near the title but does not stick over analytical content; active-filter chips are intentionally omitted because selected values stay visible in the controls.
+2. Five existing KPIs; the first KPI spans the full mobile row and two of six desktop columns, while the other four form a 2×2 mobile matrix and one desktop row. Factual monthly sparklines are shown only for an explicitly selected year.
 3. Precision sales trend with current area, dotted previous-period line, keyboard/touch tooltips, and visible legend. Sales is the only default line chart because it has sufficient continuous history.
 4. Attention panel using only known facts: open bookings, stock aged 91+ days, and source freshness.
 5. Branch Performance and Stock Health. Quick Actions are omitted because their destinations already exist in the global navigation and filter toolbar.
-6. Recent operational activity table.
+6. Recent operational activity uses the full table on larger screens and a linear summary list on mobile.
 7. Booking lifecycle, Stock-versus-Booking gap, product composition, and aging risk use distinct chart families below the decision layer.
 
 No item is labeled overdue unless the source provides an overdue definition. Target content is not fabricated when targets are unavailable.

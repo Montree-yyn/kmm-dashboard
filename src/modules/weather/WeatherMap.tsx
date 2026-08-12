@@ -191,12 +191,9 @@ export function WeatherMap({
         justifyContent: "center",
         padding: "0",
         position: "relative",
-        transition: "transform 140ms ease, box-shadow 140ms ease",
         width: "44px",
         zIndex: selected ? "2" : "1",
       });
-      element.addEventListener("mouseenter", () => { element.style.transform = "scale(1.12)"; });
-      element.addEventListener("mouseleave", () => { element.style.transform = "scale(1)"; });
       element.addEventListener("click", () => onSelectRef.current(location.id));
 
       const pin = document.createElement("span");
@@ -210,10 +207,17 @@ export function WeatherMap({
         display: "flex",
         height: selected ? "34px" : "28px",
         justifyContent: "center",
+        transition: "transform 140ms ease",
         width: selected ? "34px" : "28px",
       });
       pin.innerHTML = getWeatherPinIcon(activeLayer);
       element.append(pin);
+      const setHovered = (hovered: boolean) => {
+        // MapLibre owns the outer marker transform; scale only the visual pin.
+        pin.style.transform = hovered ? "scale(1.12)" : "scale(1)";
+      };
+      element.addEventListener("mouseenter", () => setHovered(true));
+      element.addEventListener("mouseleave", () => setHovered(false));
 
       const label = document.createElement("span");
       label.textContent = location.name;

@@ -80,6 +80,9 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /WeatherRadarPayload/);
   assert.match(map, /weather-radar-layer/);
   assert.match(map, /const pin = document\.createElement\("span"\)/);
+  assert.match(map, /setLngLat\(\[location\.longitude, location\.latitude\]\)/);
+  assert.match(map, /pin\.style\.transform = hovered \? "scale\(1\.12\)" : "scale\(1\)"/);
+  assert.doesNotMatch(map, /element\.style\.transform\s*=/);
   assert.match(map, /MAP_MAX_ZOOM/);
   assert.match(map, /maxZoom: MAP_OVERVIEW_ZOOM/);
   assert.match(map, /Reset map to Myanmar overview/);

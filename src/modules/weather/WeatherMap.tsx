@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker, StyleSpecification } from "maplibre-gl";
-import { ChevronDown, Cloud, CloudRain, Radar, Thermometer, Wind } from "lucide-react";
+import { ChevronDown, Cloud, CloudRain, LocateFixed, Radar, Thermometer, Wind } from "lucide-react";
 import { registerPmtilesProtocol } from "../../../lib/maps/register-pmtiles-protocol";
 import { cn } from "../../../lib/utils";
 import { getMapDataset } from "../../../lib/maps/datasets";
@@ -53,6 +53,12 @@ const RISK_COLORS = {
 } as const;
 
 const MAP_FIT_PADDING = { top: 24, right: 44, bottom: 24, left: 44 };
+const MAP_MIN_ZOOM = MARKETING_MAP_DATASET?.min_zoom ?? 3;
+const MAP_MAX_ZOOM = Math.min(MARKETING_MAP_DATASET?.max_zoom ?? 10, 7.8);
+const MAP_OVERVIEW_ZOOM = Math.min(
+  Math.max(MARKETING_MAP_DATASET?.default_zoom ?? 4, MAP_MIN_ZOOM),
+  MAP_MAX_ZOOM,
+);
 
 export function WeatherMap({
   locations,
@@ -99,9 +105,9 @@ export function WeatherMap({
           container: containerRef.current,
           style: WEATHER_MAP_STYLE,
           center: MARKETING_MAP_DATASET?.center ?? [96, 19],
-          zoom: MARKETING_MAP_DATASET?.default_zoom ?? 4,
-          minZoom: MARKETING_MAP_DATASET?.min_zoom,
-          maxZoom: MARKETING_MAP_DATASET?.max_zoom,
+          zoom: MAP_OVERVIEW_ZOOM,
+          minZoom: MAP_MIN_ZOOM,
+          maxZoom: MAP_MAX_ZOOM,
           renderWorldCopies: false,
           attributionControl: false,
         });
@@ -114,7 +120,7 @@ export function WeatherMap({
             if (MARKETING_MAP_DATASET?.bounds) {
               map?.fitBounds(
                 [[MARKETING_MAP_DATASET.bounds[0], MARKETING_MAP_DATASET.bounds[1]], [MARKETING_MAP_DATASET.bounds[2], MARKETING_MAP_DATASET.bounds[3]]],
-                { padding: MAP_FIT_PADDING, duration: 0 },
+                { padding: MAP_FIT_PADDING, duration: 0, maxZoom: MAP_OVERVIEW_ZOOM },
               );
             }
             setMapReady(true);
@@ -149,6 +155,15 @@ export function WeatherMap({
     };
   }, []);
 
+  const resetMapView = () => {
+    const map = mapRef.current;
+    if (!map || !MARKETING_MAP_DATASET?.bounds) return;
+    map.fitBounds(
+      [[MARKETING_MAP_DATASET.bounds[0], MARKETING_MAP_DATASET.bounds[1]], [MARKETING_MAP_DATASET.bounds[2], MARKETING_MAP_DATASET.bounds[3]]],
+      { padding: MAP_FIT_PADDING, duration: 350, essential: true, maxZoom: MAP_OVERVIEW_ZOOM },
+    );
+  };
+
   useEffect(() => {
     const map = mapRef.current;
     const MarkerConstructor = markerConstructorRef.current;
@@ -159,8 +174,9 @@ export function WeatherMap({
       const element = document.createElement("button");
       element.type = "button";
       element.className = "weather-map-marker";
-      element.setAttribute("aria-label", `${location.name}, ${getLayerValue(location, activeLayer)}`);
-      element.title = `${location.name} · ${getLayerValue(location, activeLayer)}`;
+      const layerValue = getLayerValue(location, activeLayer);
+      element.setAttribute("aria-label", `Weather at ${location.name}: ${layerValue}`);
+      element.title = `${location.name} · ${layerValue}`;
       const selected = location.id === selectedId;
       const color = RISK_COLORS[location.riskLevel];
       Object.assign(element.style, {
@@ -177,6 +193,7 @@ export function WeatherMap({
         position: "relative",
         transition: "transform 140ms ease, box-shadow 140ms ease",
         width: "44px",
+        zIndex: selected ? "2" : "1",
       });
       element.addEventListener("mouseenter", () => { element.style.transform = "scale(1.12)"; });
       element.addEventListener("mouseleave", () => { element.style.transform = "scale(1)"; });
@@ -195,7 +212,7 @@ export function WeatherMap({
         justifyContent: "center",
         width: selected ? "34px" : "28px",
       });
-      pin.textContent = "";
+      pin.innerHTML = getWeatherPinIcon(activeLayer);
       element.append(pin);
 
       const label = document.createElement("span");
@@ -305,6 +322,7 @@ export function WeatherMap({
             <WeatherMapControls
               activeLayer={activeLayer}
               latestRadarFrame={latestRadarFrame}
+              onResetView={resetMapView}
               onFrameChange={setRadarFrameTime}
               onLayerChange={setActiveLayer}
               radar={radar}
@@ -333,6 +351,7 @@ export function WeatherMap({
               activeLayer={activeLayer}
               latestRadarFrame={latestRadarFrame}
               mobile
+              onResetView={resetMapView}
               onFrameChange={setRadarFrameTime}
               onLayerChange={setActiveLayer}
               radar={radar}
@@ -354,6 +373,7 @@ function WeatherMapControls({
   activeLayer,
   latestRadarFrame,
   mobile = false,
+  onResetView,
   onFrameChange,
   onLayerChange,
   radar,
@@ -363,6 +383,7 @@ function WeatherMapControls({
   activeLayer: WeatherMapLayer;
   latestRadarFrame: WeatherRadarPayload["frames"][number] | undefined;
   mobile?: boolean;
+  onResetView: () => void;
   onFrameChange: (time: number) => void;
   onLayerChange: (layer: WeatherMapLayer) => void;
   radar: WeatherRadarPayload | null;
@@ -374,7 +395,21 @@ function WeatherMapControls({
       "rounded-xl border border-white/80 bg-white/95 shadow-sm",
       mobile ? "p-3" : "max-w-[calc(100vw-5rem)] p-2 backdrop-blur-sm",
     )}>
-      <p className={cn("px-1 font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]", mobile ? "text-[10px]" : "text-[9px]")}>Radar + pin metric</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn("px-1 font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]", mobile ? "text-[10px]" : "text-[9px]")}>Weather layers</p>
+        <button
+          type="button"
+          onClick={onResetView}
+          className={cn(
+            "inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--border-default)] bg-white px-2 font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+            mobile ? "text-[10px]" : "text-[9px]",
+          )}
+          aria-label="Reset map to Myanmar overview"
+        >
+          <LocateFixed size={mobile ? 14 : 12} aria-hidden="true" />
+          Overview
+        </button>
+      </div>
       <div className={cn("mt-1 gap-1", mobile ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-wrap")} role="group" aria-label="Weather radar and pin metric">
         {mapLayers.map((layer) => {
           const Icon = layer.icon;
@@ -433,6 +468,15 @@ function WeatherMapControls({
           </div>
         </div>
       )}
+      <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[var(--text-tertiary)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")} aria-label="Weather pin risk legend">
+        <span className="font-semibold">Pin risk</span>
+        {Object.entries(RISK_COLORS).map(([risk, color]) => (
+          <span key={risk} className="inline-flex items-center gap-1">
+            <span className="size-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+            {risk[0] + risk.slice(1).toLowerCase()}
+          </span>
+        ))}
+      </div>
       {activeLayer === "radar" && !radar && <p className={cn("px-1 leading-4 text-[var(--status-warning)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")}>{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
     </div>
   );
@@ -444,6 +488,17 @@ function getLayerValue(location: WeatherLocation, layer: WeatherMapLayer) {
   if (layer === "rain") return `${location.rainRisk}% rain`;
   if (layer === "wind") return `${location.windSpeed} km/h`;
   return `${location.temperature}°C`;
+}
+
+function getWeatherPinIcon(layer: WeatherMapLayer) {
+  const icon = {
+    radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>',
+    cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    rain: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>',
+    wind: '<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>',
+    temperature: '<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 1 1 4 0Z"/>',
+  }[layer];
+  return `<svg aria-hidden="true" fill="none" height="17" viewBox="0 0 24 24" width="17" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8">${icon}</svg>`;
 }
 
 function formatRadarTime(seconds: number) {

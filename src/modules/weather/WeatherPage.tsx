@@ -160,7 +160,7 @@ export function WeatherPage() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]" data-weather-page>
-      <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
+      <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-5 xl:p-6">
         <div className="space-y-6">
           <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>

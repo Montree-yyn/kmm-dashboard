@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker as MapLibreMarker, StyleSpecification } from "maplibre-gl";
 import { Cloud, CloudRain, MapPinned, Thermometer, Wind } from "lucide-react";
+import { registerPmtilesProtocol } from "../../../lib/maps/register-pmtiles-protocol";
 import { cn } from "../../../lib/utils";
+import { getMapDataset } from "../../../lib/maps/datasets";
+import { createMarketingBasemapStyle } from "../../../src/kme/apps/kmm-dashboard/marketing/basemap";
 import type { WeatherLocation } from "./weather.types";
 
 type WeatherMapLayer = "cloud" | "rain" | "wind" | "temperature";
@@ -15,30 +18,17 @@ const mapLayers: Array<{ value: WeatherMapLayer; label: string; icon: typeof Clo
   { value: "temperature", label: "Temperature", icon: Thermometer },
 ];
 
+const MARKETING_BASEMAP_STYLE = createMarketingBasemapStyle();
+const MARKETING_MAP_DATASET = getMapDataset("mm-townships-pmtiles");
 const WEATHER_MAP_STYLE = {
-  version: 8,
+  ...MARKETING_BASEMAP_STYLE,
   sources: {
+    ...MARKETING_BASEMAP_STYLE.sources,
     states: { type: "geojson", data: "/maps/myanmar-states.geojson" },
     townships: { type: "geojson", data: "/maps/myanmar-townships.geojson" },
   },
   layers: [
-    {
-      id: "weather-background",
-      type: "background",
-      paint: { "background-color": "#edf4f1" },
-    },
-    {
-      id: "weather-state-fill",
-      type: "fill",
-      source: "states",
-      paint: { "fill-color": "#d9e9df", "fill-opacity": 0.88 },
-    },
-    {
-      id: "weather-township-fill",
-      type: "fill",
-      source: "townships",
-      paint: { "fill-color": "#e8f1eb", "fill-opacity": 0.62 },
-    },
+    ...MARKETING_BASEMAP_STYLE.layers,
     {
       id: "weather-state-line",
       type: "line",
@@ -61,6 +51,8 @@ const RISK_COLORS = {
   HIGH: "#bd241c",
 } as const;
 
+const MAP_FIT_PADDING = { top: 24, right: 44, bottom: 24, left: 44 };
+
 export function WeatherMap({
   locations,
   selectedId,
@@ -72,8 +64,9 @@ export function WeatherMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const maplibreRef = useRef<typeof import("maplibre-gl") | null>(null);
   const markersRef = useRef<MapLibreMarker[]>([]);
+  const markerConstructorRef = useRef<typeof MapLibreMarker | null>(null);
+  const mapLoadedRef = useRef(false);
   const onSelectRef = useRef(onSelect);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
@@ -91,17 +84,18 @@ export function WeatherMap({
 
     async function initializeMap() {
       try {
-        const maplibregl = await import("maplibre-gl");
+        const { default: maplibregl } = await import("maplibre-gl");
+        await registerPmtilesProtocol(maplibregl);
         if (disposed || !containerRef.current) return;
-        maplibreRef.current = maplibregl;
+        markerConstructorRef.current = maplibregl.Marker;
 
         map = new maplibregl.Map({
           container: containerRef.current,
           style: WEATHER_MAP_STYLE,
-          center: [97.8, 18.3],
-          zoom: 5.2,
-          minZoom: 3,
-          maxZoom: 11,
+          center: MARKETING_MAP_DATASET?.center ?? [96, 19],
+          zoom: MARKETING_MAP_DATASET?.default_zoom ?? 4,
+          minZoom: MARKETING_MAP_DATASET?.min_zoom,
+          maxZoom: MARKETING_MAP_DATASET?.max_zoom,
           renderWorldCopies: false,
           attributionControl: false,
         });
@@ -109,12 +103,25 @@ export function WeatherMap({
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
         map.on("load", () => {
           if (!disposed) {
+            mapLoadedRef.current = true;
             map?.resize();
+            if (MARKETING_MAP_DATASET?.bounds) {
+              map?.fitBounds(
+                [[MARKETING_MAP_DATASET.bounds[0], MARKETING_MAP_DATASET.bounds[1]], [MARKETING_MAP_DATASET.bounds[2], MARKETING_MAP_DATASET.bounds[3]]],
+                { padding: MAP_FIT_PADDING, duration: 0 },
+              );
+            }
             setMapReady(true);
           }
         });
-        map.on("error", () => {
-          if (!disposed) setMapError("Map data could not be loaded. The live weather cards remain available.");
+        map.on("error", (event) => {
+          if (disposed || mapLoadedRef.current) return;
+          const message = typeof event === "object" && event && "error" in event
+            ? String((event as { error?: { message?: string } }).error?.message ?? "")
+            : "";
+          if (/not a valid style|unexpected end|failed to load style/i.test(message)) {
+            setMapError("Map data could not be loaded. The live weather cards remain available.");
+          }
         });
         resizeObserver = new ResizeObserver(() => map?.resize());
         resizeObserver.observe(containerRef.current);
@@ -131,13 +138,15 @@ export function WeatherMap({
       markersRef.current = [];
       map?.remove();
       mapRef.current = null;
+      markerConstructorRef.current = null;
+      mapLoadedRef.current = false;
     };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    const maplibregl = maplibreRef.current;
-    if (!map || !mapReady || !maplibregl) return;
+    const MarkerConstructor = markerConstructorRef.current;
+    if (!map || !mapReady || !MarkerConstructor) return;
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = locations.map((location) => {
@@ -190,24 +199,15 @@ export function WeatherMap({
       });
       element.append(label);
 
-      return new maplibregl.Marker({ element, anchor: "center" })
+      return new MarkerConstructor({ element, anchor: "center" })
         .setLngLat([location.longitude, location.latitude])
         .addTo(map);
     });
 
-    if (locations.length) {
-      const longitudes = locations.map((location) => location.longitude);
-      const latitudes = locations.map((location) => location.latitude);
-      const west = Math.min(...longitudes) - 0.25;
-      const east = Math.max(...longitudes) + 0.25;
-      const south = Math.min(...latitudes) - 0.25;
-      const north = Math.max(...latitudes) + 0.25;
-      map.fitBounds([[west, south], [east, north]], { padding: 52, duration: 0, maxZoom: 7 });
-    }
   }, [activeLayer, locations, mapReady, selectedId]);
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]" aria-labelledby="weather-map-title">
+    <section className="flex h-[520px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-map-title">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
         <div>
           <div className="flex items-center gap-2">
@@ -218,8 +218,8 @@ export function WeatherMap({
         </div>
         <span className="rounded-full border border-[var(--status-success-bg)] bg-[var(--status-success-bg)] px-2.5 py-1 text-[10px] font-semibold uppercase text-[var(--status-success)]">MapLibre live map</span>
       </div>
-      <div className="p-4 sm:p-6">
-        <div className="relative min-h-[360px] overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#edf4f1]">
+      <div className="relative mt-4 min-h-0 flex-1 p-4 sm:mt-6 sm:p-6">
+        <div className="relative h-full min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7]">
           <div className="absolute inset-0">
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
           </div>

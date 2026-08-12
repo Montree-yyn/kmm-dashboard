@@ -56,7 +56,13 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.doesNotMatch(page, /Map placeholder/);
   assert.match(map, /maplibre-gl/);
   assert.match(map, /NavigationControl/);
+  assert.match(map, /createMarketingBasemapStyle/);
+  assert.match(map, /registerPmtilesProtocol/);
+  assert.match(map, /getMapDataset\("mm-townships-pmtiles"\)/);
   assert.match(map, /myanmar-states\.geojson/);
   assert.match(map, /myanmar-townships\.geojson/);
   assert.match(map, /aria-pressed/);
+  assert.match(map, /h-\[520px\]/);
+  assert.match(map, /md:h-\[620px\]/);
+  assert.match(map, /xl:h-\[680px\]/);
 });

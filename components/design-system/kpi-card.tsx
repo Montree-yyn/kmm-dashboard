@@ -86,6 +86,9 @@ function LegacyKpiCard({
         "h-full min-h-[168px] rounded-2xl border-[#E8EAED] bg-white p-4 shadow-[0_8px_24px_rgba(31,41,55,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(31,41,55,0.07)] 2xl:p-5",
         className,
       )}
+      data-kpi-card="true"
+      data-kpi-state={loading ? "loading" : empty ? "empty" : "ready"}
+      aria-busy={loading || undefined}
     >
       <div className="flex h-full min-h-[136px] flex-col">
         <div className="min-h-10">
@@ -96,7 +99,7 @@ function LegacyKpiCard({
         <div className="flex min-h-12 flex-1 items-center">
           {loading ? (
             <div
-              className="h-10 w-28 animate-pulse rounded-lg bg-[#E9EBEE]"
+              className="h-10 w-28 animate-pulse rounded-lg bg-[#E9EBEE] motion-reduce:animate-none"
               aria-label={`Loading ${title}`}
             />
           ) : empty ? (
@@ -185,6 +188,7 @@ export function KpiCard({
       )}
       data-kpi-card="true"
       data-kpi-status={status}
+      data-kpi-state={loading ? "loading" : empty ? "empty" : "ready"}
       data-kpi-featured={featured || undefined}
       aria-busy={loading || undefined}
     >

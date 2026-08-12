@@ -89,7 +89,7 @@ test("shared filter presentation preserves page-specific selection contracts", a
 });
 
 test("shared states, freshness, and responsive table primitives expose accessible contracts", async () => {
-  const [freshness, status, error, loading, empty, table, chart, booking] = await Promise.all([
+  const [freshness, status, error, loading, empty, table, chart, booking, button, tableCard, filterBar] = await Promise.all([
     read("components/design-system/freshness-indicator.tsx"),
     read("components/design-system/status-message.tsx"),
     read("components/design-system/error-state.tsx"),
@@ -98,6 +98,9 @@ test("shared states, freshness, and responsive table primitives expose accessibl
     read("components/design-system/responsive-data-table.tsx"),
     read("components/design-system/chart-card.tsx"),
     read("components/booking/booking-intelligence-page.tsx"),
+    read("components/ui/button.tsx"),
+    read("components/design-system/table-card.tsx"),
+    read("components/design-system/filter-bar.tsx"),
   ]);
 
   assert.match(freshness, /t\("common\.viewRefreshed"\)/);
@@ -106,13 +109,23 @@ test("shared states, freshness, and responsive table primitives expose accessibl
   assert.match(status, /aria-live=\{role === "alert" \? "assertive" : "polite"\}/);
   assert.match(error, /StatusMessage/);
   assert.match(loading, /role="status"/);
+  assert.match(loading, /aria-busy="true"/);
+  assert.match(loading, /data-loading-variant/);
   assert.match(empty, /role="status"/);
+  assert.match(empty, /action\?: ReactNode/);
   assert.match(table, /overflow-x-auto/);
   assert.match(table, /tabIndex=\{0\}/);
   assert.match(booking, /ResponsiveDataTable/);
   assert.match(booking, /ariaLabel="Booking detail table"/);
   assert.match(chart, /toolbar\?: ReactNode/);
   assert.match(chart, /role="region"/);
+  assert.match(chart, /data-card-state/);
+  assert.match(button, /loading\?: boolean/);
+  assert.match(button, /aria-busy=\{loading \|\| undefined\}/);
+  assert.match(tableCard, /onRetry\?: \(\) => void/);
+  assert.match(tableCard, /aria-labelledby=\{titleId\}/);
+  assert.match(filterBar, /role="region"/);
+  assert.match(filterBar, /data-filter-bar/);
 });
 
 test("Dashboard and Sales analytics share card and chart contracts", async () => {

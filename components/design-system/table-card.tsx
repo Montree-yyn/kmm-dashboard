@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
 import { EmptyState } from "./empty-state";
@@ -15,6 +15,8 @@ type TableCardProps = {
   loading?: boolean;
   empty?: boolean;
   error?: string;
+  onRetry?: () => void;
+  retryLabel?: ReactNode;
   className?: string;
 };
 
@@ -28,17 +30,25 @@ export function TableCard({
   loading = false,
   empty = false,
   error,
+  onRetry,
+  retryLabel,
   className,
 }: TableCardProps) {
+  const titleId = useId();
+  const state = loading ? "loading" : error ? "error" : empty ? "empty" : "ready";
+
   return (
     <Card
       className={cn(
-        "rounded-2xl border-[#E8EAED] bg-white p-5 shadow-[0_8px_24px_rgba(31,41,55,0.035)] sm:p-6",
+        "rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6",
         className,
       )}
+      role="region"
+      aria-labelledby={titleId}
+      data-card-state={state}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[#1F2937]">
+        <h2 id={titleId} className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[var(--text-primary)]">
           {title}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -51,7 +61,7 @@ export function TableCard({
         {loading ? (
           <LoadingSkeleton variant="table" />
         ) : error ? (
-          <ErrorState message={error} />
+          <ErrorState message={error} onRetry={onRetry} retryLabel={retryLabel} />
         ) : empty ? (
           <EmptyState />
         ) : (

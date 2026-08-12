@@ -83,6 +83,14 @@ YoY is calculated only when exactly one year is selected. With no year or multip
 - Status meaning combines text/icon with color.
 - Main text and control colors target WCAG AA contrast on the light surfaces.
 
+## Shared component state contract
+
+- Actions expose default, hover, focus-visible, disabled, and loading states; loading disables repeat activation and exposes aria-busy.
+- Data surfaces expose ready, loading, empty, and error states without changing the surrounding layout. Errors provide a retry action when recovery is available.
+- Filters are named regions with a consistent keyboard/focus contract; selected values remain visible in the control and the floating list stays opaque.
+- KPI, chart, and table surfaces use the same semantic title relationship and state attributes so visual QA and assistive technology can identify the active state.
+- Status meaning is carried by text and icon/indicator first; color is supporting context only.
+
 ## Compact filter contract
 
 - Desktop filter bars stay on one row; smaller screens wrap without horizontal page overflow.

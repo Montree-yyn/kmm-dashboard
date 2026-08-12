@@ -20,7 +20,12 @@ export function FilterBar({
   ariaLabel = "Filters",
 }: FilterBarProps) {
   return (
-    <Card className={cn("kmm-glass-bar relative z-20 overflow-visible p-3 sm:p-4", className)}>
+    <Card
+      className={cn("kmm-glass-bar relative z-20 overflow-visible p-3 sm:p-4", className)}
+      role="region"
+      aria-label={ariaLabel}
+      data-filter-bar
+    >
       <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
         <div className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-4", filterGridClassName)} role="group" aria-label={ariaLabel}>
           {children}

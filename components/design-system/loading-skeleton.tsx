@@ -8,5 +8,15 @@ export function LoadingSkeleton({ variant = "chart", label = "Loading" }: Loadin
     : variant === "table"
       ? <Skeleton className="h-44 w-full" />
       : <Skeleton className="h-[260px] w-full" />;
-  return <div role="status" aria-live="polite" aria-label={label}>{skeleton}</div>;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={label}
+      data-loading-variant={variant}
+    >
+      {skeleton}
+    </div>
+  );
 }

@@ -77,10 +77,6 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /getMapDataset\("mm-townships-pmtiles"\)/);
   assert.match(map, /myanmar-states\.geojson/);
   assert.match(map, /myanmar-townships\.geojson/);
-  assert.match(map, /tak-districts\.geojson/);
-  assert.match(map, /weather-township-line-casing/);
-  assert.match(map, /weather-km-district-line-casing/);
-  assert.match(map, /weather-km-district-labels/);
   assert.match(map, /WeatherRadarPayload/);
   assert.match(map, /weather-radar-layer/);
   assert.match(map, /const pin = document\.createElement\("span"\)/);
@@ -99,7 +95,6 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /temperature\.textContent = `\$\{location\.temperature\}°`/);
   assert.match(map, /rain\.textContent = `\$\{location\.rainRisk\}% rain`/);
   assert.match(map, /tooltip\.textContent = `\$\{location\.name\}/);
-  assert.match(map, /Weather map boundary legend/);
   assert.match(map, /const showLabel = selected \|\| location\.id === "MM-THA"/);
   assert.match(map, /zIndex: selected \? "4" : showLabel \? "3" : "1"/);
   assert.match(map, /const RISK_LABELS/);

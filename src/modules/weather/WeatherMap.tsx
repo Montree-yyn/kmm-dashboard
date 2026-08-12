@@ -27,101 +27,21 @@ const WEATHER_MAP_STYLE = {
     ...MARKETING_BASEMAP_STYLE.sources,
     states: { type: "geojson", data: "/maps/myanmar-states.geojson" },
     townships: { type: "geojson", data: "/maps/myanmar-townships.geojson" },
-    takDistricts: { type: "geojson", data: "/maps/tak-districts.geojson" },
   },
   layers: [
     ...MARKETING_BASEMAP_STYLE.layers,
     {
-      id: "weather-state-line-casing",
-      type: "line",
-      source: "states",
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#ffffff",
-        "line-opacity": 0.92,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.1, 6, 1.8, 10, 2.8, 15, 3.6],
-      },
-    },
-    {
       id: "weather-state-line",
       type: "line",
       source: "states",
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#6f8f84",
-        "line-opacity": 0.88,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.45, 6, 0.8, 10, 1.35, 15, 2.2],
-      },
-    },
-    {
-      id: "weather-township-line-casing",
-      type: "line",
-      source: "townships",
-      minzoom: 4,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#ffffff",
-        "line-opacity": 0.94,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.9, 6, 1.3, 9, 1.9, 14, 2.8],
-      },
+      paint: { "line-color": "#7fa896", "line-width": 1.2 },
     },
     {
       id: "weather-township-line",
       type: "line",
       source: "townships",
-      minzoom: 4,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#7f9d91",
-        "line-opacity": 0.86,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.28, 6, 0.5, 9, 0.85, 14, 1.45],
-      },
-    },
-    {
-      id: "weather-km-district-line-casing",
-      type: "line",
-      source: "takDistricts",
-      minzoom: 4,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#ffffff",
-        "line-opacity": 0.96,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.2, 6, 1.7, 9, 2.35, 14, 3.4],
-      },
-    },
-    {
-      id: "weather-km-district-line",
-      type: "line",
-      source: "takDistricts",
-      minzoom: 4,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#4f7f6d",
-        "line-opacity": 0.9,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 6, 0.8, 9, 1.3, 14, 2.1],
-      },
-    },
-    {
-      id: "weather-km-district-labels",
-      type: "symbol",
-      source: "takDistricts",
-      minzoom: 6.4,
-      layout: {
-        "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Medium"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 6.4, 9, 10, 11, 14, 13],
-        "text-anchor": "center",
-        "text-allow-overlap": false,
-        "text-ignore-placement": false,
-        "text-padding": 8,
-      },
-      paint: {
-        "text-color": "#426454",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.35,
-        "text-halo-blur": 0.25,
-        "text-opacity": ["interpolate", ["linear"], ["zoom"], 6.4, 0, 6.8, 1],
-      },
+      minzoom: 5,
+      paint: { "line-color": "#b8d0c1", "line-opacity": 0.72, "line-width": 0.55 },
     },
   ],
 } as StyleSpecification;
@@ -580,7 +500,7 @@ export function WeatherMap({
         </div>
         <div className="mt-2 flex flex-col gap-1 px-1 text-[10px] leading-4 text-[#4c625e] sm:flex-row sm:items-center sm:justify-between">
           <span>Drag · pinch or scroll to zoom · tap a pin to focus the area · radar shows observed rain</span>
-          <span>Boundaries: GADM 4.1 · Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
+          <span>Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
         </div>
         <details className="group mt-3">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2 shadow-sm [&::-webkit-details-marker]:hidden">
@@ -720,11 +640,6 @@ function WeatherMapControls({
             </span>
           );
         })}
-      </div>
-      <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[var(--text-tertiary)]", mobile ? "mt-2 text-[10px]" : "mt-1 text-[9px]")} aria-label="Weather map boundary legend">
-        <span className="font-semibold">Area boundaries</span>
-        <span className="inline-flex items-center gap-1"><span className="relative inline-block h-2 w-5" aria-hidden="true"><span className="absolute inset-x-0 top-1/2 border-t-2 border-white" /><span className="absolute inset-x-0 top-1/2 border-t border-[#7f9d91]" /></span>KMM Townships</span>
-        <span className="inline-flex items-center gap-1"><span className="relative inline-block h-2 w-5" aria-hidden="true"><span className="absolute inset-x-0 top-1/2 border-t-2 border-white" /><span className="absolute inset-x-0 top-1/2 border-t border-[#4f7f6d]" /></span>KM · Tak districts</span>
       </div>
       {activeLayer === "radar" && !radar && <p className={cn("px-1 leading-4 text-[var(--status-warning)]", mobile ? "mt-3 text-[10px]" : "mt-2 text-[9px]")}>{radarError ?? "Radar is loading; live forecast pins remain available."}</p>}
     </div>

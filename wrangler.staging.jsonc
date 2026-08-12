@@ -21,6 +21,7 @@
   },
   "vars": {
     "NEXT_PUBLIC_DAILY_MANAGEMENT_REPORT": "true",
+    "MULTI_COMPANY_ENABLED": "true",
     "KAI_PRIMARY_MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
     "KAI_FALLBACK_MODEL": "@cf/meta/llama-3.2-3b-instruct",
     "KAI_MAX_TOKENS": "384",

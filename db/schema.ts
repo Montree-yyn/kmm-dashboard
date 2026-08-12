@@ -14,28 +14,34 @@ const timestamps = {
   updatedBy: text("updated_by").notNull(),
 };
 
-export const companies = sqliteTable("companies", {
-  id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
-  companyId: text("company_id").notNull(),
-  companyName: text("company_name").notNull(),
-  companyCode: text("company_code").notNull().unique(),
-  legalName: text("legal_name").notNull().default(""),
-  logoUrl: text("logo_url").notNull().default(""),
-  taxId: text("tax_id").notNull().default(""),
-  registrationNumber: text("registration_number").notNull().default(""),
-  businessType: text("business_type").notNull().default(""),
-  industry: text("industry").notNull().default(""),
-  establishedYear: integer("established_year"),
-  website: text("website").notNull().default(""),
-  email: text("email").notNull().default(""),
-  phone: text("phone").notNull().default(""),
-  address: text("address").notNull().default(""),
-  description: text("description").notNull().default(""),
-  status: text("status").notNull().default("active"),
-  publishedAt: text("published_at"),
-  ...timestamps,
-});
+export const companies = sqliteTable(
+  "companies",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    companyId: text("company_id").notNull(),
+    companyName: text("company_name").notNull(),
+    companyCode: text("company_code").notNull().unique(),
+    legalName: text("legal_name").notNull().default(""),
+    logoUrl: text("logo_url").notNull().default(""),
+    taxId: text("tax_id").notNull().default(""),
+    registrationNumber: text("registration_number").notNull().default(""),
+    businessType: text("business_type").notNull().default(""),
+    industry: text("industry").notNull().default(""),
+    establishedYear: integer("established_year"),
+    website: text("website").notNull().default(""),
+    email: text("email").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    address: text("address").notNull().default(""),
+    description: text("description").notNull().default(""),
+    status: text("status").notNull().default("active"),
+    publishedAt: text("published_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("companies_company_id_unique").on(table.companyId),
+  ],
+);
 
 export const companyUsers = sqliteTable(
   "company_users",

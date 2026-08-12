@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `companies_company_id_unique` ON `companies` (`company_id`);

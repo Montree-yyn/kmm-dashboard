@@ -34,4 +34,8 @@ test("Weather mock covers six Myanmar and five Tak locations", async () => {
   assert.match(page, /Agriculture Impact/);
   assert.match(page, /Weather Alerts/);
   assert.match(page, /Recommended Actions/);
+  assert.match(page, /xl:grid-cols-2/);
+  assert.match(page, /lg:grid-cols-3/);
+  assert.match(page, /left: "13%"/);
+  assert.match(page, /bottom: "12px"/);
 });

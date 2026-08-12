@@ -197,7 +197,7 @@ export function WeatherPage() {
             </div>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]" aria-label="Weather map and forecast">
+          <section className="grid gap-5 xl:grid-cols-2" aria-label="Weather map and forecast">
             <WeatherMap
               locations={locations}
               selectedId={selectedLocation?.id ?? ""}
@@ -206,7 +206,7 @@ export function WeatherPage() {
             <ForecastTable locations={locations} />
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)_minmax(320px,0.9fr)]" aria-label="Weather actions">
+          <section className="grid gap-5 lg:grid-cols-3" aria-label="Weather actions">
             <AgricultureImpact location={selectedLocation} locations={locations} />
             <Alerts alerts={visibleAlerts} locations={locations} onSelect={setSelectedId} />
             <RecommendedActions locations={locations} />
@@ -329,10 +329,32 @@ function WeatherMap({
       <div className="p-4 sm:p-6">
         <div className="relative min-h-[360px] overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#eaf2ef]">
           <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "linear-gradient(rgb(255 255 255 / 65%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 65%) 1px, transparent 1px)", backgroundSize: "42px 42px" }} aria-hidden="true" />
-          <div className="absolute left-[13%] top-[10%] h-[72%] w-[48%] rotate-[-8deg] rounded-[44%_56%_49%_51%] border-2 border-[#8caea0] bg-[#cfe2d8] shadow-inner" aria-label="Myanmar map placeholder" />
-          <div className="absolute left-[50%] top-[52%] h-[32%] w-[25%] rotate-[16deg] rounded-[48%_52%_54%_46%] border-2 border-[#8caea0] bg-[#d9e7dc]" aria-label="Thailand Tak map placeholder" />
-          <span className="absolute left-[27%] top-[40%] text-xs font-bold tracking-[0.18em] text-[#5a7c70]">MYANMAR</span>
-          <span className="absolute left-[53%] top-[72%] text-[10px] font-bold tracking-[0.12em] text-[#5a7c70]">TAK / THAILAND</span>
+          <div
+            className="absolute border-2 border-[#8caea0] bg-[#cfe2d8] shadow-inner"
+            style={{
+              left: "13%",
+              top: "10%",
+              height: "72%",
+              width: "48%",
+              transform: "rotate(-8deg)",
+              borderRadius: "44% 56% 49% 51%",
+            }}
+            aria-label="Myanmar map placeholder"
+          />
+          <div
+            className="absolute border-2 border-[#8caea0] bg-[#d9e7dc]"
+            style={{
+              left: "50%",
+              top: "52%",
+              height: "32%",
+              width: "25%",
+              transform: "rotate(16deg)",
+              borderRadius: "48% 52% 54% 46%",
+            }}
+            aria-label="Thailand Tak map placeholder"
+          />
+          <span className="absolute text-xs font-bold tracking-[0.18em] text-[#5a7c70]" style={{ left: "27%", top: "40%" }}>MYANMAR</span>
+          <span className="absolute text-[10px] font-bold tracking-[0.12em] text-[#5a7c70]" style={{ left: "53%", top: "72%" }}>TAK / THAILAND</span>
           {locations.map((location) => (
             <button
               key={location.id}
@@ -347,7 +369,7 @@ function WeatherMap({
               <span className={cn("pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 whitespace-nowrap rounded-md bg-white/90 px-1.5 py-1 text-[9px] font-bold text-[#42545d] shadow-sm", selectedId === location.id ? "block" : "hidden group-hover:block")}>{location.name}</span>
             </button>
           ))}
-          <span className="absolute bottom-3 left-3 rounded-lg border border-white/80 bg-white/85 px-3 py-2 text-[10px] font-semibold text-[#4c625e]">STATIC PREVIEW · LIVE MAP NOT CONNECTED</span>
+          <span className="absolute rounded-lg border border-white/80 bg-white/85 px-3 py-2 text-[10px] font-semibold text-[#4c625e]" style={{ bottom: "12px", left: "12px" }}>STATIC PREVIEW · LIVE MAP NOT CONNECTED</span>
         </div>
       </div>
     </section>

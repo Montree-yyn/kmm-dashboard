@@ -29,13 +29,13 @@ test("Stock KPIs remain backed by the existing selectors and calculations", asyn
   );
 
   for (const title of [
-    "Stock Unit",
-    "Stock Value",
-    "Average Stock Age",
-    "Aged Stock",
-    "Stock Coverage",
+    "stockUnit",
+    "stockValue",
+    "averageStockAge",
+    "agedStock",
+    "stockCoverage",
   ]) {
-    assert.match(page, new RegExp(`title="${title}"`));
+    assert.match(page, new RegExp(`title=\\{t\\("metric\\.${title}"\\)\\}`));
   }
 });
 
@@ -54,7 +54,7 @@ test("Stock uses the shared executive KPI presentation without local duplication
   assert.match(kpiCard, /kmm-tabular whitespace-nowrap text-\[32px\]/);
 });
 
-test("Stock product definitions, model breakdown, and existing chart inputs remain unchanged", async () => {
+test("Stock product definitions and model inputs feed the V3.4 comparison and aging charts", async () => {
   const page = await read("components/stock/stock-intelligence-page.tsx");
 
   assert.match(
@@ -65,10 +65,18 @@ test("Stock product definitions, model breakdown, and existing chart inputs rema
   assert.match(page, /UNIT_PRODUCTS\.includes\(item\.product\)/);
   assert.match(page, /const modelMap = new Map<string, Stock\[\]>\(\)/);
   assert.match(page, /\.sort\(\(a, b\) => b\.count - a\.count\)/);
-  assert.match(page, /title="Product Analysis"/);
-  assert.match(page, /title="Top 10 Aged Model"/);
-  assert.match(page, /title="Stock Aging Matrix"/);
-  assert.match(page, /<PremiumTrendChart/);
+  assert.match(page, /title=\{t\("chart\.stockProductAnalysisTitle"\)\}/);
+  assert.match(page, /title=\{t\("chart\.agedModelTitle"\)\}/);
+  assert.match(page, /title=\{t\("chart\.stockAgingMatrixTitle"\)\}/);
+  assert.match(page, /<PairedBarChart/);
+  assert.match(page, /<PercentStackedBar/);
+  assert.match(page, /<LollipopChart/);
+  assert.match(page, /<HeatmapMatrix/);
+  assert.match(page, /observedStockPeriods < 8/);
+  assert.match(page, /t\("stock\.trendWithheld"\)/);
+  assert.match(page, /item\.count \/ unitRows\.length/);
+  assert.doesNotMatch(page, /item\.count \/ rows\.length/);
+  assert.doesNotMatch(page, /<PremiumTrendChart/);
 });
 
 test("Stock does not fabricate purchase plan or received metrics absent from its source", async () => {
@@ -85,15 +93,15 @@ test("Stock filters preserve all dimensions and accessible 44px controls", async
     read("components/design-system/data-controls.tsx"),
   ]);
 
-  for (const label of [
-    "Date In Year",
-    "Date In Month",
-    "Branch",
-    "Product Type",
+  for (const key of [
+    "year",
+    "month",
+    "branch",
+    "productType",
   ]) {
-    assert.match(page, new RegExp(`label="${label}"`));
+    assert.match(page, new RegExp(`label=\\{t\\("filter\\.${key}"\\)\\}`));
   }
-  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.match(controls, /aria-label=\{`\$\{t\("common\.filters"\)\}: \$\{label\}`\}/);
   assert.match(controls, /aria-haspopup="listbox"/);
   assert.match(controls, /if \(event\.key === "Escape"\) setOpen\(false\)/);
   assert.match(controls, /className="flex h-11 w-full/);
@@ -120,7 +128,7 @@ test("Stock detail preserves search, sorting, pagination, export, and columns", 
   assert.match(page, /Math\.ceil\(table\.length \/ 10\)/);
   assert.match(page, /sort === "age"/);
   assert.match(page, /sort === "value"/);
-  assert.match(page, /link\.download = "kmm-stock-detail\.csv"/);
+  assert.match(page, /link\.download = `\$\{companyCode\.toLowerCase\(\)\}-stock-detail\.csv`/);
   assert.match(page, /max-h-\[480px\] overflow-auto/);
   assert.match(page, /aria-label="Previous stock detail page"/);
   assert.match(page, /aria-label="Next stock detail page"/);
@@ -141,7 +149,8 @@ test("Stock page follows the Golden Reference shell and responsive containment",
   );
   assert.match(page, /aria-busy="true"/);
   assert.match(page, /aria-live="assertive"/);
-  assert.match(page, /overflow-x-auto/);
+  assert.match(page, /max-h-\[480px\] overflow-auto/);
+  assert.doesNotMatch(page, /min-w-\[720px\]/);
   assert.match(page, /focus-visible:ring-2/);
-  assert.match(page, /motion-reduce:transition-none/);
+  assert.match(page, /<HeatmapMatrix/);
 });

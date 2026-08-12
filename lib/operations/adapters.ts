@@ -35,6 +35,7 @@ export function adaptStockRow(row: Record<string, unknown>): StockAdapterRow {
   const date = stringOrEmpty(row.stockDate ?? row.asOfDate ?? row.as_of_date);
   const ageDays = numberOrNull(row.stockAgeDays ?? row.ageDays);
   return {
+    companyId: stringOrEmpty(row.companyId ?? row.company_id),
     date,
     year: numberOrNull(row.importYear ?? row.year),
     month: numberOrNull(row.importMonth ?? row.month),

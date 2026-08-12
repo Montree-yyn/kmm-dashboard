@@ -247,7 +247,8 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(route, /listStockTransactions/);
   assert.doesNotMatch(route, /\.insert\(|\.update\(|\.delete\(/);
   assert.match(inputApi, /requireDailyManagementAccess/);
-  assert.match(inputApi, /ROLE_PERMISSIONS/);
+  assert.match(inputApi, /requireDailyManagementAccess\(request, permission\)/);
+  assert.match(access, /requireCompanyContext\(request, \{ permission \}\)/);
   assert.match(inputApi, /isNotNull\(dailyManagementInputs\.publishedPayload\)/);
   assert.match(inputApi, /dailyManagementInputs/);
   assert.match(inputApi, /onConflictDoUpdate/);
@@ -293,8 +294,8 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(inputPage, /daily\.publishReport/);
   assert.match(inputPage, /persistDailyManagementInput/);
   assert.match(inputPage, /value=\{branch\.code\}/);
-  assert.match(inputPage, /loadDailyManagementInput\("draft", scope\)/);
-  assert.match(inputPage, /loadDailyManagementInput\("published", scope\)/);
+  assert.match(inputPage, /loadDailyManagementInput\("draft", \{ \.\.\.scope, companyId \}\)/);
+  assert.match(inputPage, /loadDailyManagementInput\("published", \{ \.\.\.scope, companyId \}\)/);
   assert.match(inputPage, /new URLSearchParams\(window\.location\.search\)/);
   assert.doesNotMatch(inputPage, /requestAnimationFrame/);
   assert.match(inputPage, /reportDate: requestedDate, branch: requestedBranch/);
@@ -305,6 +306,7 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(inputWorkbook, /ไฟล์นี้เป็น \$\{transactionType\} Data/);
   assert.match(inputStorage, /localStorage/);
   assert.match(inputStorage, /input-draft:v2/);
+  assert.match(inputStorage, /function scopedKey/);
   assert.match(inputPage, /hasRemoteRecord/);
   assert.match(inputPage, /daily\.notSaved/);
   assert.match(inputPage, /\(!dirty && !hasRemoteRecord\)/);
@@ -313,6 +315,6 @@ test("Daily Management report stays read-only while governed inputs persist to D
   assert.match(inputClient, /\/api\/daily-management\/input/);
   assert.match(inputClient, /Authorization/);
   assert.match(schema, /daily_management_inputs/);
-  assert.match(access, /companyUsers/);
-  assert.match(access, /ROLE_PERMISSIONS/);
+  assert.match(access, /requireCompanyContext/);
+  assert.match(access, /branches\.companyId, context\.id/);
 });

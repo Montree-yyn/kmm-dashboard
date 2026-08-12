@@ -19,13 +19,13 @@ test("Booking KPIs remain backed by the existing selectors", async () => {
   assert.match(page, /getBookingConversionRate\(data\.booking, filters\)/);
 
   for (const title of [
-    "Open Booking Unit",
-    "Booking Value",
-    "Deposit Received",
-    "Average Booking Age",
-    "Booking Conversion Rate",
+    "bookingUnit",
+    "bookingValue",
+    "depositReceived",
+    "averageBookingAge",
+    "bookingConversionRate",
   ]) {
-    assert.match(page, new RegExp(`title="${title}"`));
+    assert.match(page, new RegExp(`title=\\{t\\("metric\\.${title}"\\)\\}`));
   }
 });
 
@@ -58,57 +58,65 @@ test("Booking aging thresholds and status rules are unchanged", async () => {
   }
 });
 
-test("Booking filters retain all dimensions and accessible 44px controls", async () => {
+test("Booking filters keep the four decision-driving dimensions and accessible 44px controls", async () => {
   const [page, controls] = await Promise.all([
     read("components/booking/booking-intelligence-page.tsx"),
     read("components/design-system/data-controls.tsx"),
   ]);
-  for (const label of [
-    "Year",
-    "Month",
-    "Branch",
-    "Salesperson",
-    "Product Type",
-    "Booking Status",
+  for (const key of [
+    "year",
+    "month",
+    "branch",
+    "bookingStatus",
   ]) {
-    assert.match(page, new RegExp(`label="${label}"`));
+    assert.match(page, new RegExp(`label=\\{t\\("filter\\.${key}"\\)\\}`));
   }
-  assert.match(page, /import \{ ActiveFilterSummary, MultiSelectFilter \}/);
-  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.doesNotMatch(page, /label=\{t\("filter\.(salesperson|productType)"\)\}/);
+  assert.match(page, /import \{ MultiSelectFilter \}/);
+  assert.match(controls, /aria-label=\{`\$\{t\("common\.filters"\)\}: \$\{label\}`\}/);
   assert.match(controls, /aria-haspopup="listbox"/);
   assert.match(controls, /if \(event\.key === "Escape"\) setOpen\(false\)/);
   assert.match(controls, /flex h-11 w-full/);
 });
 
-test("Booking charts preserve their existing library and data inputs", async () => {
+test("Booking charts use lifecycle, composition, and aging views without changing source inputs", async () => {
   const page = await read("components/booking/booking-intelligence-page.tsx");
-  assert.match(page, /<PremiumTrendChart/);
-  assert.match(page, /series=\{series\}/);
+  assert.match(page, /buildMonthlyLifecycle/);
+  assert.match(page, /<StackedColumnChart/);
+  assert.match(page, /<PercentStackedBar segments=\{statusSegments\}/);
+  assert.match(page, /<HeatmapMatrix/);
+  assert.match(page, /<BookingBreakdownExplorer datasets=\{breakdownDatasets\}/);
   assert.match(
     page,
-    /data\.booking[\s\S]*?match\(r, \{ \.\.\.filters, status: \[\] \}\)[\s\S]*?filter\(isUnitProduct\)/,
+    /data\?\.booking[\s\S]*?match\(row, \{ \.\.\.filters, status: \[\] \}\)[\s\S]*?filter\(isUnitProduct\)/,
   );
-  for (const title of [
-    "Booking Health Summary",
-    "Booking Status",
-    "Branch Booking Risk",
-    "Booking by Product",
-    "Top 10 Model",
-    "Top 10 Salesperson",
-    "Booking by Payment / Finance Type",
-    "Booking Aging Matrix",
-    "Management Follow-up",
+  for (const key of [
+    "bookingStatusTitle",
+    "branchBookingRiskTitle",
+    "bookingLifecycleTitle",
+    "bookingBreakdownTitle",
+    "bookingAgingMatrixTitle",
+    "managementFollowUpTitle",
   ]) {
-    assert.match(page, new RegExp(`title="${title}"`));
+    assert.match(page, new RegExp(`title=\\{t\\("chart\\.${key}"\\)\\}`));
   }
+  assert.match(page, /title=\{t\("chart\.bookingHealthTitle"\)\}/);
 });
 
 test("Booking status and branch risk use only observed, same-unit comparisons", async () => {
-  const page = await read("components/booking/booking-intelligence-page.tsx");
-  assert.match(page, /function BookingStatusBars/);
-  assert.match(page, /Current lifecycle status · Units and share of selected scope/);
+  const [page, chartData] = await Promise.all([
+    read("components/booking/booking-intelligence-page.tsx"),
+    read("components/common/charts/chartData.ts"),
+  ]);
+  assert.match(page, /const statusSegments = statusBreakdown\.map/);
+  assert.match(page, /businessStatusColor\(item\.label, index\)/);
+  assert.match(chartData, /status === "delivered"[\s\S]*?#35363A/);
+  assert.match(chartData, /status === "cancelled"[\s\S]*?#9B948A/);
+  assert.match(chartData, /status === "open"[\s\S]*?#F56600/);
+  assert.match(page, /<PercentStackedBar segments=\{statusSegments\}/);
+  assert.match(page, /t\("chart\.bookingStatusDescription"\)/);
   assert.match(page, /function BranchRiskComparison/);
-  assert.match(page, /Open bookings by branch · Red segment is critical backlog over 90 days/);
+  assert.match(page, /t\("chart\.branchBookingRiskDescription"\)/);
   assert.match(page, /criticalShare = item\.open \? \(item\.critical \/ item\.open\) \* 100 : 0/);
   assert.match(page, /maxOpen = Math\.max/);
   assert.match(page, /xl:grid-cols-\[minmax\(130px,1fr\)_minmax\(150px,1\.35fr\)/);
@@ -143,7 +151,7 @@ test("Booking detail table preserves all operational information", async () => {
   assert.match(page, /ResponsiveDataTable/);
   assert.match(page, /max-h-\[480px\]/);
   assert.match(page, /Math\.ceil\(table\.length \/ 10\)/);
-  assert.match(page, /link\.download = "kmm-booking-detail\.csv"/);
+  assert.match(page, /link\.download = `\$\{companyCode\.toLowerCase\(\)\}-booking-detail\.csv`/);
 });
 
 test("Booking page follows the Golden Reference presentation contract", async () => {

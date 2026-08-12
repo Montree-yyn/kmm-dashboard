@@ -162,12 +162,23 @@ export type CompanyManagementResponse = {
 
 export const COMPANY_ID = "kmm-company";
 export const TENANT_ID = "kmm";
+export const KM_COMPANY_ID = "km-company";
+export const KM_TENANT_ID = "km";
 
-export const DEFAULT_COMPANY_SNAPSHOT: CompanySettingsSnapshot = {
+export function createDefaultCompanySnapshot(input: {
+  id: string;
+  companyName: string;
+  companyCode: string;
+  country: "MM" | "TH";
+}): CompanySettingsSnapshot {
+  const isKmm = input.id === COMPANY_ID;
+  const id = (name: string) => isKmm ? `${name}-default` : `${input.id}-${name}-default`;
+  const thailand = input.country === "TH";
+  return {
   company: {
-    id: COMPANY_ID,
-    companyName: "KMM Company",
-    companyCode: "KMM",
+    id: input.id,
+    companyName: input.companyName,
+    companyCode: input.companyCode,
     legalName: "",
     logoUrl: "",
     taxId: "",
@@ -185,7 +196,7 @@ export const DEFAULT_COMPANY_SNAPSHOT: CompanySettingsSnapshot = {
   branches: [],
   departments: [],
   fiscalYear: {
-    id: "fiscal-default",
+    id: id("fiscal"),
     fiscalYearName: `FY${new Date().getFullYear()}`,
     startMonth: 1,
     startDay: 1,
@@ -195,11 +206,11 @@ export const DEFAULT_COMPANY_SNAPSHOT: CompanySettingsSnapshot = {
     status: "active",
   },
   currency: {
-    id: "currency-default",
-    primaryCurrency: "MMK",
-    displayCurrency: "MMK",
-    currencySymbol: "K",
-    decimalPlaces: 0,
+    id: id("currency"),
+    primaryCurrency: thailand ? "THB" : "MMK",
+    displayCurrency: thailand ? "THB" : "MMK",
+    currencySymbol: thailand ? "฿" : "K",
+    decimalPlaces: thailand ? 2 : 0,
     numberFormat: "1,234.56",
     negativeNumberFormat: "-1,234.56",
     exchangeRateSource: "manual",
@@ -208,17 +219,17 @@ export const DEFAULT_COMPANY_SNAPSHOT: CompanySettingsSnapshot = {
     status: "active",
   },
   localization: {
-    id: "localization-default",
-    defaultLanguage: "en",
-    fallbackLanguage: "th",
-    defaultTimeZone: "Asia/Yangon",
+    id: id("localization"),
+    defaultLanguage: thailand ? "th" : "en",
+    fallbackLanguage: thailand ? "en" : "th",
+    defaultTimeZone: thailand ? "Asia/Bangkok" : "Asia/Yangon",
     dateFormat: "DD/MM/YYYY",
     timeFormat: "24-hour",
     firstDayOfWeek: "Monday",
     status: "active",
   },
   workingCalendar: {
-    id: "calendar-default",
+    id: id("calendar"),
     workingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     weekendDays: ["Saturday", "Sunday"],
     workingStartTime: "08:00",
@@ -227,3 +238,18 @@ export const DEFAULT_COMPANY_SNAPSHOT: CompanySettingsSnapshot = {
     status: "active",
   },
 };
+}
+
+export const DEFAULT_COMPANY_SNAPSHOT = createDefaultCompanySnapshot({
+  id: COMPANY_ID,
+  companyName: "KMM Company",
+  companyCode: "KMM",
+  country: "MM",
+});
+
+export const DEFAULT_KM_COMPANY_SNAPSHOT = createDefaultCompanySnapshot({
+  id: KM_COMPANY_ID,
+  companyName: "Kubota Maesod",
+  companyCode: "KM",
+  country: "TH",
+});

@@ -1,5 +1,6 @@
 import { ALL_BRANCHES, canonicalDailyBranch } from "./branch";
 import { dateInTimeZone } from "./date";
+import { COMPANY_ID } from "../company-management/types";
 
 export type DailyManagementActionInput = {
   title: string;
@@ -64,8 +65,16 @@ export const defaultDailyManagementInput: DailyManagementInputSnapshot = {
   publishedAt: null,
 };
 
-function cloneDefault() {
-  return structuredClone(defaultDailyManagementInput);
+export function createDefaultDailyManagementInput(options: { companyCode?: string; timeZone?: string } = {}) {
+  return {
+    ...structuredClone(defaultDailyManagementInput),
+    reportDate: dateInTimeZone(new Date(), options.timeZone),
+    preparedBy: `${options.companyCode ?? "KMM"} Sales Division`,
+  };
+}
+
+function scopedKey(key: string, companyId?: string) {
+  return companyId ? `${key}:${companyId}` : key;
 }
 
 function read(key: string) {
@@ -80,24 +89,26 @@ function read(key: string) {
   }
 }
 
-export function loadDailyManagementDraft() {
-  return read(DRAFT_KEY) ?? cloneDefault();
+export function loadDailyManagementDraft(companyId?: string, options: { companyCode?: string; timeZone?: string } = {}) {
+  const scoped = read(scopedKey(DRAFT_KEY, companyId));
+  const legacy = companyId === COMPANY_ID ? read(DRAFT_KEY) : null;
+  return scoped ?? legacy ?? createDefaultDailyManagementInput(options);
 }
 
-export function saveDailyManagementDraft(snapshot: DailyManagementInputSnapshot) {
+export function saveDailyManagementDraft(snapshot: DailyManagementInputSnapshot, companyId?: string) {
   const saved = { ...structuredClone(snapshot), savedAt: snapshot.savedAt ?? new Date().toISOString() };
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(saved));
+  window.localStorage.setItem(scopedKey(DRAFT_KEY, companyId), JSON.stringify(saved));
   return saved;
 }
 
-export function publishDailyManagementInput(snapshot: DailyManagementInputSnapshot) {
+export function publishDailyManagementInput(snapshot: DailyManagementInputSnapshot, companyId?: string) {
   const published = {
     ...structuredClone(snapshot),
     savedAt: snapshot.savedAt ?? new Date().toISOString(),
     publishedAt: snapshot.publishedAt ?? new Date().toISOString(),
   };
-  window.localStorage.setItem(DRAFT_KEY, JSON.stringify(published));
-  window.localStorage.setItem(PUBLISHED_KEY, JSON.stringify(published));
+  window.localStorage.setItem(scopedKey(DRAFT_KEY, companyId), JSON.stringify(published));
+  window.localStorage.setItem(scopedKey(PUBLISHED_KEY, companyId), JSON.stringify(published));
   window.dispatchEvent(new CustomEvent(DAILY_MANAGEMENT_INPUT_PUBLISHED));
   return published;
 }

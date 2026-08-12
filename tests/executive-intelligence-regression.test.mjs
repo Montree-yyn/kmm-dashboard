@@ -113,3 +113,19 @@ test("Phase 4B Fact Lock discards false-number and causal Qwen prose", async () 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("KAI business analysis adds grounded assessment and comparison intents", async () => {
+  const [business, assistant] = await Promise.all([
+    read("lib/kai/tools/kmm-business.ts"),
+    read("components/kai/kai-header-assistant.tsx"),
+  ]);
+  assert.match(business, /BUSINESS_ASSESSMENT_REQUEST/);
+  assert.match(business, /BUSINESS_COMPARISON_REQUEST/);
+  assert.match(business, /executiveAssessmentAnswer/);
+  assert.match(business, /executiveComparisonAnswer/);
+  assert.match(business, /same elapsed days/);
+  assert.match(business, /not proof of cause or a forecast/);
+  assert.match(business, /Stock is point-in-time data/);
+  assert.match(assistant, /สรุปจุดแข็งและจุดอ่อนของธุรกิจเดือนนี้/);
+  assert.match(assistant, /เปรียบเทียบยอดขายเดือนนี้กับเดือนก่อน/);
+});

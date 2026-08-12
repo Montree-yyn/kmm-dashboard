@@ -166,20 +166,21 @@ test("the global KAI entry is header-native and contains no floating behavior", 
   assert.doesNotMatch(styles, /animation: kmm-kai-slide-in-right/);
 });
 
-test("KAI Phase 3A keeps KMM intelligence read-only, permission-gated, and aggregate-only", async () => {
-  const [route, access, business, registry] = await Promise.all([
+test("KAI Phase 3A keeps company intelligence read-only, permission-gated, and aggregate-only", async () => {
+  const [route, access, companyContext, business, registry] = await Promise.all([
     read("app/api/kai/chat/route.ts"),
     read("lib/kai/business/access-context.ts"),
+    read("lib/server/company-context.ts"),
     read("lib/kai/tools/kmm-business.ts"),
     read("lib/kai/tools/registry.ts"),
   ]);
-  assert.match(route, /resolveKaiBusinessAccess\(user\.id\)/);
-  assert.match(access, /select\(/);
+  assert.match(route, /resolveKaiBusinessAccess\(user, request, input\.companyId\)/);
+  assert.match(access, /requireCompanyContextForUser/);
   assert.doesNotMatch(access, /\.insert\(|\.update\(|\.delete\(/);
   assert.match(access, /super_admin/);
   assert.match(access, /company_admin/);
   assert.match(access, /manager/);
-  assert.match(access, /membership\.status !== "active"/);
+  assert.match(companyContext, /eq\(companyUsers\.status, "active"\)/);
   assert.match(business, /listSalesTransactions/);
   assert.match(business, /listBookingTransactions/);
   assert.match(business, /listStockTransactions/);
@@ -187,7 +188,7 @@ test("KAI Phase 3A keeps KMM intelligence read-only, permission-gated, and aggre
   assert.match(business, /getOpenBookingUnit/);
   assert.match(business, /getStockUnit/);
   assert.match(business, /getCompanyMonthlyTarget/);
-  assert.match(business, /KMM Approved Target/);
+  assert.match(business, /const targetSource = `\$\{companyCode\} Approved Target`/);
   assert.match(business, /ผลการปฏิบัติงานรายบุคคล/);
   assert.doesNotMatch(business, /SELECT\s+\*/i);
   assert.match(registry, /Security requests always win/);
@@ -287,6 +288,15 @@ test("KAI resolves KMM date scope deterministically and keeps historical months 
       label: "current year",
       scopeLabel: "2026",
     });
+    const timezoneBoundary = new Date("2026-12-31T17:10:00.000Z");
+    assert.equal(
+      resolveKmmDateRange("ยอดขายเดือนนี้", timezoneBoundary, "Asia/Bangkok").start,
+      "2027-01-01",
+    );
+    assert.equal(
+      resolveKmmDateRange("ยอดขายเดือนนี้", timezoneBoundary, "Asia/Yangon").start,
+      "2026-12-01",
+    );
     assert.equal(isKmmBusinessQuestion("ยอดขายเดือนกรกฎาคม 2026"), true);
     assert.equal(isKmmBusinessQuestion("August sales across all years"), true);
   } finally {
@@ -371,7 +381,7 @@ test("KAI is a chat-first assistant while keeping actions and search secondary",
   assert.match(component, /event\.key === "Enter" && !event\.shiftKey/);
   assert.match(component, /CHAT_HISTORY_LIMIT = 20/);
   assert.match(component, /More actions/);
-  assert.match(component, /company-wide Sales, Booking, Stock, and GP summaries/);
+  assert.match(component, /Approved \{selectedCompany\?\.code\} members can request Sales, Booking, Stock, and GP summaries for the active company only/);
   assert.match(component, /role="alert"/);
   assert.match(component, /role="status"/);
   assert.match(component, /disabled=\{!draft\.trim\(\) \|\| busy\}/);
@@ -395,7 +405,8 @@ test("KAI uses an authenticated configurable Workers AI endpoint", async () => {
   assert.match(provider, /interface AIProvider/);
   assert.match(provider, /class CloudflareWorkersAIProvider/);
   assert.match(provider, /same language as the user's latest message/);
-  assert.match(provider, /do not have access to KMM databases/);
+  assert.match(provider, /authorized single-company business workspace/);
+  assert.match(provider, /do not have direct access to databases/);
   assert.match(client, /Authorization: `Bearer \$\{token\}`/);
   assert.match(config, /@cf\/qwen\/qwen3-30b-a3b-fp8/);
   assert.match(config, /@cf\/meta\/llama-3\.2-3b-instruct/);

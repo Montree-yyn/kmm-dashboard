@@ -1,9 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { getCompanyDb } from "../../db";
-import { companyUsers } from "../../db/schema";
-import { isCompanyRole, ROLE_PERMISSIONS } from "../company-management/permissions";
-import { COMPANY_ID, type CompanyPermissions } from "../company-management/types";
-import { verifyFirebaseRequest } from "../server/firebase-auth";
+import { branches } from "../../db/schema";
+import type { CompanyPermissions } from "../company-management/types";
+import { CompanyAccessError, requireCompanyContext } from "../server/company-context";
 
 export class DailyManagementAccessError extends Error {
   constructor(message: string, public readonly status: number) {
@@ -15,23 +13,23 @@ export async function requireDailyManagementAccess(
   request: Request,
   permission: keyof CompanyPermissions,
 ) {
-  const user = await verifyFirebaseRequest(request);
-  const companyDb = await getCompanyDb();
-  const [membership] = await companyDb
-    .select({ role: companyUsers.role })
-    .from(companyUsers)
-    .where(and(
-      eq(companyUsers.companyId, COMPANY_ID),
-      eq(companyUsers.userId, user.id),
-      eq(companyUsers.status, "active"),
-    ))
-    .limit(1);
-
-  if (!membership || !isCompanyRole(membership.role)) {
-    throw new DailyManagementAccessError("Active company membership is required.", 403);
+  try {
+    const context = await requireCompanyContext(request, { permission });
+    const branchRows = await context.companyDb
+      .select({ code: branches.branchCode })
+      .from(branches)
+      .where(and(
+        eq(branches.companyId, context.id),
+        eq(branches.status, "active"),
+      ));
+    return {
+      ...context,
+      branchCodes: branchRows.map((branch) => branch.code),
+    };
+  } catch (error) {
+    if (error instanceof CompanyAccessError) {
+      throw new DailyManagementAccessError(error.message, error.status);
+    }
+    throw error;
   }
-  if (!ROLE_PERMISSIONS[membership.role][permission]) {
-    throw new DailyManagementAccessError("Your role does not have permission for this action.", 403);
-  }
-  return { user, role: membership.role, companyDb };
 }

@@ -16,6 +16,7 @@ import {
   visibleNavigationItems,
 } from "./navigation-config";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 
 type AppSidebarProps = {
   collapsed: boolean;
@@ -28,6 +29,12 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
+  const navigationItems = visibleNavigationItems.filter((item) => {
+    if (item.href === "/marketing") return selectedCompany?.capabilities.marketing !== false;
+    if (item.href === "/expense") return selectedCompany?.capabilities.expense !== false;
+    return true;
+  });
 
   async function logout() {
     await signOut(auth);
@@ -36,18 +43,22 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
 
   const renderSidebar = (isCollapsed: boolean) => (
     <>
-      <div className="flex min-h-[88px] items-center justify-between border-b border-[var(--border-default)] px-4 py-6">
-        <img src="/kmm-logo.png" alt="Kubota Maesod Myanmar" className={cn("h-11 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-10 object-[9%_center]" : "max-w-[128px]")} />
+      <div className="flex min-h-[76px] items-center justify-between border-b border-[var(--border-subtle)] px-4 py-4">
+        {selectedCompany?.logoUrl || selectedCompany?.code === "KMM" ? (
+          <img src={selectedCompany.logoUrl || "/kmm-logo.png"} alt={selectedCompany.name} className={cn("h-9 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-9 object-[9%_center]" : "max-w-[112px]")} />
+        ) : (
+          <span className={cn("grid h-10 place-items-center rounded-[var(--radius-control-lg)] bg-[var(--brand-50)] font-bold text-[var(--brand-700)]", isCollapsed ? "w-10 text-xs" : "min-w-[82px] px-3 text-sm")} aria-label={selectedCompany?.name}>{selectedCompany?.code ?? "KM"}</span>
+        )}
         <button className="hidden rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F5F7] hover:text-[#55565A] lg:block" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? t("nav.expand") : t("nav.collapse")} title={collapsed ? t("nav.expand") : t("nav.collapse")}>
           <ChevronDown className={cn("rotate-90 transition-transform", collapsed && "-rotate-90")} size={18} />
         </button>
         <button className="rounded-lg p-2 text-[#55565A] hover:bg-[#F4F5F7] lg:hidden" onClick={() => onMobileOpenChange(false)} aria-label={t("nav.close")}><X size={20} /></button>
       </div>
       <nav
-        className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-6"
+        className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-5"
         aria-label={t("nav.primary")}
       >
-        {visibleNavigationItems.map((item) => {
+        {navigationItems.map((item) => {
           const Icon = item.icon;
           const active = navigationItemIsActive(pathname, item.href);
           return (
@@ -58,7 +69,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
               className={cn(
                 "group flex h-12 w-full shrink-0 items-center gap-4 rounded-[14px] pl-5 pr-4 text-base font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
                 active
-                  ? "bg-[var(--brand-100)] text-[var(--brand-600)]"
+                  ? "bg-[var(--brand-50)] text-[var(--brand-700)] shadow-[inset_1px_0_0_var(--brand-500)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]",
                 isCollapsed && "justify-center px-0",
               )}
@@ -75,7 +86,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
           );
         })}
       </nav>
-      <div className="border-t border-[var(--border-default)] p-4">
+      <div className="border-t border-[var(--border-subtle)] p-3">
         {!isCollapsed && (
           <div className="mb-2 rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-subtle)] p-3">
             <div className="flex items-center gap-3">
@@ -84,10 +95,10 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-xs font-semibold text-[var(--text-primary)]">
-                  KMM Company
+                  {selectedCompany?.name ?? "Company"}
                 </span>
                 <span className="block text-[11px] text-[var(--text-tertiary)]">
-                  {t("company.current")}
+                  {selectedCompany?.code} · {t("company.current")}
                 </span>
               </span>
             </div>
@@ -112,7 +123,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
 
   return (
     <>
-      <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-[var(--border-default)] bg-[var(--surface-default)] transition-[width] duration-150 motion-reduce:transition-none lg:flex", collapsed ? "w-[76px]" : "w-[240px]")}>{renderSidebar(collapsed)}</aside>
+      <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-default)] transition-[width] duration-150 motion-reduce:transition-none lg:flex", collapsed ? "w-[72px]" : "w-[216px]")}>{renderSidebar(collapsed)}</aside>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#1F2937]/35 backdrop-blur-[2px] lg:hidden" aria-label={t("nav.close")} onClick={() => onMobileOpenChange(false)} />}
       <aside
         data-global-sidebar

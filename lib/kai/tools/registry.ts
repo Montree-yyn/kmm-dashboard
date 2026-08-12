@@ -75,9 +75,9 @@ function toolFailureAnswer(tool: KaiToolId, message: string) {
     return "I could not calculate that expression.";
   }
   if (tool === "kmmBusiness") {
-    if (language === "th") return "ไม่สามารถดึงข้อมูล KMM ได้ในขณะนี้ กรุณาลองอีกครั้ง";
-    if (language === "my") return "KMM အချက်အလက်ကို ယခုမရယူနိုင်ပါ။ ထပ်မံကြိုးစားပါ။";
-    return "KMM data is unavailable right now. Please try again.";
+    if (language === "th") return "ไม่สามารถดึงข้อมูลของบริษัทที่เลือกได้ในขณะนี้ กรุณาลองอีกครั้ง";
+    if (language === "my") return "ရွေးချယ်ထားသော ကုမ္ပဏီ၏ အချက်အလက်ကို ယခုမရယူနိုင်ပါ။ ထပ်မံကြိုးစားပါ။";
+    return "Data for the selected company is unavailable right now. Please try again.";
   }
   if (language === "th") {
     return "ขณะนี้ KAI ไม่สามารถตรวจสอบข้อมูลล่าสุดจากอินเทอร์เน็ตได้ กรุณาลองอีกครั้ง";

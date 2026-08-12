@@ -28,6 +28,10 @@ const checks = [
     run: () => runCommand(process.execPath, ["--test", "tests/release-workflow.test.mjs"]),
   },
   {
+    name: "Multi-company isolation tests",
+    run: () => runCommand(process.execPath, ["--test", "tests/multi-company-isolation.test.mjs"]),
+  },
+  {
     name: "Build",
     run: () => runCommand(npmExecutable, ["run", "build"]),
   },

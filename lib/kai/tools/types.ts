@@ -3,11 +3,15 @@ import type { SearchProvider, SearchResult } from "../search/types";
 import type { KaiMessage, KaiUsage } from "../types";
 
 /**
- * A deliberately small, server-resolved context for KMM Business Intelligence.
+ * A deliberately small, server-resolved context for single-company Business Intelligence.
  * It never comes from a prompt or an LLM-generated parameter.
  */
 export type KaiBusinessAccess = {
   companyId: string;
+  companyCode: string;
+  companyName: string;
+  currency: string;
+  timeZone: string;
   role: "super_admin" | "company_admin" | "manager";
 };
 

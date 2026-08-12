@@ -30,6 +30,7 @@ import {
 import { askKai } from "../../lib/kai/client";
 import type { KaiErrorCode, KaiMessage, KaiSource } from "../../lib/kai/types";
 import { cn } from "../../lib/utils";
+import { useCompany } from "../../src/hooks/useCompany";
 
 export type KaiAction =
   | "configure-company"
@@ -58,10 +59,10 @@ const CHAT_HISTORY_LIMIT = 20;
 const MAX_MESSAGE_LENGTH = 4_000;
 
 const starterPrompts = [
-  "ประเทศไทยมีกี่จังหวัด",
-  "Explain artificial intelligence in simple terms.",
-  "Gross profit คืออะไร",
-  "รถเกี่ยวข้าวทำงานอย่างไร",
+  "สรุปจุดแข็งและจุดอ่อนของธุรกิจเดือนนี้",
+  "เปรียบเทียบยอดขายเดือนนี้กับเดือนก่อน",
+  "สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ",
+  "สาขาไหนควรติดตามเป็นพิเศษเดือนนี้",
 ];
 
 const quickActions: Array<{
@@ -105,6 +106,7 @@ export function KaiHeaderAssistant({
   className,
 }: KaiHeaderAssistantProps) {
   const router = useRouter();
+  const { selectedCompany } = useCompany();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
@@ -131,8 +133,13 @@ export function KaiHeaderAssistant({
         setOpen((current) => !current);
       }
     };
+    const handleOpenRequest = () => setOpen(true);
     window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
+    window.addEventListener("kmm:open-kai", handleOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener("kmm:open-kai", handleOpenRequest);
+    };
   }, []);
 
   useEffect(() => {
@@ -206,7 +213,7 @@ export function KaiHeaderAssistant({
 
     const result = await askKai(message, previousHistory, () => {
       setAssistantState("thinking");
-    });
+    }, selectedCompany?.id);
     if (result.success) {
       const assistantMessage: ConversationMessage = {
         id: crypto.randomUUID(),
@@ -258,7 +265,7 @@ export function KaiHeaderAssistant({
         title="KAI Assistant (⌘/Ctrl + K)"
       >
         <Sparkles size={17} className="shrink-0 text-[var(--brand-600)]" aria-hidden="true" />
-        <span className="text-sm font-semibold">KAI</span>
+        <span className="hidden text-sm font-semibold min-[420px]:inline">KAI</span>
         <span className="hidden text-[11px] text-[var(--text-tertiary)] 2xl:inline">AI Assistant</span>
       </button>
 
@@ -291,7 +298,7 @@ export function KaiHeaderAssistant({
                   </span>
                 </div>
                 <p className="text-[11px] text-[var(--text-tertiary)]">
-                  Kubota AI<span className="sr-only"> · Kubota Artificial Intelligence</span>
+                  Kubota AI · {selectedCompany?.code}<span className="sr-only"> · Kubota Artificial Intelligence</span>
                 </p>
               </div>
               {messages.length > 0 && (
@@ -325,7 +332,7 @@ export function KaiHeaderAssistant({
                   <div className="mx-auto mt-4 max-w-[310px] text-center">
                     <h3 className="text-lg font-semibold tracking-[-0.02em] text-[var(--text-primary)]">How can I help?</h3>
                     <p className="mt-1.5 text-sm leading-5 text-[var(--text-secondary)]">
-                      Ask in Thai, English, or Myanmar. Approved KMM members can also request company-wide Sales, Booking, Stock, and GP summaries.
+                      Ask in Thai, English, or Myanmar. Approved {selectedCompany?.code} members can request Sales, Booking, Stock, and GP summaries for the active company only.
                     </p>
                   </div>
                   <div className="mt-6 grid gap-2" aria-label="Suggested questions">
@@ -480,7 +487,7 @@ export function KaiHeaderAssistant({
                     <h3 id="kai-global-search" className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">Global Search</h3>
                     <div className="relative mt-2">
                       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
-                      <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search KMM..." aria-label="Search KMM" className="h-11 w-full rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-white pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]" />
+                      <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${selectedCompany?.code ?? "company"}...`} aria-label={`Search ${selectedCompany?.code ?? "company"}`} className="h-11 w-full rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-white pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]" />
                     </div>
                     <div className="mt-2 divide-y divide-[var(--border-subtle)] rounded-[var(--radius-control-lg)] border border-[var(--border-default)]">
                       {filteredDestinations.map((destination) => (

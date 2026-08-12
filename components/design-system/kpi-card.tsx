@@ -21,6 +21,8 @@ export type KpiCardProps = {
   loading?: boolean;
   empty?: boolean;
   className?: string;
+  featured?: boolean;
+  sparklineValues?: number[];
   variant?: "executive" | "legacy";
   supportingText?: ReactNode;
   comparison?: {
@@ -48,6 +50,25 @@ const legacyComparisonTone: Record<LegacyComparisonDirection, string> = {
   negative: "text-[#DC2626]",
   neutral: "text-[#6B7280]",
 };
+
+function KpiSparkline({ values, featured }: { values: number[]; featured: boolean }) {
+  const width = 68;
+  const height = 14;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = Math.max(max - min, 1);
+  const path = values.map((value, index) => {
+    const x = (index / Math.max(values.length - 1, 1)) * width;
+    const y = height - ((value - min) / range) * (height - 2) - 1;
+    return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join(" ");
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monthly trend sparkline">
+      <path d={path} fill="none" stroke={featured ? "var(--brand-600)" : "var(--text-tertiary)"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 function LegacyKpiCard({
   title,
@@ -131,6 +152,8 @@ export function KpiCard({
   loading = false,
   empty = false,
   className,
+  featured = false,
+  sparklineValues,
   variant = "legacy",
   supportingText,
   comparison,
@@ -157,14 +180,16 @@ export function KpiCard({
     <Card
       className={cn(
         "group relative h-[160px] min-h-[160px] overflow-hidden rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] @container/kpi",
+        featured && "border-[var(--brand-100)] bg-[var(--brand-50)]",
         className,
       )}
       data-kpi-card="true"
       data-kpi-status={status}
+      data-kpi-featured={featured || undefined}
       aria-busy={loading || undefined}
     >
       <span
-        className="absolute inset-x-0 top-0 h-[3px] bg-[var(--brand-500)] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        className={cn("absolute inset-x-0 top-0 h-px bg-[var(--brand-500)] transition-opacity duration-200", featured ? "opacity-100" : "opacity-0 group-hover:opacity-100")}
         aria-hidden="true"
       />
       <div className="grid h-full grid-rows-[24px_48px_40px_14px]">
@@ -242,10 +267,11 @@ export function KpiCard({
         </div>
 
         <div
-          className="overflow-hidden text-[11px] leading-[14px] text-[var(--text-tertiary)]"
+          className="flex items-center justify-between gap-2 overflow-hidden text-[11px] leading-[14px] text-[var(--text-tertiary)]"
           data-kpi-zone="footer"
         >
-          {footer}
+          <span className="truncate">{footer}</span>
+          {sparklineValues && sparklineValues.length > 1 && <KpiSparkline values={sparklineValues} featured={featured} />}
         </div>
       </div>
     </Card>

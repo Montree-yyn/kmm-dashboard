@@ -1,12 +1,10 @@
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { getOperationsDb } from "../../../../db";
 import { dailyManagementInputs } from "../../../../db/schema";
-import { COMPANY_ID, TENANT_ID } from "../../../../lib/company-management/types";
 import type { DailyManagementInputSnapshot } from "../../../../lib/daily-management/input-storage";
 import { AuthError } from "../../../../lib/server/firebase-auth";
 import { DailyManagementAccessError, requireDailyManagementAccess } from "../../../../lib/daily-management/access";
-import { ROLE_PERMISSIONS } from "../../../../lib/company-management/permissions";
-import { canonicalDailyBranch, isDailyManagementBranch } from "../../../../lib/daily-management/branch";
+import { ALL_BRANCHES, canonicalDailyBranch } from "../../../../lib/daily-management/branch";
 import { isValidIsoDate } from "../../../../lib/daily-management/date";
 
 export const dynamic = "force-dynamic";
@@ -22,14 +20,14 @@ function nonNegativeNumber(value: unknown) {
   return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
 }
 
-function normalizeSnapshot(value: unknown): DailyManagementInputSnapshot {
+function normalizeSnapshot(value: unknown, branchCodes: string[]): DailyManagementInputSnapshot {
   if (!value || typeof value !== "object") throw new InputError("ข้อมูลฟอร์มไม่ถูกต้อง");
   const input = value as Partial<DailyManagementInputSnapshot>;
   const reportDate = cleanText(input.reportDate, 10);
   const branch = canonicalDailyBranch(cleanText(input.branch, 80));
   const preparedBy = cleanText(input.preparedBy, 120);
   if (!isValidIsoDate(reportDate)) throw new InputError("กรุณาเลือกวันที่รายงานที่ถูกต้อง");
-  if (!branch || !isDailyManagementBranch(branch)) throw new InputError("กรุณาเลือกสาขาที่กำหนด");
+  if (!branch || (branch !== ALL_BRANCHES && !branchCodes.includes(branch))) throw new InputError("กรุณาเลือกสาขาที่กำหนด");
   if (!preparedBy) throw new InputError("กรุณาระบุผู้จัดทำ");
 
   const actions = Array.isArray(input.actions) ? input.actions.slice(0, 20).map((item) => ({
@@ -76,15 +74,15 @@ function parseSnapshot(payload: string | null, savedAt: string, publishedAt: str
 
 export async function GET(request: Request) {
   try {
-    await requireDailyManagementAccess(request, "view");
+    const access = await requireDailyManagementAccess(request, "view");
     const url = new URL(request.url);
     const mode = url.searchParams.get("mode") === "published" ? "published" : "draft";
     const reportDate = url.searchParams.get("date");
     const branch = canonicalDailyBranch(url.searchParams.get("branch"));
     if (reportDate && !isValidIsoDate(reportDate)) throw new InputError("วันที่รายงานไม่ถูกต้อง");
-    if (branch && !isDailyManagementBranch(branch)) throw new InputError("ขอบเขตสาขาไม่ถูกต้อง");
+    if (branch && branch !== ALL_BRANCHES && !access.branchCodes.includes(branch)) throw new InputError("ขอบเขตสาขาไม่ถูกต้อง");
     const db = await getOperationsDb();
-    const filters = [eq(dailyManagementInputs.companyId, COMPANY_ID)];
+    const filters = [eq(dailyManagementInputs.companyId, access.id)];
     if (mode === "published") filters.push(isNotNull(dailyManagementInputs.publishedPayload));
     if (reportDate) filters.push(eq(dailyManagementInputs.reportDate, reportDate));
     if (branch) filters.push(eq(dailyManagementInputs.branch, branch));
@@ -98,7 +96,7 @@ export async function GET(request: Request) {
       row.publishedAt,
     ) : null;
     if (!snapshot) return Response.json({ error: "ยังไม่มีข้อมูลที่บันทึกไว้" }, { status: 404 });
-    return Response.json({ source: "d1", revision: row.revision, snapshot }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ source: "d1", companyId: access.id, revision: row.revision, snapshot }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }
@@ -106,17 +104,14 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const access = await requireDailyManagementAccess(request, "view");
     const body = await request.json() as { mode?: SaveMode; snapshot?: unknown };
     const mode: SaveMode = body.mode === "publish" ? "publish" : "draft";
     const permission = mode === "publish" ? "publish" : "edit";
-    if (!ROLE_PERMISSIONS[access.role][permission]) {
-      throw new DailyManagementAccessError("Your role does not have permission for this action.", 403);
-    }
-    const snapshot = normalizeSnapshot(body.snapshot);
+    const access = await requireDailyManagementAccess(request, permission);
+    const snapshot = normalizeSnapshot(body.snapshot, access.branchCodes);
     const db = await getOperationsDb();
     const [existing] = await db.select().from(dailyManagementInputs).where(and(
-      eq(dailyManagementInputs.companyId, COMPANY_ID),
+      eq(dailyManagementInputs.companyId, access.id),
       eq(dailyManagementInputs.reportDate, snapshot.reportDate),
       eq(dailyManagementInputs.branch, snapshot.branch),
     )).limit(1);
@@ -126,8 +121,8 @@ export async function PUT(request: Request) {
     const publishedPayload = mode === "publish" ? draftPayload : existing?.publishedPayload ?? null;
     const values = {
       id: existing?.id ?? crypto.randomUUID(),
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: access.tenantId,
+      companyId: access.id,
       reportDate: snapshot.reportDate,
       branch: snapshot.branch,
       draftPayload,
@@ -151,7 +146,7 @@ export async function PUT(request: Request) {
         updatedBy: values.updatedBy,
       },
     });
-    return Response.json({ source: "d1", mode, revision: values.revision, snapshot: savedSnapshot }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ source: "d1", companyId: access.id, mode, revision: values.revision, snapshot: savedSnapshot }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }

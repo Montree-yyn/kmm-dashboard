@@ -16,15 +16,22 @@ import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
 import { TableCard } from "../design-system/table-card";
 import { FilterBar } from "../design-system/filter-bar";
-import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
 import { ResponsiveDataTable } from "../design-system/responsive-data-table";
-import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import {
+  HeatmapMatrix,
+  LollipopChart,
+  PercentStackedBar,
+  StackedColumnChart,
+  type RankedDatum,
+} from "../common/charts/AnalyticalCharts";
+import { buildMonthlyLifecycle, businessStatusColor } from "../common/charts/chartData";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
-import { cn } from "../../lib/utils";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
 // Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getAverageBookingAge(data.booking, filters); getBookingConversionRate(data.booking, filters).
@@ -36,7 +43,6 @@ import {
   bookingAge,
   bookingMatchesFilters,
   getAverageBookingAge,
-  getBookingByProduct,
   getBookingConversionRate,
   getBookingRows,
   getBookingValue,
@@ -60,11 +66,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-const BRANCH_NAMES: Record<string, string> = {
-  KMM01: "Hpa-an",
-  KMM02: "Mawlamyine",
-  KMM03: "Tharyarwaddy",
-};
 type Key = "year" | "month" | "branch" | "salesperson" | "product" | "status";
 type Filters = Record<Key, string[]>;
 type Booking = {
@@ -185,100 +186,6 @@ function group(rows: Booking[], key: (row: Booking) => string) {
     .sort((a, b) => b.rows.length - a.rows.length);
 }
 
-function Bars({
-  items,
-  value = (item: { rows: Booking[]; metric?: number }) =>
-    item.metric ?? item.rows.length,
-  suffix = " Units",
-}: {
-  items: { label: string; rows: Booking[]; value: number; metric?: number }[];
-  value?: (item: {
-    label: string;
-    rows: Booking[];
-    value: number;
-    metric?: number;
-  }) => number;
-  suffix?: string;
-}) {
-  const measured = items.map((item) => ({
-    item,
-    amount: safeNumber(value(item)),
-  }));
-  const max = Math.max(...measured.map(({ amount }) => amount), 1);
-  return (
-    <div className="space-y-4">
-      {measured.map(({ item, amount }, index) => (
-        <div key={item.label}>
-          <div className="mb-1.5 flex justify-between gap-3 text-xs">
-            <span className="min-w-0 truncate font-medium text-[var(--text-secondary)]">
-              <span className="mr-2 kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
-                {index + 1}
-              </span>
-              {item.label}
-            </span>
-            <span className="kmm-tabular font-semibold text-[var(--text-primary)]">
-              {amount}
-              {suffix}
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--surface-muted)]">
-            <div
-              className="h-2 rounded-full bg-[var(--chart-current)]"
-              style={{ width: `${(amount / max) * 100}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function BookingStatusBars({
-  items,
-}: {
-  items: { label: string; rows: Booking[]; value: number }[];
-}) {
-  const total = items.reduce((sum, item) => sum + item.rows.length, 0);
-  const max = Math.max(...items.map((item) => item.rows.length), 1);
-
-  if (!items.length) {
-    return <p className="py-10 text-center text-sm text-[var(--text-secondary)]">No booking status data in the current scope.</p>;
-  }
-
-  return (
-    <div className="space-y-4" role="img" aria-label={`Booking status distribution across ${total.toLocaleString()} records`}>
-      {items.map((item) => {
-        const count = item.rows.length;
-        const share = total ? (count / total) * 100 : 0;
-        const status = item.label.trim().toLowerCase();
-        const tone = status === "delivered"
-          ? "bg-[var(--status-success)]"
-          : status === "cancelled" || status === "canceled"
-            ? "bg-[var(--status-danger)]"
-            : status === "open"
-              ? "bg-[var(--chart-current)]"
-              : "bg-[var(--chart-neutral)]";
-        return (
-          <div key={item.label}>
-            <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_64px_58px] items-center gap-2 text-xs">
-              <span className="truncate font-medium text-[var(--text-secondary)]">{item.label}</span>
-              <span className="kmm-tabular text-right font-semibold text-[var(--text-primary)]">{count.toLocaleString()}</span>
-              <span className="kmm-tabular text-right text-[var(--text-tertiary)]">{share.toFixed(1)}%</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-              <div
-                className={cn("h-full rounded-full", tone)}
-                style={{ width: `${(count / max) * 100}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-      <p className="border-t border-[var(--divider)] pt-3 text-[11px] text-[var(--text-tertiary)]">Bars compare record count; percentages use all booking records in the selected scope.</p>
-    </div>
-  );
-}
-
 type BranchRiskItem = {
   branch: string;
   open: number;
@@ -288,21 +195,22 @@ type BranchRiskItem = {
   conversion: number | null;
 };
 
-function BranchRiskComparison({ items }: { items: BranchRiskItem[] }) {
+function BranchRiskComparison({ items, currency, branchNames }: { items: BranchRiskItem[]; currency: string; branchNames: Record<string, string> }) {
+  const { t } = useLocale();
   const maxOpen = Math.max(...items.map((item) => item.open), 1);
 
   if (!items.length) {
-    return <p className="py-10 text-center text-sm text-[var(--text-secondary)]">No branch data in the current scope.</p>;
+    return <p className="py-10 text-center text-sm text-[var(--text-secondary)]">{t("common.empty")}</p>;
   }
 
   return (
     <div className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center gap-4 text-[11px] text-[var(--text-tertiary)]" aria-label="Chart legend">
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--chart-current)]" aria-hidden="true" />Open booking</span>
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--status-danger)]" aria-hidden="true" />Critical &gt;90 days</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--chart-current)]" aria-hidden="true" />{t("metric.bookingUnit")}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-[var(--status-danger)]" aria-hidden="true" />{t("status.critical")} &gt;90 {t("common.days")}</span>
       </div>
       <div className="hidden min-w-0 grid-cols-[minmax(130px,1fr)_minmax(150px,1.35fr)_minmax(52px,0.42fr)_minmax(58px,0.48fr)_minmax(68px,0.58fr)] gap-3 border-b border-[var(--divider)] pb-2 text-[10px] font-semibold uppercase tracking-[0.035em] text-[var(--text-tertiary)] xl:grid">
-        <span className="min-w-0">Branch</span><span className="min-w-0">Open booking</span><span className="min-w-0 text-right">Critical</span><span className="min-w-0 text-right">Avg. age</span><span className="min-w-0 text-right">Conversion</span>
+        <span className="min-w-0">{t("filter.branch")}</span><span className="min-w-0">{t("metric.bookingUnit")}</span><span className="min-w-0 text-right">{t("status.critical")}</span><span className="min-w-0 text-right">{t("common.averageAge")}</span><span className="min-w-0 text-right">{t("common.conversion")}</span>
       </div>
       <div className="divide-y divide-[var(--divider)]">
         {items.map((item) => {
@@ -311,22 +219,22 @@ function BranchRiskComparison({ items }: { items: BranchRiskItem[] }) {
           return (
             <div key={item.branch} className="grid min-w-0 gap-3 py-4 xl:grid-cols-[minmax(130px,1fr)_minmax(150px,1.35fr)_minmax(52px,0.42fr)_minmax(58px,0.48fr)_minmax(68px,0.58fr)] xl:items-center">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{item.branch} <span className="font-normal text-[var(--text-tertiary)]">{BRANCH_NAMES[item.branch] ?? "Returned branch"}</span></p>
-                <p className="kmm-tabular mt-1 text-[11px] text-[var(--text-tertiary)]">{compact(item.value)} MMK open value</p>
+                <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{item.branch} <span className="font-normal text-[var(--text-tertiary)]">{branchNames[item.branch] ?? "Returned branch"}</span></p>
+                <p className="kmm-tabular mt-1 text-[11px] text-[var(--text-tertiary)]">{t("dashboard.bookingValue")} {compact(item.value)} {currency}</p>
               </div>
               <div>
-                <div className="mb-1 flex items-center justify-between text-xs xl:hidden"><span className="text-[var(--text-secondary)]">Open booking</span><strong className="kmm-tabular">{item.open.toLocaleString()}</strong></div>
+                <div className="mb-1 flex items-center justify-between text-xs xl:hidden"><span className="text-[var(--text-secondary)]">{t("metric.bookingUnit")}</span><strong className="kmm-tabular">{item.open.toLocaleString()}</strong></div>
                 <div className="relative h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]">
                   <div className="relative h-full min-w-[2px] rounded-full bg-[var(--chart-current)]" style={{ width: `${totalWidth}%` }}>
                     {item.critical > 0 && <span className="absolute inset-y-0 right-0 bg-[var(--status-danger)]" style={{ width: `${criticalShare}%` }} aria-hidden="true" />}
                   </div>
                 </div>
-                <p className="kmm-tabular mt-1 hidden text-right text-[11px] font-semibold text-[var(--text-primary)] xl:block">{item.open.toLocaleString()} units</p>
+                <p className="kmm-tabular mt-1 hidden text-right text-[11px] font-semibold text-[var(--text-primary)] xl:block">{item.open.toLocaleString()} {t("common.units")}</p>
               </div>
               <div className="grid min-w-0 grid-cols-3 gap-3 text-xs xl:contents">
-                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Critical</span><strong className="kmm-tabular mt-0.5 block text-[var(--status-danger)] xl:text-right">{item.critical.toLocaleString()}</strong></div>
-                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Avg. age</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.averageAge === null ? "N/A" : `${item.averageAge}d`}</strong></div>
-                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">Conversion</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`}</strong></div>
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">{t("status.critical")}</span><strong className="kmm-tabular mt-0.5 block text-[var(--status-danger)] xl:text-right">{item.critical.toLocaleString()}</strong></div>
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">{t("common.averageAge")}</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.averageAge === null ? "N/A" : `${item.averageAge} ${t("common.days")}`}</strong></div>
+                <div className="min-w-0"><span className="block text-[var(--text-tertiary)] xl:hidden">{t("common.conversion")}</span><strong className="kmm-tabular mt-0.5 block text-[var(--text-primary)] xl:text-right">{item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`}</strong></div>
               </div>
             </div>
           );
@@ -336,51 +244,55 @@ function BranchRiskComparison({ items }: { items: BranchRiskItem[] }) {
   );
 }
 
-function Trend({ rows }: { rows: Booking[] }) {
-  const [metric, setMetric] = useState<"unit" | "value">("unit");
-  const years = [2026, 2025, 2024, 2023, 2022];
-  const series = years.map((year, index) => ({
-    id: String(year),
-    year,
-    label: String(year),
-    kind:
-      index === 0
-        ? ("current" as const)
-        : index === 1
-          ? ("previous" as const)
-          : ("older" as const),
-    values: MONTHS.map((_, month) => {
-      const monthRows = rows.filter(
-        (row) =>
-          row.year === year &&
-          row.month === month + 1 &&
-          row.status !== "Cancelled",
-      );
-      if (!monthRows.length) return null;
-      return metric === "unit"
-        ? monthRows.length
-        : monthRows.reduce((total, row) => total + priceOf(row), 0);
-    }),
-  }));
+type BookingBreakdownKey = "product" | "model" | "salesperson" | "payment";
+
+function BookingBreakdownExplorer({
+  datasets,
+}: {
+  datasets: Record<BookingBreakdownKey, RankedDatum[]>;
+}) {
+  const { t } = useLocale();
+  const [active, setActive] = useState<BookingBreakdownKey>("product");
+  const options: { id: BookingBreakdownKey; label: string }[] = [
+    { id: "product", label: t("filter.productGroup") },
+    { id: "model", label: t("common.model") },
+    { id: "salesperson", label: t("filter.salesperson") },
+    { id: "payment", label: t("common.payment") },
+  ];
+
   return (
-    <PremiumTrendChart
-      className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&>header]:!border-[var(--divider)] [&>header]:!flex-col [&>header]:!items-stretch [&>header_h2]:!font-semibold [&>header_h2]:!tracking-normal [&>header_h2]:!text-[var(--text-primary)] [&>header_p]:!text-[var(--text-secondary)] [&>header>div:last-child]:!w-full [&>header>div:last-child]:!justify-start [&>header_button]:!h-11 [&>header_select]:!h-11 min-[1400px]:[&>header]:!flex-row min-[1400px]:[&>header]:!items-center min-[1400px]:[&>header>div:last-child]:!w-auto min-[1400px]:[&>header>div:last-child]:!justify-end"
-      title="Booking Trend"
-      subtitle="Compare booking performance by year, period and metric."
-      labels={MONTHS}
-      unit={metric === "unit" ? "Unit" : "MMK"}
-      formatValue={
-        metric === "unit" ? (value) => value.toLocaleString() : compact
-      }
-      defaultSeriesIds={["2026", "2025"]}
-      onMetricChange={(value) => setMetric(value as "unit" | "value")}
-      series={series}
-    />
+    <div>
+      <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Choose booking breakdown">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={active === option.id}
+            onClick={() => setActive(option.id)}
+            className={
+              active === option.id
+                ? "min-h-11 rounded-[var(--radius-control)] bg-[var(--text-primary)] px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+                : "min-h-11 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+            }
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <LollipopChart items={datasets[active]} limit={5} suffix={` ${t("common.units")}`} />
+    </div>
   );
 }
 
 export function BookingIntelligencePage() {
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const currency = selectedCompany?.currency ?? "MMK";
+  const branchNames = Object.fromEntries(
+    (selectedCompany?.branches ?? []).map((branch) => [branch.code, branch.name]),
+  );
   const [data, setData] = useState<Data | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -390,7 +302,7 @@ export function BookingIntelligencePage() {
   const load = (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError("");
-    loadLiveOperationalData()
+    loadLiveOperationalData({ companyId })
       .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, booking: value.booking }))
       .catch(() => setError("Booking data could not be loaded."))
       .finally(() => setLoading(false));
@@ -400,7 +312,7 @@ export function BookingIntelligencePage() {
     const refresh = () => void load(false);
     window.addEventListener("kmm:sales-imported", refresh);
     return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
-  }, []);
+  }, [companyId]);
   const rows = useMemo(
     () => (data ? getBookingRows(data.booking, filters) : []),
     [data, filters],
@@ -470,6 +382,48 @@ export function BookingIntelligencePage() {
     rows.filter(isUnitProduct),
     (row) => row.status || "Status unavailable",
   );
+  const lifecycle = buildMonthlyLifecycle(
+    data?.booking
+      .filter((row) => match(row, { ...filters, status: [] }))
+      .filter(isUnitProduct) ?? [],
+  );
+  const displayStatus = (label: string) => {
+    const normalized = label.trim().toLowerCase();
+    if (normalized === "open") return t("status.open");
+    if (normalized === "delivered" || normalized.includes("complete")) return t("status.delivered");
+    if (normalized === "cancelled" || normalized === "canceled") return t("status.cancelled");
+    return label;
+  };
+  const statusSegments = statusBreakdown.map((item, index) => ({
+    id: item.label,
+    label: displayStatus(item.label),
+    value: item.rows.length,
+    color: businessStatusColor(item.label, index),
+  }));
+  const breakdownDatasets: Record<BookingBreakdownKey, RankedDatum[]> = {
+    product: product.map((item) => ({
+      label: item.label,
+      value: item.metric ?? 0,
+    })),
+    model: models.map((item) => ({ label: item.label, value: item.rows.length })),
+    salesperson: people.map((item) => ({
+      label: item.label,
+      value: item.rows.length,
+    })),
+    payment: payments.map((item) => ({
+      label: item.label,
+      value: item.rows.length,
+    })),
+  };
+  const bookingAgingHeatmap = group(
+    open,
+    (row) => canonicalModelName(row.model) || "Unknown model",
+  ).map((item) => ({
+    label: item.label,
+    values: ["Healthy", "Watch", "At Risk", "Critical"].map(
+      (bucket) => item.rows.filter((row) => risk(row) === bucket).length,
+    ),
+  }));
   const branchRisk = options.branch
     .map((branch) => {
       const openRows = open.filter((row) => row.branch === branch);
@@ -506,8 +460,8 @@ export function BookingIntelligencePage() {
       "Product",
       "Model",
       "Payment Type",
-      "Booking Value (MMK)",
-      "Deposit (MMK)",
+      `Booking Value (${currency})`,
+      `Deposit (${currency})`,
       "Current Status",
       "Delivery / Cancel Date",
       "Booking Age (Days)",
@@ -541,7 +495,7 @@ export function BookingIntelligencePage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "kmm-booking-detail.csv";
+    link.download = `${companyCode.toLowerCase()}-booking-detail.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -565,26 +519,19 @@ export function BookingIntelligencePage() {
                   {t("route.booking.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.booking.subtitle")}
+                  {t("route.booking.subtitle").replaceAll("KMM", companyCode)}
                 </p>
               </div>
               {/* The operational endpoint currently exposes a client refresh marker,
                   not a source timestamp; keep the shared indicator honest. */}
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
                 {data && <FreshnessIndicator />}
-                <ActiveFilterSummary
-                  filters={filters}
-                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson", product: "Product Type", status: "Booking Status" }}
-                  onChange={update}
-                  onReset={() => { setFilters(initial); setPage(1); }}
-                  className="mt-0 max-w-full justify-start sm:justify-end"
-                />
               </div>
             </section>
             <section aria-label="Booking filters">
               <FilterBar
-                filterGridClassName="min-w-0 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
-                ariaLabel="Booking filters"
+                filterGridClassName="min-w-0 sm:grid-cols-2 xl:grid-cols-4"
+                ariaLabel={t("common.filters")}
                 actions={
                   <>
                     <Button
@@ -596,50 +543,38 @@ export function BookingIntelligencePage() {
                       }}
                     >
                       <RotateCcw size={16} />
-                      Reset
+                      {t("common.reset")}
                     </Button>
                     <Button
                       className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={16} />
-                      Export
+                      {t("common.export")}
                     </Button>
                   </>
                 }
               >
                     <MultiSelectFilter
-                      label="Year"
+                      label={t("filter.year")}
                       options={options.year}
                       values={filters.year}
                       onChange={(v) => update("year", v)}
                     />
                     <MultiSelectFilter
-                      label="Month"
+                      label={t("filter.month")}
                       options={options.month}
                       values={filters.month}
                       onChange={(v) => update("month", v)}
                     />
                     <MultiSelectFilter
-                      label="Branch"
+                      label={t("filter.branch")}
                       options={options.branch}
                       values={filters.branch}
                       onChange={(v) => update("branch", v)}
                     />
                     <MultiSelectFilter
-                      label="Salesperson"
-                      options={options.salesperson}
-                      values={filters.salesperson}
-                      onChange={(v) => update("salesperson", v)}
-                    />
-                    <MultiSelectFilter
-                      label="Product Type"
-                      options={options.product}
-                      values={filters.product}
-                      onChange={(v) => update("product", v)}
-                    />
-                    <MultiSelectFilter
-                      label="Booking Status"
+                      label={t("filter.bookingStatus")}
                       options={options.status}
                       values={filters.status}
                       onChange={(v) => update("status", v)}
@@ -677,56 +612,56 @@ export function BookingIntelligencePage() {
                 >
                   <KpiCard
                     variant="executive"
-                    title="Open Booking Unit"
+                    title={t("metric.bookingUnit")}
                     value={bookingUnit}
-                    unit="Units"
+                    unit={t("common.units")}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Booking Value"
+                    title={t("metric.bookingValue")}
                     value={compact(bookingValue)}
-                    unit="MMK"
+                    unit={currency}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Deposit Received"
+                    title={t("metric.depositReceived")}
                     value={compact(depositReceived)}
-                    unit="MMK"
+                    unit={currency}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Average Booking Age"
+                    title={t("metric.averageBookingAge")}
                     value={
                       averageBookingAge === null
                         ? "N/A"
                         : Math.round(averageBookingAge)
                     }
-                    unit={averageBookingAge === null ? "" : "Days"}
+                    unit={averageBookingAge === null ? "" : t("common.days")}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Booking Conversion Rate"
+                    title={t("metric.bookingConversionRate")}
                     value={
                       bookingConversionRate === null
                         ? "N/A"
                         : `${bookingConversionRate.toFixed(1)}%`
                     }
                     unit=""
-                    subtitle="Booking → Delivered"
+                    subtitle={t("booking.toDelivered")}
                   />
                 </section>
                 <section className="space-y-4" aria-labelledby="booking-observed-pipeline">
                   <div>
                     <h2 id="booking-observed-pipeline" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Observed pipeline
+                      {t("section.bookingPipeline")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Stages, health, and branch pressure available in the current extract.
+                      {t("section.bookingPipelineDescription")}
                     </p>
                   </div>
                   <ChartCard
-                    title="Booking Health Summary"
-                    subtitle="Open-booking age and value in the current scope"
+                    title={t("chart.bookingHealthTitle")}
+                    subtitle={t("chart.bookingHealthDescription")}
                     className={chartCardClass}
                   >
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -738,16 +673,16 @@ export function BookingIntelligencePage() {
                         <p
                           className={`${agingPresentation[i].tone} text-sm font-semibold`}
                         >
-                          {agingPresentation[i].range} · {item.label}
+                          {agingPresentation[i].range.replace(" Days", "")} {t("common.days")} · {[t("status.healthy"), t("status.watch"), t("status.atRisk"), t("status.critical")][i]}
                         </p>
                         <p className="kmm-tabular mt-3 text-2xl font-semibold text-[var(--text-primary)]">
                           {item.rows.length}{" "}
                           <span className="text-xs font-medium text-[var(--text-secondary)]">
-                            Units
+                            {t("common.units")}
                           </span>
                         </p>
                         <p className="kmm-tabular mt-2 text-xs text-[var(--text-secondary)]">
-                          {compact(item.value)} MMK ·{" "}
+                          {compact(item.value)} {currency} ·{" "}
                           {open.length
                             ? ((item.rows.length / open.length) * 100).toFixed(
                                 1,
@@ -756,152 +691,74 @@ export function BookingIntelligencePage() {
                           %
                         </p>
                         <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                          Deposit detail is not split by health band
+                          {t("booking.depositNotSplit")}
                         </p>
                       </div>
                     ))}
                   </div>
                   </ChartCard>
-                  <Trend
-                    rows={data.booking
-                      .filter((r) => match(r, { ...filters, status: [] }))
-                      .filter(isUnitProduct)}
-                  />
+                  <ChartCard
+                    title={t("chart.bookingLifecycleTitle")}
+                    subtitle={t("chart.bookingLifecycleDescription")}
+                    className={chartCardClass}
+                  >
+                    <StackedColumnChart
+                      labels={lifecycle.labels}
+                      series={lifecycle.series.map((item) => ({ ...item, label: displayStatus(item.label) }))}
+                      unit={t("common.records")}
+                    />
+                  </ChartCard>
                 <section className="grid gap-5 xl:grid-cols-[0.9fr_2.1fr]">
                   <ChartCard
-                    title="Booking Status"
-                    subtitle="Current lifecycle status · Units and share of selected scope"
+                    title={t("chart.bookingStatusTitle")}
+                    subtitle={t("chart.bookingStatusDescription")}
                     className={chartCardClass}
                   >
-                    <BookingStatusBars items={statusBreakdown} />
+                    <PercentStackedBar segments={statusSegments} />
                   </ChartCard>
                   <ChartCard
-                    title="Branch Booking Risk"
-                    subtitle="Open bookings by branch · Red segment is critical backlog over 90 days"
+                    title={t("chart.branchBookingRiskTitle")}
+                    subtitle={t("chart.branchBookingRiskDescription")}
                     className={chartCardClass}
                   >
-                    <BranchRiskComparison items={branchRisk} />
+                    <BranchRiskComparison items={branchRisk} currency={currency} branchNames={branchNames} />
                   </ChartCard>
                 </section>
                 </section>
                 <section className="space-y-4" aria-labelledby="booking-secondary-analysis">
                   <div>
                     <h2 id="booking-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Secondary analysis
+                      {t("section.secondaryAnalysis")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Product, model, salesperson, payment, and aging detail for the active booking scope.
+                      {t("section.bookingSecondaryDescription")}
                     </p>
                   </div>
-                  <section className="grid gap-5 xl:grid-cols-2">
-                  <ChartCard
-                    title="Booking by Product"
-                    subtitle="Open booking units"
-                    className={chartCardClass}
-                  >
-                    <Bars items={product} />
-                  </ChartCard>
-                  <ChartCard
-                    title="Top 10 Model"
-                    subtitle="Open booking units"
-                    className={chartCardClass}
-                  >
-                    <Bars items={models} />
-                  </ChartCard>
-                  <ChartCard
-                    title="Top 10 Salesperson"
-                    subtitle="Open booking and critical backlog"
-                    className={chartCardClass}
-                  >
-                    <div className="space-y-3">
-                      {people.map((item, index) => (
-                        <div
-                          key={item.label}
-                          className="grid grid-cols-[24px_minmax(0,1fr)_68px_68px] gap-2 text-xs text-[var(--text-secondary)]"
-                        >
-                          <span className="kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
-                            {index + 1}
-                          </span>
-                          <span className="truncate font-medium">
-                            {item.label}
-                          </span>
-                          <span className="kmm-tabular text-right">
-                            {item.rows.length} open
-                          </span>
-                          <span className="kmm-tabular text-right text-[var(--status-danger)]">
-                            {item.rows.filter((r) => age(r) > 60).length}{" "}
-                            &gt;60d
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </ChartCard>
-                  <ChartCard
-                    title="Booking by Payment / Finance Type"
-                    subtitle="Open booking value"
-                    className={chartCardClass}
-                  >
-                    <Bars items={payments} />
-                  </ChartCard>
+                  <section className="grid gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+                    <ChartCard
+                      title={t("chart.bookingBreakdownTitle")}
+                      subtitle={t("chart.bookingBreakdownDescription")}
+                      className={chartCardClass}
+                    >
+                      <BookingBreakdownExplorer datasets={breakdownDatasets} />
+                    </ChartCard>
+                    <ChartCard
+                      title={t("chart.bookingAgingMatrixTitle")}
+                      subtitle={t("chart.bookingAgingMatrixDescription")}
+                      className={chartCardClass}
+                    >
+                      <HeatmapMatrix
+                        columns={["0–30", "31–60", "61–90", ">90"]}
+                        rows={bookingAgingHeatmap}
+                        categoryLabel={t("common.model")}
+                        lowerLabel={t("common.lowerConcentration")}
+                        higherLabel={t("common.higherConcentration")}
+                      />
+                    </ChartCard>
                   </section>
                 <ChartCard
-                  title="Booking Aging Matrix"
-                  subtitle="Open booking unit by model and age"
-                  className={chartCardClass}
-                >
-                  <div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]">
-                    <table className="min-w-[720px] w-full text-sm">
-                      <thead className="bg-[var(--surface-subtle)] text-left text-xs text-[var(--text-secondary)]">
-                        <tr>
-                          <th className="p-3">Model</th>
-                          {["0–30", "31–60", "61–90", ">90"].map((h) => (
-                            <th key={h} className="p-3 text-center">
-                              {h}
-                            </th>
-                          ))}
-                          <th className="p-3 text-center">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group(open, (r) => r.model || "Unknown model").map(
-                          (item) => (
-                            <tr
-                              key={item.label}
-                              className="border-t border-[var(--divider)] transition-colors hover:bg-[var(--surface-subtle)]"
-                            >
-                              <td className="p-3 font-medium">{item.label}</td>
-                              {["Healthy", "Watch", "At Risk", "Critical"].map(
-                                (bucket, i) => {
-                                  const count = item.rows.filter(
-                                    (r) => risk(r) === bucket,
-                                  ).length;
-                                  return (
-                                    <td
-                                      key={bucket}
-                                      className="p-3 text-center"
-                                    >
-                                      <span
-                                        className={`${agingPresentation[i].surface} kmm-tabular inline-block min-w-10 rounded-[var(--radius-control)] border px-2 py-1`}
-                                      >
-                                        {count}
-                                      </span>
-                                    </td>
-                                  );
-                                },
-                              )}
-                              <td className="kmm-tabular p-3 text-center font-semibold">
-                                {item.rows.length}
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </ChartCard>
-                <ChartCard
-                  title="Management Follow-up"
-                  subtitle="Evidence-based recommendations from the active filter"
+                  title={t("chart.managementFollowUpTitle")}
+                  subtitle={t("chart.managementFollowUpDescription")}
                   className={chartCardClass}
                 >
                   <div className="space-y-3">
@@ -919,20 +776,20 @@ export function BookingIntelligencePage() {
                             {r.branch} · {r.salesperson}
                           </span>
                           <span className="kmm-tabular shrink-0 font-semibold text-[var(--status-danger)]">
-                            {age(r)} days · Escalate
+                            {age(r)} {t("common.days")} · {t("booking.escalate")}
                           </span>
                         </div>
                       ))}
                     {!open.some((r) => age(r) > 90) && (
                       <p className="text-sm text-[var(--text-secondary)]">
-                        No open booking older than 90 days in the active filter.
+                        {t("booking.noCriticalFollowUp")}
                       </p>
                     )}
                   </div>
                 </ChartCard>
                 </section>
                 <TableCard
-                  title="Booking Detail"
+                  title={t("booking.detailTitle")}
                   className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:!tracking-normal"
                   search={
                     <div className="relative">

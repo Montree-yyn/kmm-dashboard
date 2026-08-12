@@ -55,11 +55,16 @@ test("all operational pages use the shared filter presentation", async () => {
   assert.match(controls, /pointerdown/);
   assert.match(controls, /flex h-11 w-full/);
   assert.match(controls, /focus-visible:ring-4/);
+  assert.match(controls, /allValues\?: string\[\]/);
+  assert.match(controls, /resolvedAllLabel/);
+  assert.match(controls, /onChange\(allValues\)/);
+  assert.doesNotMatch(controls, /Search year|Search product type|placeholder=\{`Search/);
   assert.match(controls, /activeSelectionCount/);
 
   for (const page of [dashboard, sales, booking, stock]) {
     assert.match(page, /import \{ FilterBar \}/);
-    assert.match(page, /import \{ ActiveFilterSummary, MultiSelectFilter \}/);
+    assert.match(page, /import \{ MultiSelectFilter \}/);
+    assert.doesNotMatch(page, /ActiveFilterSummary/);
     assert.doesNotMatch(page, /function (MultiSelectFilter|ActiveFilterSummary|Select|MultiSelect)\(/);
   }
 });
@@ -78,8 +83,8 @@ test("shared filter presentation preserves page-specific selection contracts", a
   assert.match(sales, /salesperson: \[\]/);
   assert.match(sales, /getNextValues=\{\(option, current\) =>/);
   assert.match(sales, /return next\.length \? next : \["All Products"\]/);
-  assert.match(booking, /onChange=\{update\}/);
-  assert.match(stock, /onChange=\{update\}/);
+  assert.match(booking, /onChange=\{\(v\) => update\("year", v\)\}/);
+  assert.match(stock, /onChange=\{\(values\) => update\("year", values\)\}/);
   assert.match(controls, /clearValues\?: Partial<Record<Key, string\[\]>>/);
 });
 
@@ -130,12 +135,13 @@ test("Dashboard and Sales analytics share card and chart contracts", async () =>
 });
 
 test("project charts preserve the approved color conditions", async () => {
-  const [theme, globals, dashboard, stock, booking] = await Promise.all([
+  const [theme, globals, dashboard, stock, booking, chartData] = await Promise.all([
     read("components/common/charts/chartTheme.ts"),
     read("app/globals.css"),
     read("components/dashboard/dashboard-page.tsx"),
     read("components/stock/stock-intelligence-page.tsx"),
     read("components/booking/booking-intelligence-page.tsx"),
+    read("components/common/charts/chartData.ts"),
   ]);
 
   assert.match(theme, /current: "#F97316"/);
@@ -145,9 +151,13 @@ test("project charts preserve the approved color conditions", async () => {
   assert.match(globals, /--chart-current: #f56600/);
   assert.match(globals, /--chart-previous: #f7a35c/);
   assert.match(globals, /--chart-neutral: #86868b/);
-  assert.match(dashboard, /TT: "#FF7A00"[\s\S]*?CH: "#4B5563"[\s\S]*?EX: "#9CA3AF"[\s\S]*?TP: "#D1D5DB"[\s\S]*?MAX: "#F3F4F6"/);
-  assert.match(stock, /color = "#FF7A00"/);
-  assert.match(booking, /status === "delivered"[\s\S]*?status-success[\s\S]*?status === "cancelled"[\s\S]*?status-danger[\s\S]*?status === "open"[\s\S]*?chart-current[\s\S]*?chart-neutral/);
+  assert.match(globals, /--chart-ink: #35363a/);
+  assert.match(globals, /--chart-warm-gray: #9b948a/);
+  for (const page of [dashboard, stock]) {
+    assert.match(page, /TT: "#F56600"[\s\S]*?CH: "#35363A"[\s\S]*?EX: "#86868B"[\s\S]*?TP: "#B6B7BA"[\s\S]*?MAX: "#245487"/);
+  }
+  assert.match(booking, /businessStatusColor\(item\.label, index\)/);
+  assert.match(chartData, /status === "delivered"[\s\S]*?#35363A[\s\S]*?status === "cancelled"[\s\S]*?#9B948A[\s\S]*?status === "open"[\s\S]*?#F56600/);
 });
 
 test("Sprint 4 page refinement keeps an executive hierarchy without changing data contracts", async () => {
@@ -159,32 +169,32 @@ test("Sprint 4 page refinement keeps an executive hierarchy without changing dat
   ]);
 
   assert.match(dashboard, /aria-labelledby="dashboard-primary-trend"/);
-  assert.match(dashboard, /Sales trajectory/);
-  assert.match(dashboard, /Rankings/);
+  assert.match(dashboard, /t\("section\.salesTrajectory"\)/);
+  assert.match(dashboard, /t\("section\.rankingsMix"\)/);
   assert.match(dashboard, /height=\{460\}/);
 
-  assert.match(sales, /Sales trajectory/);
-  assert.match(sales, /Rankings &amp; mix/);
-  assert.match(sales, /Transactions/);
+  assert.match(sales, /t\("section\.salesTrajectory"\)/);
+  assert.match(sales, /t\("section\.rankingsMix"\)/);
+  assert.match(sales, /t\("section\.transactions"\)/);
   assert.match(sales, /<ResponsiveDataTable/);
   assert.match(sales, /ariaLabel="Sales transaction table"/);
 
   assert.match(booking, /aria-labelledby="booking-observed-pipeline"/);
-  assert.match(booking, /Booking Status/);
-  assert.match(booking, /Branch Booking Risk/);
+  assert.match(booking, /t\("filter\.bookingStatus"\)/);
+  assert.match(booking, /t\("chart\.branchBookingRiskTitle"\)/);
   assert.doesNotMatch(booking, /Not supplied by source/);
   assert.match(booking, /aria-labelledby="booking-secondary-analysis"/);
 
   assert.match(stock, /aria-labelledby="stock-risk-overview"/);
   assert.match(stock, /aria-labelledby="stock-coverage-analysis"/);
   assert.match(stock, /aria-label="Stock age legend"/);
-  assert.match(stock, /Stock vs Booking/);
+  assert.match(stock, /t\("chart\.stockVsBookingTitle"\)/);
   assert.match(stock, /branchCards\.map/);
   assert.match(stock, /aria-labelledby="stock-secondary-analysis"/);
 
   for (const page of [dashboard, sales, booking, stock]) {
     assert.match(page, /FreshnessIndicator/);
-    assert.match(page, /ActiveFilterSummary/);
+    assert.doesNotMatch(page, /ActiveFilterSummary/);
     assert.match(page, /sm:/);
     assert.match(page, /xl:/);
   }
@@ -201,4 +211,28 @@ test("Marketing retains the approved compact workspace exception", async () => {
   assert.match(marketing, /inline-flex h-14 min-w-\[132px\]/);
   assert.match(marketing, /kmm-compare-control inline-flex h-14/);
   assert.match(marketing, /transition-\[border-color,background-color\]/);
+});
+
+test("Design V3.3 keeps glass selective and Dashboard actions source-backed", async () => {
+  const [globals, dashboard, chart, header, search, kpi] = await Promise.all([
+    read("app/globals.css"),
+    read("components/dashboard/dashboard-page.tsx"),
+    read("components/common/charts/StandardLineChart.tsx"),
+    read("components/layout/global-header.tsx"),
+    read("components/navigation/global-navigation-search.tsx"),
+    read("components/design-system/kpi-card.tsx"),
+  ]);
+
+  assert.match(globals, /\.kmm-glass-bar/);
+  assert.match(globals, /\.kmm-data-surface/);
+  assert.match(header, /<GlobalNavigationSearch/);
+  assert.match(search, /visibleNavigationItems/);
+  assert.match(dashboard, /AttentionPanel/);
+  assert.match(dashboard, /t\("dashboard\.agedStockReview"\)/);
+  assert.match(dashboard, /RecentActivityTable/);
+  assert.doesNotMatch(dashboard, /Overdue bookings/i);
+  assert.match(chart, /visualStyle\?: "classic" \| "precision"/);
+  assert.match(chart, /tabIndex=\{0\}/);
+  assert.match(kpi, /featured\?: boolean/);
+  assert.match(kpi, /sparklineValues\?: number\[\]/);
 });

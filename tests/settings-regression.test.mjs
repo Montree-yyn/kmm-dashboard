@@ -60,9 +60,9 @@ test("Settings cards are selectable, active, and keyboard accessible", async () 
 
   assert.match(card, /type="button"/);
   assert.match(card, /aria-pressed=\{selected\}/);
-  assert.match(card, /aria-label=\{`Open \$\{item\.title\}`\}/);
+  assert.match(card, /aria-label=\{`\$\{t\("settings\.open"\)\} \$\{item\.title\}`\}/);
   assert.match(card, /onClick=\{\(\) => onSelect\(item\)\}/);
-  assert.match(card, /Active/);
+  assert.match(card, /t\("settings\.active"\)/);
   assert.match(card, /focus-visible:ring-2/);
   assert.match(card, /hover:-translate-y-1/);
   assert.match(card, /hover:scale-\[1\.01\]/);
@@ -77,9 +77,10 @@ test("Settings search filters cards without competing for the KAI shortcut", asy
 
   assert.doesNotMatch(page, /event\.metaKey \|\| event\.ctrlKey/);
   assert.match(page, /\.includes\(normalized\)/);
-  assert.match(page, /No settings found/);
-  assert.match(search, /placeholder="Search settings\.\.\."/);
-  assert.match(search, /aria-label="Search settings"/);
+  assert.match(page, /t\("settings\.noResults"\)/);
+  assert.match(page, /localizedCards/);
+  assert.match(search, /placeholder=\{t\("settings\.searchPlaceholder"\)\}/);
+  assert.match(search, /aria-label=\{t\("settings\.searchLabel"\)\}/);
   assert.doesNotMatch(search, /⌘K/);
 });
 
@@ -103,7 +104,7 @@ test("Settings sidebar contains the approved Phase 1 menu and company area", asy
   ]) {
     assert.match(navigation, new RegExp(`label: "${label}"`));
   }
-  assert.match(sidebar, /KMM Company/);
+  assert.match(sidebar, /selectedCompany\?\.name \?\? "Company"/);
   assert.match(sidebar, /t\("company\.current"\)/);
   assert.match(sidebar, /aria-current=\{active \? "page" : undefined\}/);
   assert.match(navigation, /visible: false/);

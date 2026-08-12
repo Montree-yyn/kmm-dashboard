@@ -16,7 +16,7 @@ import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { TableCard } from "../design-system/table-card";
 import { FilterBar } from "../design-system/filter-bar";
-import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
@@ -31,11 +31,17 @@ import {
   getStockValueRows,
   normalizeProductType,
 } from "../../lib/dashboard/stock-selectors";
-import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import {
+  HeatmapMatrix,
+  LollipopChart,
+  PairedBarChart,
+  PercentStackedBar,
+} from "../common/charts/AnalyticalCharts";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expressions retained: const stockValue = getStockValue(rows); const averageStockAge = getAverageStockAge(rows); const aged = getAgedStock(rows);
 
@@ -53,12 +59,14 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-const BRANCH_NAMES: Record<string, string> = {
-  KMM01: "Hpa-an",
-  KMM02: "Mawlamyine",
-  KMM03: "Tharyarwaddy",
-};
 const UNIT_PRODUCTS = PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[];
+const PRODUCT_COLORS: Record<string, string> = {
+  TT: "#F56600",
+  CH: "#35363A",
+  EX: "#86868B",
+  TP: "#B6B7BA",
+  MAX: "#245487",
+};
 const chartCardClass =
   "min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]";
 const agingPresentation = [
@@ -171,105 +179,15 @@ const rowMatches = (row: Stock | Booking, filters: Filters) =>
   (!filters.branch.length || filters.branch.includes(row.branch)) &&
   (!filters.product.length || filters.product.includes(unitCategory(row)));
 
-function HorizontalBars({
-  rows,
-  value,
-  suffix = " Units",
-  color = "#FF7A00",
-}: {
-  rows: { label: string; count: number; value: number }[];
-  value?: (row: { label: string; count: number; value: number }) => number;
-  suffix?: string;
-  color?: string;
-}) {
-  const items = rows.map((row) => ({
-    ...row,
-    amount: numeric(value ? value(row) : row.count),
-  }));
-  const max = Math.max(...items.map((item) => item.amount), 1);
-  return (
-    <div className="space-y-3.5">
-      {items.map((item, index) => (
-        <div key={item.label}>
-          <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
-            <span
-              className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
-              title={item.label}
-            >
-              <span className="mr-2 kmm-tabular text-[var(--text-tertiary)]" aria-label={`Rank ${index + 1}`}>
-                {index + 1}
-              </span>
-              {item.label}
-            </span>
-            <span className="kmm-tabular shrink-0 font-semibold text-[var(--text-primary)]">
-              {item.amount.toLocaleString()}
-              {suffix}
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-            <div
-              className="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
-              style={{
-                width: `${(item.amount / max) * 100}%`,
-                backgroundColor: color,
-              }}
-            />
-          </div>
-        </div>
-      ))}
-      {!items.length && (
-        <p className="grid min-h-32 place-items-center text-center text-sm text-[var(--text-tertiary)]">
-          No stock data available for the selected filters.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function StockTrend({ rows }: { rows: Stock[] }) {
-  const [metric, setMetric] = useState<"unit" | "value">("unit");
-  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({
-    id: String(year),
-    year,
-    label: String(year),
-    kind:
-      index === 0
-        ? ("current" as const)
-        : index === 1
-          ? ("previous" as const)
-          : ("older" as const),
-    values: MONTHS.map((_, month) => {
-      const monthRows = rows.filter(
-        (row) => row.year === year && row.month === month + 1,
-      );
-      if (!monthRows.length) return null;
-      return metric === "unit"
-        ? monthRows.length
-        : monthRows.reduce((total, row) => total + numeric(row.msrp), 0);
-    }),
-  }));
-  return (
-    <PremiumTrendChart
-      title="Stock Trend"
-      subtitle="Compare stock entries by year, period and metric."
-      labels={MONTHS}
-      unit={metric === "unit" ? "Unit" : "MMK"}
-      formatValue={
-        metric === "unit" ? (value) => value.toLocaleString() : compact
-      }
-      defaultSeriesIds={["2026", "2025"]}
-      onMetricChange={(value) => setMetric(value as "unit" | "value")}
-      series={series}
-      className={cn(
-        chartCardClass,
-        "max-[760px]:[&>header]:!flex-col max-[760px]:[&>header]:!items-stretch max-[760px]:[&>header>div:last-child]:!w-full max-[760px]:[&>header>div:last-child]:!max-w-full max-[760px]:[&>header>div:last-child]:!justify-start max-[760px]:[&>header>div:last-child]:!whitespace-normal",
-      )}
-    />
-  );
-}
-
 export function StockIntelligencePage() {
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const currency = selectedCompany?.currency ?? "MMK";
+  const branchNames = Object.fromEntries(
+    (selectedCompany?.branches ?? []).map((branch) => [branch.code, branch.name]),
+  );
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -280,7 +198,7 @@ export function StockIntelligencePage() {
   const load = () => {
     setLoading(true);
     setError("");
-    loadLiveOperationalData()
+    loadLiveOperationalData({ companyId })
       .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, stock: value.stock, booking: value.booking }))
       .catch(() => setError("Stock data could not be loaded."))
       .finally(() => setLoading(false));
@@ -290,7 +208,7 @@ export function StockIntelligencePage() {
     const refresh = () => load();
     window.addEventListener("kmm:sales-imported", refresh);
     return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
-  }, []);
+  }, [companyId]);
   const rows = useMemo(
     () =>
       getCurrentStockRows(
@@ -323,9 +241,7 @@ export function StockIntelligencePage() {
       month: MONTHS.filter((month, index) =>
         data?.stock.some((row) => row.month === index + 1),
       ),
-      branch: ["KMM01", "KMM02", "KMM03"].filter((branch) =>
-        data?.stock.some((row) => row.branch === branch),
-      ),
+      branch: [...new Set(data?.stock.map((row) => row.branch).filter(Boolean))].sort(),
       product: [...UNIT_PRODUCTS],
     }),
     [data],
@@ -384,8 +300,32 @@ export function StockIntelligencePage() {
       stock: models.find((item) => item.label === label)?.count ?? 0,
       booking: bookingByModel.get(label) ?? 0,
     }))
-    .sort((a, b) => Math.max(b.stock, b.booking) - Math.max(a.stock, a.booking))
+    .sort((a, b) => {
+      const aGap = a.stock - a.booking;
+      const bGap = b.stock - b.booking;
+      return aGap - bGap || Math.max(b.stock, b.booking) - Math.max(a.stock, a.booking);
+    })
     .slice(0, 10);
+  const observedStockPeriods = new Set(
+    (data?.stock ?? [])
+      .filter((row) => rowMatches(row, { ...filters, year: [], month: [] }))
+      .map((row) =>
+        row.snapshotDate ||
+        (row.year !== null && row.month !== null
+          ? `${row.year}-${String(row.month).padStart(2, "0")}`
+          : ""),
+      )
+      .filter(Boolean),
+  ).size;
+  const agedModelRows = models
+    .filter((item) => item.averageAge > 0)
+    .map((item) => ({ label: item.label, value: Math.round(item.averageAge) }));
+  const stockAgingHeatmap = models.map((item) => ({
+    label: item.label,
+    values: ["0–30", "31–60", "61–90", ">90"].map(
+      (bucket) => item.rows.filter((row) => aging(row) === bucket).length,
+    ),
+  }));
   const table = rows
     .filter((row) =>
       `${row.branch} ${row.date} ${row.productType} ${row.model} ${row.serialNumber ?? ""}`
@@ -438,7 +378,7 @@ export function StockIntelligencePage() {
     const url = URL.createObjectURL(new Blob([contents], { type: "text/csv" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "kmm-stock-detail.csv";
+    link.download = `${companyCode.toLowerCase()}-stock-detail.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -462,26 +402,19 @@ export function StockIntelligencePage() {
                   {t("route.stock.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.stock.subtitle")}
+                  {t("route.stock.subtitle").replaceAll("KMM", companyCode)}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
                 {/* Operational data currently exposes a client refresh marker,
                     not a source timestamp, so do not present it as provenance. */}
                 {data && <FreshnessIndicator />}
-                <ActiveFilterSummary
-                  filters={filters}
-                  labels={{ year: "Date In Year", month: "Date In Month", branch: "Branch", product: "Product Type" }}
-                  onChange={update}
-                  onReset={() => { setFilters(initial); setPage(1); }}
-                  className="mt-0 max-w-full justify-start sm:justify-end"
-                />
               </div>
             </section>
             <section aria-label="Stock filters">
               <FilterBar
                 filterGridClassName="min-w-0 sm:grid-cols-2 xl:grid-cols-4"
-                ariaLabel="Stock filters"
+                ariaLabel={t("common.filters")}
                 actions={
                   <>
                     <Button
@@ -493,38 +426,38 @@ export function StockIntelligencePage() {
                       }}
                     >
                       <RotateCcw size={16} />
-                      Reset
+                      {t("common.reset")}
                     </Button>
                     <Button
                       className="h-11 rounded-[var(--radius-control-lg)] bg-[var(--brand-500)] px-4 text-[var(--text-primary)] hover:bg-[var(--brand-400)]"
                       onClick={exportRows}
                     >
                       <Download size={16} />
-                      Export
+                      {t("common.export")}
                     </Button>
                   </>
                 }
               >
                     <MultiSelectFilter
-                      label="Date In Year"
+                      label={t("filter.year")}
                       options={options.year}
                       values={filters.year}
                       onChange={(values) => update("year", values)}
                     />
                     <MultiSelectFilter
-                      label="Date In Month"
+                      label={t("filter.month")}
                       options={options.month}
                       values={filters.month}
                       onChange={(values) => update("month", values)}
                     />
                     <MultiSelectFilter
-                      label="Branch"
+                      label={t("filter.branch")}
                       options={options.branch}
                       values={filters.branch}
                       onChange={(values) => update("branch", values)}
                     />
                     <MultiSelectFilter
-                      label="Product Type"
+                      label={t("filter.productType")}
                       options={options.product}
                       values={filters.product}
                       onChange={(values) => update("product", values)}
@@ -562,46 +495,46 @@ export function StockIntelligencePage() {
                 >
                   <KpiCard
                     variant="executive"
-                    title="Stock Coverage"
+                    title={t("metric.stockCoverage")}
                     value={
                       booking.length
                         ? `${(unitRows.length / booking.length).toFixed(1)}x`
                         : "N/A"
                     }
-                    unit="Stock ÷ Booking"
+                    unit={t("stock.coverageFormula")}
                     subtitle={
                       booking.length
-                        ? `${booking.length} open booking unit(s)`
-                        : "No open Booking data in filter"
+                        ? `${booking.length} ${t("stock.openBookingUnits")}`
+                        : t("stock.noOpenBooking")
                     }
                   />
                   <KpiCard
                     variant="executive"
-                    title="Aged Stock"
+                    title={t("metric.agedStock")}
                     value={aged.length}
-                    unit=">90 Days"
+                    unit={`>90 ${t("common.days")}`}
                     subtitle={
                       rows.length
-                        ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% of filtered inventory`
-                        : "No filtered stock"
+                        ? `${((aged.length / unitRows.length) * 100).toFixed(1)}% ${t("stock.filteredInventory")}`
+                        : t("stock.noFilteredStock")
                     }
                   />
                   <KpiCard
                     variant="executive"
-                    title="Stock Unit"
+                    title={t("metric.stockUnit")}
                     value={unitRows.length}
-                    unit="Units"
+                    unit={t("common.units")}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Stock Value"
+                    title={t("metric.stockValue")}
                     value={compact(stockValue)}
-                    unit="MMK"
-                    subtitle="Approved product groups with a valid MSRP"
+                    unit={currency}
+                    subtitle={t("stock.validMsrp")}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Average Stock Age"
+                    title={t("metric.averageStockAge")}
                     value={
                       knownAge.length
                         ? Math.round(
@@ -612,21 +545,21 @@ export function StockIntelligencePage() {
                           )
                         : "N/A"
                     }
-                    unit={knownAge.length ? "Days" : ""}
+                    unit={knownAge.length ? t("common.days") : ""}
                   />
                 </section>
                 <section className="space-y-4" aria-labelledby="stock-risk-overview">
                   <div>
                     <h2 id="stock-risk-overview" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Risk &amp; coverage
+                      {t("section.stockRisk")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Age distribution and open-booking coverage for the current stock scope.
+                      {t("section.stockRiskDescription")}
                     </p>
                   </div>
                   <ChartCard
-                    title="Stock Health"
-                    subtitle="Remaining inventory age based on Date In"
+                    title={t("chart.stockHealthTitle")}
+                    subtitle={t("chart.stockHealthDescription")}
                     className={chartCardClass}
                   >
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -638,18 +571,18 @@ export function StockIntelligencePage() {
                         <p
                           className={`${agingPresentation[index].tone} text-sm font-semibold`}
                         >
-                          {item.label} Days
+                          {item.label} {t("common.days")}
                         </p>
                         <p className="kmm-tabular mt-3 text-2xl font-semibold text-[var(--text-primary)]">
                           {item.count}{" "}
                           <span className="text-xs font-medium text-[var(--text-secondary)]">
-                            Units
+                            {t("common.units")}
                           </span>
                         </p>
                         <p className="kmm-tabular mt-2 text-xs text-[var(--text-secondary)]">
-                          {compact(item.value)} MMK ·{" "}
-                          {rows.length
-                            ? ((item.count / rows.length) * 100).toFixed(1)
+                          {compact(item.value)} {currency} ·{" "}
+                          {unitRows.length
+                            ? ((item.count / unitRows.length) * 100).toFixed(1)
                             : "0.0"}
                           %
                         </p>
@@ -691,7 +624,7 @@ export function StockIntelligencePage() {
                             "bg-[var(--status-danger)]",
                           ][index]}
                         />
-                        {item.label} · {item.count} units
+                        {item.label} · {item.count} {t("common.units")}
                       </span>
                     ))}
                   </div>
@@ -700,92 +633,45 @@ export function StockIntelligencePage() {
                 <section className="space-y-4" aria-labelledby="stock-coverage-analysis">
                   <div>
                     <h2 id="stock-coverage-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Coverage &amp; comparison
+                      {t("section.stockCoverage")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Current stock trend alongside open Booking demand by model.
+                      {t("section.stockCoverageDescription")}
                     </p>
                   </div>
-                  <div className="grid gap-5 xl:grid-cols-[1.85fr_1fr]">
-                  <StockTrend rows={unitRows} />
                   <ChartCard
-                    title="Stock vs Booking"
-                    subtitle="Open Booking vs current stock; values are shown beside each bar"
+                    title={t("chart.stockVsBookingTitle")}
+                    subtitle={t("chart.stockVsBookingDescription")}
                     className={chartCardClass}
                   >
-                    <div className="space-y-3.5">
-                      {comparedModels.map((item) => {
-                        const max = Math.max(
-                          ...comparedModels.flatMap((model) => [
-                            model.stock,
-                            model.booking,
-                          ]),
-                          1,
-                        );
-                        return (
-                          <div
-                            key={item.label}
-                            role="group"
-                            aria-label={`${item.label}: ${item.stock} stock units and ${item.booking} open booking units`}
-                          >
-                            <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
-                              <span
-                                className="min-w-0 break-words font-medium leading-4 text-[var(--text-secondary)]"
-                                title={item.label}
-                              >
-                                {item.label}
-                              </span>
-                              <span className="kmm-tabular shrink-0 font-semibold text-[var(--text-primary)]">
-                                S {item.stock} · B {item.booking}
-                              </span>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-                                <div
-                                  className="h-full rounded-full bg-[var(--brand-500)]"
-                                  style={{
-                                    width: `${(item.stock / max) * 100}%`,
-                                  }}
-                                />
-                              </div>
-                              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-                                <div
-                                  className="h-full rounded-full bg-[var(--text-secondary)]"
-                                  style={{
-                                    width: `${(item.booking / max) * 100}%`,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {!comparedModels.length && (
-                        <p className="grid min-h-32 place-items-center text-center text-sm text-[var(--text-tertiary)]">
-                          No comparable model data in the current filter.
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-5 flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
-                      <span className="flex items-center gap-1.5">
-                        <i className="inline-block size-2 rounded-full bg-[var(--brand-500)]" />
-                        Stock
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <i className="inline-block size-2 rounded-full bg-[var(--text-secondary)]" />
-                        Open Booking
-                      </span>
-                    </div>
+                    <PairedBarChart
+                      items={comparedModels.map((item) => ({
+                        label: item.label,
+                        left: item.booking,
+                        right: item.stock,
+                      }))}
+                      leftLabel={t("metric.bookingUnit")}
+                      rightLabel={t("metric.stockUnit")}
+                      leftShortLabel={t("common.booking")}
+                      rightShortLabel={t("common.stock")}
+                      shortageLabel={t("comparison.shortage")}
+                      surplusLabel={t("comparison.surplus")}
+                      balancedLabel={t("comparison.balanced")}
+                    />
+                    {observedStockPeriods < 8 && (
+                      <p className="mt-5 border-t border-[var(--divider)] pt-4 text-xs leading-5 text-[var(--text-tertiary)]">
+                        {t("stock.trendWithheld")}
+                      </p>
+                    )}
                   </ChartCard>
-                  </div>
                 </section>
                 <section aria-labelledby="stock-branch-performance" className="space-y-4">
                   <div>
                     <h2 id="stock-branch-performance" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Branch performance
+                      {t("section.branchPerformance")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Stock, open Booking, value, and aging returned for each available branch.
+                      {t("section.branchPerformanceDescription")}
                     </p>
                   </div>
                   <div className="grid gap-4 md:grid-cols-3">
@@ -814,13 +700,13 @@ export function StockIntelligencePage() {
                           <p className="text-lg font-semibold text-[var(--text-primary)]">
                             {branch}{" "}
                             <span className="text-sm font-normal text-[var(--text-tertiary)]">
-                              {BRANCH_NAMES[branch] ?? "Returned branch"}
+                              {branchNames[branch] ?? "Returned branch"}
                             </span>
                           </p>
                           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                Stock Unit
+                                {t("metric.stockUnit")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold">
                                 {stock.length}
@@ -828,7 +714,7 @@ export function StockIntelligencePage() {
                             </div>
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                Booking Unit
+                                {t("metric.bookingUnit")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold">
                                 {booked.length}
@@ -836,7 +722,7 @@ export function StockIntelligencePage() {
                             </div>
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                Stock Value
+                                {t("metric.stockValue")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold">
                                 {compact(value)}
@@ -844,17 +730,17 @@ export function StockIntelligencePage() {
                             </div>
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                Average Age
+                                {t("metric.averageStockAge")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold">
                                 {ages.length
-                                  ? `${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} Days`
+                                  ? `${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} ${t("common.days")}`
                                   : "N/A"}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                &gt;90 Days
+                                &gt;90 {t("common.days")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold text-[var(--status-danger)]">
                                 {old}
@@ -862,7 +748,7 @@ export function StockIntelligencePage() {
                             </div>
                             <div>
                               <p className="text-xs text-[var(--text-tertiary)]">
-                                Stock Gap
+                                {t("metric.stockGap")}
                               </p>
                               <p className="kmm-tabular mt-1 font-semibold">
                                 {stock.length - booked.length}
@@ -871,7 +757,7 @@ export function StockIntelligencePage() {
                           </div>
                           <div className="mt-5 space-y-2 border-t border-[var(--divider)] pt-4 text-xs text-[var(--text-secondary)]">
                             <div className="flex items-center gap-2">
-                              <span className="w-12">Stock</span>
+                              <span className="w-12">{t("common.stock")}</span>
                               <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
                                 <div
                                   className="h-full rounded-full bg-[var(--brand-500)]"
@@ -882,7 +768,7 @@ export function StockIntelligencePage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="w-12">Booking</span>
+                              <span className="w-12">{t("common.booking")}</span>
                               <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
                                 <div
                                   className="h-full rounded-full bg-[var(--text-secondary)]"
@@ -901,116 +787,56 @@ export function StockIntelligencePage() {
                 <section className="space-y-4" aria-labelledby="stock-secondary-analysis">
                   <div>
                     <h2 id="stock-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Secondary analysis
+                      {t("section.secondaryAnalysis")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Product mix, model aging, and follow-up detail for the selected scope.
+                      {t("section.stockSecondaryDescription")}
                     </p>
                   </div>
                   <section className="grid gap-5 xl:grid-cols-2">
                   <ChartCard
-                    title="Product Analysis"
-                    subtitle="Stock unit by product group"
+                    title={t("chart.stockProductAnalysisTitle")}
+                    subtitle={t("chart.stockProductAnalysisDescription")}
                     className={chartCardClass}
                   >
-                    <HorizontalBars rows={productRows} />
+                    <PercentStackedBar
+                      segments={productRows.map((item) => ({
+                        id: item.label,
+                        label: item.label,
+                        value: item.count,
+                        color: PRODUCT_COLORS[item.label] ?? "#B6B7BA",
+                      }))}
+                    />
                   </ChartCard>
                   <ChartCard
-                    title="Top 10 Aged Model"
-                    subtitle="Models ranked by average days in stock"
+                    title={t("chart.agedModelTitle")}
+                    subtitle={t("chart.agedModelDescription")}
                     className={chartCardClass}
                   >
-                    <HorizontalBars
-                      rows={models
-                        .filter((item) => item.averageAge > 0)
-                        .sort((a, b) => b.averageAge - a.averageAge)
-                        .slice(0, 10)
-                        .map((item) => ({
-                          label: item.label,
-                          count: Math.round(item.averageAge),
-                          value: item.value,
-                        }))}
-                      suffix=" Days"
+                    <LollipopChart
+                      items={agedModelRows}
+                      threshold={90}
+                      thresholdLabel={t("stock.ninetyDayThreshold")}
+                      suffix={` ${t("common.days")}`}
                     />
                   </ChartCard>
                   </section>
                   <ChartCard
-                  title="Stock Aging Matrix"
-                  subtitle="Remaining stock unit by model and age band"
+                  title={t("chart.stockAgingMatrixTitle")}
+                  subtitle={t("chart.stockAgingMatrixDescription")}
                   className={chartCardClass}
                 >
-                  <div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--divider)]">
-                    <table className="w-full min-w-[720px] text-sm">
-                      <thead className="bg-[var(--surface-subtle)] text-left text-xs text-[var(--text-secondary)]">
-                        <tr>
-                          <th className="h-11 px-3 py-2.5" scope="col">
-                            Model
-                          </th>
-                          {["0–30", "31–60", "61–90", ">90"].map((label) => (
-                            <th
-                              key={label}
-                              className="h-11 px-3 py-2.5 text-center"
-                              scope="col"
-                            >
-                              {label}
-                            </th>
-                          ))}
-                          <th
-                            className="h-11 px-3 py-2.5 text-center"
-                            scope="col"
-                          >
-                            Total
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--divider)]">
-                        {models.map((item) => (
-                          <tr
-                            key={item.label}
-                            className="transition-colors hover:bg-[var(--surface-subtle)]"
-                          >
-                            <td className="min-h-11 break-words px-3 py-3 font-medium text-[var(--text-primary)]">
-                              {item.label}
-                            </td>
-                            {["0–30", "31–60", "61–90", ">90"].map(
-                              (bucket, index) => {
-                                const count = item.rows.filter(
-                                  (row) => aging(row) === bucket,
-                                ).length;
-                                return (
-                                  <td
-                                    key={bucket}
-                                    className="kmm-tabular px-3 py-3 text-center"
-                                  >
-                                    <span
-                                      className={
-                                        [
-                                          "bg-[color-mix(in_srgb,var(--status-success)_10%,white)]",
-                                          "bg-[color-mix(in_srgb,var(--status-warning)_10%,white)]",
-                                          "bg-[color-mix(in_srgb,var(--brand-500)_10%,white)]",
-                                          "bg-[color-mix(in_srgb,var(--status-danger)_10%,white)]",
-                                        ][index] +
-                                        " inline-block min-w-10 rounded-[var(--radius-control)] px-2 py-1"
-                                      }
-                                    >
-                                      {count}
-                                    </span>
-                                  </td>
-                                );
-                              },
-                            )}
-                            <td className="kmm-tabular px-3 py-3 text-center font-semibold">
-                              {item.count}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <HeatmapMatrix
+                    columns={["0–30", "31–60", "61–90", ">90"]}
+                    rows={stockAgingHeatmap}
+                    categoryLabel={t("common.model")}
+                    lowerLabel={t("common.lowerConcentration")}
+                    higherLabel={t("common.higherConcentration")}
+                  />
                   </ChartCard>
                 </section>
                 <TableCard
-                  title="Stock Detail"
+                  title={t("stock.detailTitle")}
                   className={chartCardClass}
                   search={
                     <div className="relative min-w-0 flex-1 sm:flex-none">

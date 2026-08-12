@@ -25,6 +25,7 @@ import { Card } from "../ui/card";
 import { ExportButton } from "../design-system/export-button";
 import { StatusBadge } from "../design-system/status-badge";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 
 const icons: Record<string, ReactNode> = {
   salesToday: <ShoppingCart size={17} />,
@@ -61,9 +62,9 @@ function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function downloadReport(input: DailyManagementInputSnapshot, snapshot: DailyManagementSnapshot | null) {
+function downloadReport(input: DailyManagementInputSnapshot, snapshot: DailyManagementSnapshot | null, companyCode: string) {
   const rows = [
-    ["KMM DAILY MANAGEMENT REPORT"],
+    [`${companyCode} DAILY MANAGEMENT REPORT`],
     ["Report Date", input.reportDate],
     ["Data source", snapshot ? "D1 Sales, Booking and Stock" : "Report data is loading"],
     [],
@@ -82,7 +83,7 @@ function downloadReport(input: DailyManagementInputSnapshot, snapshot: DailyMana
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `kmm-daily-management-${input.reportDate}.csv`;
+  link.download = `${companyCode.toLowerCase()}-daily-management-${input.reportDate}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -219,7 +220,7 @@ function TodayDetail({ snapshot }: { snapshot: DailyManagementSnapshot }) {
   );
 }
 
-function StockHealth({ snapshot }: { snapshot: DailyManagementSnapshot }) {
+function StockHealth({ snapshot, currency }: { snapshot: DailyManagementSnapshot; currency: string }) {
   const locations = snapshot.stock.byBranch.map((row) => ({ label: row.branch, units: row.units }));
   const liveAging = snapshot.stock.aging.map((row) => ({
     label: row.label === "0–30" ? "≤ 30 Days" : row.label === ">90" ? "91+ Days" : `${row.label} Days`,
@@ -240,7 +241,7 @@ function StockHealth({ snapshot }: { snapshot: DailyManagementSnapshot }) {
     <Card className={panelClass}>
       <PanelHeader index="4" title="Stock Health Overview" />
       <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2">
-        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 break-words text-[18px] font-semibold tracking-[-0.025em]">{snapshot.stock.value === null ? "N/A" : snapshot.stock.value.toLocaleString("en-US")}<span className="ml-1.5 text-[9px]">MMK</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--surface-subtle)] px-2 py-1 text-[9px] font-bold text-[var(--text-secondary)]">Snapshot {snapshot.sourceDates.stock ?? "unavailable"}</p></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 break-words text-[18px] font-semibold tracking-[-0.025em]">{snapshot.stock.value === null ? "N/A" : snapshot.stock.value.toLocaleString("en-US")}<span className="ml-1.5 text-[9px]">{currency}</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--surface-subtle)] px-2 py-1 text-[9px] font-bold text-[var(--text-secondary)]">Snapshot {snapshot.sourceDates.stock ?? "unavailable"}</p></div>
         <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">PSI Engine</p><strong className="kmm-tabular text-xl text-[var(--text-secondary)]">N/A</strong></div><p className="mt-2 text-[9px] leading-4 text-[var(--text-secondary)]">PSI remains unavailable until its period and denominator are approved.</p><div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-subtle)] p-2 text-center text-[8px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.sales.mtdUnits}</strong></span><span>Booking<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.booking.activeUnits}</strong></span><span>Stock<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.stock.engineUnits}</strong></span></div></div>
         <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFA45C] to-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
         <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Aging</p><span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">{highRisk.percent}% high risk</span></div><div className="mt-2 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3"><div className="relative mx-auto size-24" role="img" aria-label={`Stock aging: ${highRisk.units} units over 90 days out of ${snapshot.stock.engineUnits}`}><div className="absolute inset-0 rounded-full border border-[#ECEEF1] bg-[#F8F9FA]" /><div className="absolute inset-1 rounded-full shadow-[0_8px_18px_rgba(31,41,55,0.10)]" style={{ background: agingGradient }} /><div className="absolute inset-[20px] grid place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#ECEEF1]"><span className="text-center"><strong className="kmm-tabular block text-lg leading-none text-[var(--status-danger)]">{highRisk.units}</strong><span className="mt-1 block text-[7px] font-semibold text-[var(--text-secondary)]">&gt; 90 days</span></span></div><span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#202124] px-2 py-0.5 text-[7px] font-bold text-white shadow-sm">{snapshot.stock.engineUnits} total</span></div><ul className="min-w-0 space-y-1.5">{liveAging.map((row) => <li key={row.label} className="grid grid-cols-[8px_minmax(0,1fr)_48px] items-center gap-1.5 text-[8px]"><span className="size-2 rounded-full" style={{ backgroundColor: row.color }} /><span className="leading-3">{row.label}</span><strong className="kmm-tabular text-right">{row.units} · {row.percent}%</strong></li>)}</ul></div></div>
@@ -281,11 +282,15 @@ function ManagementNotes({ input }: { input: DailyManagementInputSnapshot }) {
 
 export function DailyManagementPage() {
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const currency = selectedCompany?.currency ?? "MMK";
   const [input, setInput] = useState<DailyManagementInputSnapshot | null>(null);
   const [snapshot, setSnapshot] = useState<DailyManagementSnapshot | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "empty" | "error">("loading");
-  const [timeZone, setTimeZone] = useState("Asia/Yangon");
+  const [timeZone, setTimeZone] = useState(selectedCompany?.timeZone ?? "Asia/Yangon");
   const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     let active = true;
@@ -295,13 +300,13 @@ export function DailyManagementPage() {
       setInput(null);
       setSnapshot(null);
       try {
-        const remote = await loadDailyManagementInput("published");
+        const remote = await loadDailyManagementInput("published", { companyId });
         if (!active) return;
         if (!remote) {
           setLoadState("empty");
           return;
         }
-        const live = await loadDailyManagementReport({ date: remote.reportDate, branch: remote.branch === "All Branches" ? undefined : remote.branch });
+        const live = await loadDailyManagementReport({ date: remote.reportDate, branch: remote.branch === "All Branches" ? undefined : remote.branch, companyId });
         if (active) {
           setInput(remote);
           setSnapshot(live.snapshot);
@@ -319,7 +324,7 @@ export function DailyManagementPage() {
     void refresh();
     window.addEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh);
     return () => { active = false; window.removeEventListener(DAILY_MANAGEMENT_INPUT_PUBLISHED, refresh); };
-  }, [refreshKey]);
+  }, [companyId, refreshKey]);
   const ready = loadState === "ready" && input !== null && snapshot !== null;
   const publishedTime = input?.publishedAt
     ? new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(input.publishedAt))
@@ -329,16 +334,16 @@ export function DailyManagementPage() {
       <main className="mx-auto max-w-[1900px] p-3 sm:p-4 xl:px-5 xl:py-4">
         <div className="space-y-3">
           <section className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between" aria-labelledby="daily-management-title">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[23px] font-semibold leading-tight tracking-[-0.025em] sm:text-[26px]">{t("route.dailyManagement.title")}</h1><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${ready ? "bg-[#EAF7EE] text-[#18813A]" : loadState === "error" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[#FFF0E4] text-[#9D4300]"}`}>{ready ? "Live · D1 Data" : loadState === "error" ? "D1 unavailable" : loadState === "empty" ? "No published report" : "Loading D1 data"}</span></div><p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{reportError ? `D1 unavailable: ${reportError}` : t("route.dailyManagement.subtitle")}</p></div>
-            <div className="flex flex-wrap items-center gap-2 text-[10px]">{input && <><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2"><CalendarDays size={12} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2">Updated {publishedTime ?? "unavailable"} · {timeZone}</span></>}<a href={inputEditHref(input)} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] bg-white px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={14} />Update Inputs</a>{ready && <ExportButton onClick={() => downloadReport(input, snapshot)} />}</div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 id="daily-management-title" className="text-[23px] font-semibold leading-tight tracking-[-0.025em] sm:text-[26px]">{t("route.dailyManagement.title")}</h1><span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${ready ? "bg-[#EAF7EE] text-[#18813A]" : loadState === "error" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : "bg-[#FFF0E4] text-[#9D4300]"}`}>{ready ? "Live · D1 Data" : loadState === "error" ? "D1 unavailable" : loadState === "empty" ? "No published report" : "Loading D1 data"}</span></div><p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{reportError ? `D1 unavailable: ${reportError}` : t("route.dailyManagement.subtitle").replaceAll("KMM", companyCode)}</p></div>
+            <div className="flex flex-wrap items-center gap-2 text-[10px]">{input && <><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2"><CalendarDays size={12} className="mr-1.5 inline" />{input.reportDate}</span><span className="rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2">Updated {publishedTime ?? "unavailable"} · {timeZone}</span></>}<a href={inputEditHref(input)} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] bg-white px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><FilePenLine size={14} />Update Inputs</a>{ready && <ExportButton onClick={() => downloadReport(input, snapshot, companyCode)} />}</div>
           </section>
           {!ready ? <Card className={`${panelClass} grid min-h-64 place-items-center p-8 text-center`} role={loadState === "error" ? "alert" : "status"}><div className="max-w-md"><strong className="text-sm">{loadState === "loading" ? "Loading authenticated D1 data…" : loadState === "empty" ? "No published Daily Management input" : "Daily Management data could not be loaded"}</strong><p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{loadState === "empty" ? "Publish a Daily Management input before opening the report. No sample values are shown." : loadState === "error" ? reportError : "The report remains blank until the live response is complete."}</p>{loadState === "error" && <button type="button" onClick={() => setRefreshKey((value) => value + 1)} className="mt-4 min-h-10 rounded-[10px] bg-[var(--brand-500)] px-4 text-[11px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">Retry</button>}</div></Card> : <>
             <KpiStrip snapshot={snapshot} />
             <div className="grid gap-3 xl:grid-cols-[1.35fr_0.65fr]"><SalesPerformance snapshot={snapshot} /><BookingPipeline snapshot={snapshot} /></div>
-            <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail snapshot={snapshot} /><StockHealth snapshot={snapshot} /></div>
+            <div className="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]"><TodayDetail snapshot={snapshot} /><StockHealth snapshot={snapshot} currency={currency} /></div>
             <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]"><BookingStock snapshot={snapshot} /><ActionRequired input={input} /></div>
             <ManagementNotes input={input} />
-            <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Operational data: authenticated D1 Sales, Booking and Stock</span><span className="flex items-center gap-1"><PackageCheck size={10} />KMM Sales Division</span></footer>
+            <footer className="flex flex-col gap-1 border-t border-[var(--divider)] pt-2 text-[8px] text-[var(--text-tertiary)] sm:flex-row sm:justify-between"><span>MTD = Month To Date</span><span>Operational data: authenticated D1 Sales, Booking and Stock</span><span className="flex items-center gap-1"><PackageCheck size={10} />{companyCode} Sales Division</span></footer>
           </>}
         </div>
       </main>

@@ -16,7 +16,10 @@ export function canonicalDailyBranch(value: string | null | undefined) {
   return direct?.code ?? prefix?.code ?? raw;
 }
 
-export function isDailyManagementBranch(value: string) {
+export function isDailyManagementBranch(
+  value: string,
+  allowedBranches: readonly { code: string }[] = DAILY_MANAGEMENT_BRANCHES,
+) {
   return value === ALL_BRANCHES
-    || DAILY_MANAGEMENT_BRANCHES.some((branch) => branch.code === value);
+    || allowedBranches.some((branch) => branch.code === value);
 }

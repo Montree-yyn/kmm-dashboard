@@ -28,6 +28,7 @@ export type BookingAdapterRow = {
 };
 
 export type StockAdapterRow = {
+  companyId: string;
   date: string;
   year: number | null;
   month: number | null;

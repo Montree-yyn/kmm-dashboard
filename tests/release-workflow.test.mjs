@@ -8,12 +8,13 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("production configuration uses explicit company and operations D1 bindings", async () => {
-  const [wrangler, database, salesRepository, operationsRepository, accessContext] = await Promise.all([
+  const [wrangler, database, salesRepository, operationsRepository, accessContext, companyContext] = await Promise.all([
     readFile(new URL("../wrangler.json", import.meta.url), "utf8"),
     readFile(new URL("../db/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/sales/repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/operations/repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/kai/business/access-context.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/company-context.ts", import.meta.url), "utf8"),
   ]);
   assert.match(wrangler, /"binding": "COMPANY_DB"/);
   assert.match(wrangler, /"binding": "OPERATIONS_DB"/);
@@ -23,7 +24,8 @@ test("production configuration uses explicit company and operations D1 bindings"
   assert.doesNotMatch(database, /export async function getDb/);
   assert.match(salesRepository, /getOperationsDb/);
   assert.match(operationsRepository, /getOperationsDb/);
-  assert.match(accessContext, /getCompanyDb/);
+  assert.match(accessContext, /requireCompanyContextForUser/);
+  assert.match(companyContext, /getCompanyDb/);
 });
 
 test("release dry-run runs checks and never deploys", async () => {

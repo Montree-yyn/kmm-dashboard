@@ -73,6 +73,8 @@ const SALES_REQUEST = /(ยอดขาย|พื้นที่ขาย|sales|
 const BOOKING_REQUEST = /(booking|ยอดจอง|รับจอง)/i;
 const STOCK_REQUEST = /(stock|สต็อก|inventory|เหลือกี่คัน)/i;
 const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเคราะห์(?:ละเอียด)?|น่ากังวล|อะไรดีขึ้น|สินค้าไหน(?:ต้องเร่ง|ควรโฟกัส)|สาขาไหน(?:ต้องจับตา|ควรจับตา)|stock.*ขายช้า|booking.*เป็นอย่างไร|gp.*(?:ปัญหา|เป็นยังไง)|เทียบ.*target|ผู้บริหาร.*โฟกัส|ขอรายละเอียดเพิ่ม|ทำไม.*(?:ต้องเร่ง|stock|gp|ยอดขาย.*ลด)|สัปดาห์นี้.*โฟกัส|executive|management focus|what improved|what.*concern|stock.*slow|which product|which branch|why.*(?:stock|gp|sales.*down))/i;
+const BUSINESS_ASSESSMENT_REQUEST = /(จุดแข็ง|จุดอ่อน|ข้อได้เปรียบ|ข้อควรปรับปรุง|วิเคราะห์.*(?:ธุรกิจ|ภาพรวม)|business assessment|strengths?.*weakness|weakness(?:es)?.*strength|swot)/i;
+const BUSINESS_COMPARISON_REQUEST = /(?:(?:เปรียบเทียบ|เทียบ).*(?:ยอดขาย|booking|ยอดจอง|stock|สต็อก|gp|กำไร|สาขา|สินค้า)|compare.*(?:sales|booking|stock|gp|gross profit|branch|product))/i;
 const SALES_MONTH_COMPARISON_REQUEST = /(?:(?:ยอดขาย|sales).*(?:เทียบ|เปรียบเทียบ).*(?:เดือนก่อน|เดือนที่แล้ว|previous month|last month)|(?:เทียบ|เปรียบเทียบ).*(?:ยอดขาย|sales).*(?:เดือนก่อน|เดือนที่แล้ว|previous month|last month))/i;
 const HIGH_STOCK_LOW_SALES_REQUEST = /(?:(?:stock|สต็อก).*(?:สูง|มาก).*(?:ยอดขาย|sales).*(?:ต่ำ|น้อย)|(?:ยอดขาย|sales).*(?:ต่ำ|น้อย).*(?:stock|สต็อก).*(?:สูง|มาก))/i;
 const ALERT_REQUEST = /(alert|แจ้งเตือน|ต้องระวัง|เรื่องด่วน|อะไรต้องระวัง|เตือนเรื่อง)/i;
@@ -90,14 +92,28 @@ export const kmmBusinessTool: KaiTool = {
     if (security) return securityOutput(security, context.message);
     if (SALESPERSON_REQUEST.test(context.message)) return unavailableOutput("salesperson", context.message);
     if (!context.businessAccess) return accessDeniedOutput(context.message);
+    const companyCode = context.businessAccess.companyCode;
+    const timeZone = context.businessAccess.timeZone;
+    if (
+      companyCode !== "KMM"
+      && (
+        SALES_AREA_RANKING_REQUEST.test(context.message)
+        || SALES_AREA_TREND_REQUEST.test(context.message)
+        || BRIEFING_REQUEST.test(context.message)
+        || ALERT_REQUEST.test(context.message)
+        || isExecutiveQuestion(context.message)
+      )
+    ) {
+      return unavailableOutput("business", context.message, companyCode);
+    }
     if (isTargetBusinessQuestion(context.message)) return getTargetAnswer(context);
     if (BRIEFING_REQUEST.test(context.message)) return getBriefingAnswer(context);
     if (ALERT_REQUEST.test(context.message)) return getAlertAnswer(context);
     if (isExecutiveQuestion(context.message)) return getExecutiveAnswer(context);
 
     const areas = selectedAreas(context.message);
-    if (!areas.length) return unavailableOutput("business", context.message);
-    const range = resolveKmmDateRange(context.message, context.now);
+    if (!areas.length) return unavailableOutput("business", context.message, companyCode);
+    const range = resolveKmmDateRange(context.message, context.now, timeZone);
     const product = resolveProduct(context.message);
     const comparePreviousMonth = wantsPreviousMonthComparison(context.message);
     const results = await Promise.all(areas.map((area) => {
@@ -109,12 +125,12 @@ export const kmmBusinessTool: KaiTool = {
     if (comparePreviousMonth && areas.includes("sales")) {
       results.push(await getSalesAggregate(
         context.businessAccess.companyId,
-        previousMonthRange(context.now),
+        previousMonthRange(context.now, timeZone),
         product,
       ));
     }
-    const data = { source: "KMM Internal Data", range, results };
-    return { answer: formatBusinessAnswer(context.message, data), data };
+    const data = { source: `${companyCode} Internal Data`, range, results };
+    return { answer: formatBusinessAnswer(context.message, data, companyCode, context.businessAccess.currency), data };
   },
 };
 
@@ -129,36 +145,43 @@ export function isKmmBusinessQuestion(message: string) {
 
 export function isExecutiveQuestion(message: string) {
   return EXECUTIVE_REQUEST.test(message)
+    || BUSINESS_ASSESSMENT_REQUEST.test(message)
+    || BUSINESS_COMPARISON_REQUEST.test(message)
     || HIGH_STOCK_LOW_SALES_REQUEST.test(message);
 }
 
 async function getAlertAnswer(context: Parameters<KaiTool["execute"]>[0]): Promise<KaiToolOutput> {
-  const range = resolveKmmDateRange(context.message, context.now);
+  const range = resolveKmmDateRange(context.message, context.now, context.businessAccess!.timeZone);
   if (range.kind !== "dateRange") return unavailableOutput("business", context.message);
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, undefined, context.now);
-  const alerts = evaluateExecutiveAlerts(snapshot, deriveExecutiveSignals(snapshot), context.now.toISOString(), range.end >= context.now.toISOString().slice(0, 10) ? "MTD" : "COMPLETED");
+  const comparisonScope = resolveExecutiveComparableScope(range, context.now, context.businessAccess!.timeZone);
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, comparisonScope.period, comparisonScope.previous, context.now);
+  const alerts = evaluateExecutiveAlerts(snapshot, deriveExecutiveSignals(snapshot), context.now.toISOString(), comparisonScope.partial ? "MTD" : "COMPLETED");
   const selected = resolveProduct(context.message); const visible = selected ? alerts.filter((alert) => alert.subject.includes(selected)) : alerts;
   const lines = ["Executive Alerts"];
   for (const level of ["CRITICAL", "WARNING", "WATCH", "POSITIVE"] as const) {
     const group = visible.filter((alert) => alert.severity === level); if (group.length) lines.push(`${level} (${group.length})`, ...group.map((alert) => `• ${alert.summary}`));
   }
   if (!visible.length) lines.push("No deterministic alerts for this scope.");
-  lines.push(`ข้อมูล ณ: ${range.scopeLabel}`, `แหล่งข้อมูล: KMM Internal Data`);
-  return { answer: lines.join("\n"), data: { source: "KMM Internal Data", alerts: visible, period: range.scopeLabel } };
+  const source = `${context.businessAccess!.companyCode} Internal Data`;
+  lines.push(`ข้อมูล ณ: ${comparisonScope.period.scopeLabel}`, `แหล่งข้อมูล: ${source}`);
+  return { answer: lines.join("\n"), data: { source, alerts: visible, period: comparisonScope.period.scopeLabel } };
 }
 
 async function getBriefingAnswer(context: Parameters<KaiTool["execute"]>[0]): Promise<KaiToolOutput> {
-  const weekly = executiveWeekScope(context.message, context.now); const range = weekly?.period ?? resolveKmmDateRange(context.message, context.now);
+  const weekly = executiveWeekScope(context.message, context.now, context.businessAccess!.timeZone); const range = weekly?.period ?? resolveKmmDateRange(context.message, context.now, context.businessAccess!.timeZone);
   if (range.kind !== "dateRange") return unavailableOutput("business", context.message);
   const mode = weekly ? "weekly" : /(วันนี้|daily)/i.test(context.message) ? "daily" : "monthly";
-  const isMtd = mode === "monthly" && range.end >= context.now.toISOString().slice(0,10);
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous, context.now);
+  const comparisonScope = weekly
+    ? { period: { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, previous: weekly.previous, partial: false }
+    : resolveExecutiveComparableScope(range, context.now, context.businessAccess!.timeZone);
+  const isMtd = mode === "monthly" && comparisonScope.partial;
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, comparisonScope.period, comparisonScope.previous, context.now);
   const status = weekly ? "WEEKLY" : mode === "daily" ? "DAILY" : isMtd ? "MTD" : "COMPLETED";
   const signals = deriveExecutiveSignals(snapshot);
   const alerts = evaluateExecutiveAlerts(snapshot, signals, context.now.toISOString(), status);
   const groups = groupExecutiveSignals(signals);
   const recommendations = executiveRecommendations(snapshot, groups);
-  return { answer: composeExecutiveBriefing(snapshot, alerts, recommendations, mode, isMtd), data: { source: "KMM Internal Data", briefing: mode, mtd: isMtd, alerts } };
+  return { answer: composeExecutiveBriefing(snapshot, alerts, recommendations, mode, isMtd), data: { source: `${context.businessAccess!.companyCode} Internal Data`, briefing: mode, mtd: isMtd, alerts } };
 }
 
 /** Security routing runs before access resolution and before every data tool. */
@@ -200,28 +223,31 @@ export function resolveTargetIntent(message: string): TargetIntent {
     metric,
     productGroup: product === "TT" ? "TT" : product === "CH" ? "CH" : product === "EX" || product === "TP" ? "EX_TP" : "",
     requestedSeparateExOrTp: product === "EX" || product === "TP",
-    branchRequested: /\bKMM0[123]\b|(?:สาขา|branch)\s*(?:KMM)?0?[123]/i.test(message),
+    branchRequested: /\bKMM0[123]\b|(?:สาขา|branch)\s*[A-Z0-9-]+/i.test(message),
     wantsActualComparison: /(?:achievement|gap|ทำยอด.*(?:%|เป้า)|ได้กี่\s*%|เหลือกี่|ส่วนต่าง)/i.test(message),
   };
 }
 
 async function getTargetAnswer(context: Parameters<KaiTool["execute"]>[0]): Promise<KaiToolOutput> {
   const thai = /[\u0e00-\u0e7f]/.test(context.message);
+  const companyCode = context.businessAccess!.companyCode;
+  const currency = context.businessAccess!.currency;
+  const targetSource = `${companyCode} Approved Target`;
   const intent = resolveTargetIntent(context.message);
   if (intent.branchRequested) {
-    return { answer: thai ? "ยังไม่มี Target ระดับสาขาในแหล่งข้อมูลปัจจุบัน" : "Branch-level Targets are not available in the current approved source.", data: { unavailable: "branch_target", source: "KMM Approved Target" } };
+    return { answer: thai ? "ยังไม่มี Target ระดับสาขาในแหล่งข้อมูลปัจจุบัน" : "Branch-level Targets are not available in the current approved source.", data: { unavailable: "branch_target", source: targetSource } };
   }
   if (intent.requestedSeparateExOrTp) {
-    return { answer: thai ? "Target ในแหล่งข้อมูลปัจจุบันรวม Excavator และ Rice Transplanter เป็น EX&TP จึงยังไม่มี Target แยกรายสินค้า" : "The approved source combines Excavator and Rice Transplanter as EX&TP, so separate product Targets are unavailable.", data: { unavailable: "separate_ex_tp_target", source: "KMM Approved Target" } };
+    return { answer: thai ? "Target ในแหล่งข้อมูลปัจจุบันรวม Excavator และ Rice Transplanter เป็น EX&TP จึงยังไม่มี Target แยกรายสินค้า" : "The approved source combines Excavator and Rice Transplanter as EX&TP, so separate product Targets are unavailable.", data: { unavailable: "separate_ex_tp_target", source: targetSource } };
   }
-  const range = resolveKmmDateRange(context.message, context.now);
+  const range = resolveKmmDateRange(context.message, context.now, context.businessAccess!.timeZone);
   if (range.kind !== "dateRange" || range.start.slice(0, 7) !== range.end.slice(0, 7)) {
-    return { answer: thai ? "กรุณาระบุเดือนและปีเดียวสำหรับ Target เนื่องจาก Target ต้องใช้ขอบเขตเดือนที่แน่นอน" : "Please specify one calendar month and year for Target data; targets require an exact monthly scope.", data: { unavailable: "target_scope", source: "KMM Approved Target" } };
+    return { answer: thai ? "กรุณาระบุเดือนและปีเดียวสำหรับ Target เนื่องจาก Target ต้องใช้ขอบเขตเดือนที่แน่นอน" : "Please specify one calendar month and year for Target data; targets require an exact monthly scope.", data: { unavailable: "target_scope", source: targetSource } };
   }
   const year = Number(range.start.slice(0, 4));
   const month = Number(range.start.slice(5, 7));
   const target = await getCompanyMonthlyTarget({ companyId: context.businessAccess!.companyId, year, month, metric: intent.metric, productGroup: intent.productGroup });
-  if (!target) return unavailableOutput("target", context.message);
+  if (!target) return unavailableOutput("target", context.message, context.businessAccess!.companyCode);
   const actual = intent.wantsActualComparison
     ? await getSalesAggregate(context.businessAccess!.companyId, range, intent.productGroup === "TT" ? "TT" : intent.productGroup === "CH" ? "CH" : null)
     : null;
@@ -229,52 +255,62 @@ async function getTargetAnswer(context: Parameters<KaiTool["execute"]>[0]): Prom
     ? intent.metric === "SALES_REVENUE" ? actual.salesValue : intent.metric === "GP1" ? actual.grossProfit : actual.units
     : null;
   const progress = actualValue === null ? null : targetProgress(actualValue, target.target);
-  const sourceLabel = target.sourceVersion === "2026-Original-H1"
-    ? (thai ? "KMM Approved Target · Original H1 2026" : "KMM Approved Target · Original H1 2026")
-    : (thai ? "KMM Approved Target · Revised H2 2026" : "KMM Approved Target · Revised H2 2026");
+  const sourceLabel = `${targetSource} · ${target.sourceVersion}`;
   const metricLabel = target.metric === "SALES_REVENUE" ? (thai ? "Target Revenue" : "Revenue Target") : target.metric === "GP1" ? "GP1 Target" : (thai ? "Target Sales" : "Sales Target");
   const unit = target.metric === "SALES_UNITS" ? (thai ? " คัน" : " units") : "";
   const lines = [
-    `KMM · ${formatDateScope(range, thai)}`,
-    `• ${metricLabel}: ${target.metric === "SALES_UNITS" ? formatNumber(target.target) : formatMoney(target.target)}${unit}`,
+    `${companyCode} · ${formatDateScope(range, thai)}`,
+    `• ${metricLabel}: ${target.metric === "SALES_UNITS" ? formatNumber(target.target) : `${formatMoney(target.target)} ${currency}`}${unit}`,
   ];
   const targetEvaluationEligible = canEvaluateFullPeriodTarget(range, context.now);
   if (actualValue !== null && progress) {
-    lines.push(`• ${thai ? "ผลงานจริง" : "Actual"}: ${target.metric === "SALES_UNITS" ? formatNumber(actualValue) : formatMoney(actualValue)}${unit}`);
+    lines.push(`• ${thai ? "ผลงานจริง" : "Actual"}: ${target.metric === "SALES_UNITS" ? formatNumber(actualValue) : `${formatMoney(actualValue)} ${currency}`}${unit}`);
     if (targetEvaluationEligible) {
       lines.push(`• ${thai ? "Achievement" : "Achievement"}: ${formatNumber(progress.achievementPercent)}%`);
-      lines.push(`• Gap: ${target.metric === "SALES_UNITS" ? formatNumber(progress.gap) : formatMoney(progress.gap)}${unit}`);
+      lines.push(`• Gap: ${target.metric === "SALES_UNITS" ? formatNumber(progress.gap) : `${formatMoney(progress.gap)} ${currency}`}${unit}`);
     } else {
       lines.push(thai ? "• งวดยังไม่สิ้นสุด: Target แสดงเป็นข้อมูลประกอบเท่านั้น ยังไม่ประเมินผลทั้งเดือน" : "• Period incomplete: Target is context only; full-period performance is not evaluated.");
     }
-    lines.push(`${thai ? "ข้อมูลจริง" : "Actual source"}: KMM Internal Data`);
+    lines.push(`${thai ? "ข้อมูลจริง" : "Actual source"}: ${companyCode} Internal Data`);
   }
   lines.push(`${thai ? "เป้าหมาย" : "Target source"}: ${sourceLabel}`);
-  return { answer: lines.join("\n"), data: { target, actual: actualValue, progress, source: "KMM Approved Target", range } };
+  return { answer: lines.join("\n"), data: { target, actual: actualValue, progress, source: targetSource, range } };
 }
 
 async function getExecutiveAnswer(context: Parameters<KaiTool["execute"]>[0]): Promise<KaiToolOutput> {
   const thai = /[\u0e00-\u0e7f]/.test(context.message);
-  const weekly = executiveWeekScope(context.message, context.now);
-  const range = weekly?.period ?? resolveKmmDateRange(context.message, context.now);
+  const weekly = executiveWeekScope(context.message, context.now, context.businessAccess!.timeZone);
+  const range = weekly?.period ?? resolveKmmDateRange(context.message, context.now, context.businessAccess!.timeZone);
   if (range.kind !== "dateRange" || range.start.slice(0, 7) !== range.end.slice(0, 7)) {
     return { answer: thai ? "ข้อมูลยังไม่เพียงพอสำหรับสรุป Executive Intelligence ในขอบเขตนี้ กรุณาระบุเดือนและปีเดียว" : "Executive Intelligence requires one explicit calendar month and year for this scope.", data: { unavailable: "executive_scope" } };
   }
-  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, weekly?.previous, context.now);
+  const comparisonScope = weekly
+    ? { period: { start: range.start, end: range.end, scopeLabel: range.scopeLabel }, previous: weekly.previous, partial: false }
+    : resolveExecutiveComparableScope(range, context.now, context.businessAccess!.timeZone);
+  const effectiveRange: DateRange = {
+    ...range,
+    start: comparisonScope.period.start,
+    end: comparisonScope.period.end,
+    scopeLabel: comparisonScope.period.scopeLabel,
+  };
+  const snapshot = await buildExecutiveSnapshot(context.businessAccess!.companyId, comparisonScope.period, comparisonScope.previous, context.now);
   const signals = deriveExecutiveSignals(snapshot);
   const priorities = rankExecutivePriorities(signals);
   const groups = groupExecutiveSignals(signals);
   const recommendations = executiveRecommendations(snapshot, groups);
-  const mode = executiveMode(context.message);
-  if (mode === "why") return executiveWhyAnswer(context.message, snapshot, signals, priorities, range, thai);
-  if (mode === "product") return executiveProductAnswer(snapshot, signals, range, thai);
-  if (mode === "branch") return executiveBranchAnswer(snapshot, range, thai);
+  const mode = resolveExecutiveAnalysisMode(context.message);
+  const source = `${context.businessAccess!.companyCode} Internal Data`;
+  if (mode === "assessment") return executiveAssessmentAnswer(snapshot, groups, recommendations, effectiveRange, thai, source, comparisonScope.partial);
+  if (mode === "comparison") return executiveComparisonAnswer(snapshot, effectiveRange, thai, source, comparisonScope.partial);
+  if (mode === "why") return executiveWhyAnswer(context.message, snapshot, signals, priorities, effectiveRange, thai);
+  if (mode === "product") return executiveProductAnswer(snapshot, signals, effectiveRange, thai);
+  if (mode === "branch") return executiveBranchAnswer(snapshot, effectiveRange, thai);
   const hasPrior = snapshot.priorSales.units > 0 || snapshot.priorBooking.units > 0;
   const lines = [thai ? "Executive Summary" : "Executive Summary", `• ${thai ? "Sales" : "Sales"}: ${formatNumber(snapshot.sales.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.sales.value)}`, `• ${thai ? "กำไรขั้นต้น" : "Gross Profit"}: ${formatMoney(snapshot.sales.gp)}${snapshot.sales.gpPercent === null ? "" : ` · ${formatNumber(snapshot.sales.gpPercent)}%`}`, `• ${thai ? "Booking" : "Booking"}: ${formatNumber(snapshot.booking.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.booking.value)}`, `• ${thai ? "Stock" : "Stock"}: ${formatNumber(snapshot.stock.units)} ${thai ? "คัน" : "units"} · ${formatMoney(snapshot.stock.value)}`];
   if (snapshot.target && snapshot.progress) lines.push(snapshot.targetEvaluationEligible
     ? `• ${thai ? "Target" : "Target"}: ${formatNumber(snapshot.target.target)} ${thai ? "คัน" : "units"} · ${formatNumber(snapshot.progress.achievementPercent)}% · Gap ${formatNumber(snapshot.progress.gap)}`
     : `• ${thai ? "Target (ข้อมูลประกอบ)" : "Target (context only)"}: ${formatNumber(snapshot.target.target)} ${thai ? "คัน" : "units"} · ${thai ? "งวดยังไม่สิ้นสุด จึงไม่ประเมินผลทั้งงวด" : "period incomplete; no full-period assessment"}`);
-  if (range.end > isoDate(context.now)) lines.push(thai ? "หมายเหตุ: ข้อมูลเดือนปัจจุบันเป็น Month-to-Date; การเปรียบเทียบกับเดือนก่อนเป็นเพียงข้อมูลประกอบ" : "Note: current-month data is Month-to-Date; the prior-month comparison is contextual only.");
+  if (comparisonScope.partial) lines.push(thai ? "หมายเหตุ: เปรียบเทียบ Month-to-Date กับจำนวนวันเท่ากันของเดือนก่อน" : "Note: Month-to-Date is compared with the same elapsed days of the previous month.");
   if (!hasPrior) lines.push(thai ? "แนวโน้ม: ข้อมูลยังไม่เพียงพอสำหรับเปรียบเทียบงวดก่อน" : "Trend: insufficient prior comparable-period data.");
   const narrative = await composeExecutiveNarrative(context.aiProvider, snapshot, signals, priorities);
   lines.push(thai ? "Analysis" : "Analysis");
@@ -294,7 +330,7 @@ async function getExecutiveAnswer(context: Parameters<KaiTool["execute"]>[0]): P
     lines.push(thai ? "Recommended Focus" : "Recommended Focus");
     recommendations.forEach((item, index) => lines.push(`${index + 1}. ${thai ? item.text : item.text}\n   ${thai ? "เหตุผล" : "Reason"}: ${item.reason}`));
   }
-  lines.push(`${thai ? "ช่วงข้อมูล" : "Data scope"}: ${formatDateScope(range, thai)}`);
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data scope"}: ${formatDateScope(effectiveRange, thai)}`);
   lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: KMM Internal Data`);
   return { answer: lines.join("\n"), data: { source: "KMM Internal Data", snapshot, signals, groups, priorities, recommendations, narrative: { model: narrative.model, fallbackUsed: narrative.fallbackUsed, rejected: narrative.rejected } }, model: narrative.model ?? undefined, fallbackUsed: narrative.fallbackUsed };
 }
@@ -311,9 +347,9 @@ function formatExecutiveSignalGroup(group: ExecutiveSignalGroup, thai: boolean) 
   return thai ? thaiSignal(group.code) : group.signals[0]?.detail ?? group.code;
 }
 
-function executiveWeekScope(message: string, now: Date) {
+function executiveWeekScope(message: string, now: Date, timeZone = "Asia/Yangon") {
   if (!/(สัปดาห์นี้|this week)/i.test(message)) return null;
-  const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Yangon" }));
+  const local = businessLocalDate(now, timeZone);
   const mondayOffset = (local.getDay() + 6) % 7;
   const start = new Date(local.getFullYear(), local.getMonth(), local.getDate() - mondayOffset);
   const end = new Date(local.getFullYear(), local.getMonth(), local.getDate());
@@ -325,11 +361,159 @@ function executiveWeekScope(message: string, now: Date) {
   };
 }
 
-function executiveMode(message: string): "summary" | "detailed" | "why" | "product" | "branch" {
+export function resolveExecutiveAnalysisMode(message: string): "summary" | "detailed" | "why" | "product" | "branch" | "assessment" | "comparison" {
   if (/(ทำไม|why)/i.test(message)) return "why";
   if (/(สินค้าไหน|แยกตามสินค้า|which product)/i.test(message)) return "product";
   if (/(สาขาไหน|แยกตามสาขา|which branch)/i.test(message)) return "branch";
+  if (BUSINESS_ASSESSMENT_REQUEST.test(message)) return "assessment";
+  if (BUSINESS_COMPARISON_REQUEST.test(message)) return "comparison";
   return /(ละเอียด|ขอรายละเอียด|detail)/i.test(message) ? "detailed" : "summary";
+}
+
+function executiveAssessmentAnswer(
+  snapshot: Awaited<ReturnType<typeof buildExecutiveSnapshot>>,
+  groups: ExecutiveSignalGroup[],
+  recommendations: ReturnType<typeof executiveRecommendations>,
+  range: DateRange,
+  thai: boolean,
+  source: string,
+  partialPeriod: boolean,
+): KaiToolOutput {
+  const strengths = selectExecutiveSignalGroups(
+    groups.filter((group) => group.severity === "positive"),
+    3,
+  );
+  const weaknesses = selectExecutiveSignalGroups(
+    groups.filter((group) => group.severity !== "positive"),
+    4,
+  );
+  const lines = [thai ? "การประเมินธุรกิจจากข้อมูล" : "Data-supported business assessment"];
+
+  lines.push(thai ? "จุดแข็ง" : "Strengths");
+  if (strengths.length) {
+    strengths.forEach((group, index) => {
+      lines.push(`${index + 1}. ${formatExecutiveSignalGroup(group, thai)}`);
+      const evidence = formatExecutiveEvidence(group, thai);
+      if (evidence) lines.push(`   ${thai ? "หลักฐาน" : "Evidence"}: ${evidence}`);
+    });
+  } else {
+    lines.push(thai
+      ? "• ยังไม่มีหลักฐานเปรียบเทียบหรือ Target ที่เพียงพอสำหรับยืนยันจุดแข็ง"
+      : "• There is not enough comparison or Target evidence to confirm a strength.");
+  }
+
+  lines.push(thai ? "จุดอ่อนและความเสี่ยง" : "Weaknesses and risks");
+  if (weaknesses.length) {
+    weaknesses.forEach((group, index) => {
+      lines.push(`${index + 1}. ${formatExecutiveSignalGroup(group, thai)}`);
+      const evidence = formatExecutiveEvidence(group, thai);
+      if (evidence) lines.push(`   ${thai ? "หลักฐาน" : "Evidence"}: ${evidence}`);
+    });
+  } else {
+    lines.push(thai
+      ? "• ยังไม่พบสัญญาณเชิงลบตามกฎที่กำหนดในขอบเขตนี้"
+      : "• No configured negative signal was found in this scope.");
+  }
+
+  if (recommendations.length) {
+    lines.push(thai ? "สิ่งที่ควรโฟกัส" : "Recommended focus");
+    recommendations.slice(0, 3).forEach((item, index) => {
+      lines.push(`${index + 1}. ${item.text}`);
+      lines.push(`   ${thai ? "เหตุผล" : "Reason"}: ${item.reason}`);
+    });
+  }
+  if (partialPeriod) {
+    lines.push(thai
+      ? "หมายเหตุ: ใช้ข้อมูล Month-to-Date เทียบกับจำนวนวันเท่ากันของเดือนก่อน"
+      : "Note: Month-to-Date is compared with the same elapsed days of the previous month.");
+  }
+  lines.push(thai
+    ? "ข้อจำกัด: ผลลัพธ์นี้เป็นสัญญาณจากข้อมูลที่มี ไม่ใช่ข้อยืนยันสาเหตุหรือการพยากรณ์"
+    : "Limitation: this is a signal-based assessment, not proof of cause or a forecast.");
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data scope"}: ${formatDateScope(range, thai)}`);
+  lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: ${source}`);
+
+  return {
+    answer: lines.join("\n"),
+    data: { source, snapshot, assessment: { strengths, weaknesses, recommendations } },
+  };
+}
+
+function executiveComparisonAnswer(
+  snapshot: Awaited<ReturnType<typeof buildExecutiveSnapshot>>,
+  range: DateRange,
+  thai: boolean,
+  source: string,
+  partialPeriod: boolean,
+): KaiToolOutput {
+  const lines = [thai ? "เปรียบเทียบผลการดำเนินงาน" : "Business performance comparison"];
+  lines.push(`${snapshot.period.scopeLabel} ${thai ? "เทียบกับ" : "vs"} ${snapshot.previous.scopeLabel}`);
+  lines.push(`• Sales Unit: ${formatComparisonMetric(snapshot.sales.units, snapshot.priorSales.units, "number", thai)}`);
+  lines.push(`• Sales Value: ${formatComparisonMetric(snapshot.sales.value, snapshot.priorSales.value, "money", thai)}`);
+  lines.push(`• Booking Unit: ${formatComparisonMetric(snapshot.booking.units, snapshot.priorBooking.units, "number", thai)}`);
+  if (snapshot.sales.gpPercent === null || snapshot.priorSales.gpPercent === null) {
+    lines.push(thai ? "• GP%: ข้อมูลยังไม่เพียงพอสำหรับเปรียบเทียบ" : "• GP%: insufficient comparable data");
+  } else {
+    const difference = snapshot.sales.gpPercent - snapshot.priorSales.gpPercent;
+    lines.push(`• GP%: ${formatNumber(snapshot.sales.gpPercent)}% ${thai ? "เทียบกับ" : "vs"} ${formatNumber(snapshot.priorSales.gpPercent)}% · ${difference >= 0 ? "+" : ""}${formatNumber(difference)} ${thai ? "จุดเปอร์เซ็นต์" : "pp"}`);
+  }
+  lines.push(`• Stock: ${formatNumber(snapshot.stock.units)} ${thai ? "คัน ณ" : "units as of"} ${snapshot.stock.snapshotDate ?? (thai ? "ไม่พบวันที่ Snapshot" : "snapshot date unavailable")}`);
+  lines.push(thai
+    ? "  Stock เป็นข้อมูล ณ จุดเวลา จึงไม่เทียบเป็นแนวโน้มจนกว่าจะมี Snapshot ย้อนหลังที่เพียงพอ"
+    : "  Stock is point-in-time data and is not treated as a trend without sufficient historical snapshots.");
+  if (partialPeriod) {
+    lines.push(thai
+      ? "หมายเหตุ: งวดปัจจุบันยังไม่สิ้นสุด จึงเทียบ Month-to-Date กับจำนวนวันเท่ากันของเดือนก่อน"
+      : "Note: the current period is incomplete, so Month-to-Date is compared with the same elapsed days of the previous month.");
+  }
+  lines.push(thai
+    ? "ข้อจำกัด: ความแตกต่างที่พบไม่ใช่หลักฐานว่า KPI หนึ่งเป็นสาเหตุของอีก KPI"
+    : "Limitation: observed differences do not prove that one KPI caused another.");
+  lines.push(`${thai ? "ช่วงข้อมูล" : "Data scope"}: ${formatDateScope(range, thai)}`);
+  lines.push(`${thai ? "แหล่งข้อมูล" : "Source"}: ${source}`);
+
+  return {
+    answer: lines.join("\n"),
+    data: {
+      source,
+      comparison: {
+        current: snapshot.period,
+        previous: snapshot.previous,
+        sales: { current: snapshot.sales, previous: snapshot.priorSales },
+        booking: { current: snapshot.booking, previous: snapshot.priorBooking },
+        stock: snapshot.stock,
+      },
+    },
+  };
+}
+
+function formatComparisonMetric(current: number, previous: number, kind: "number" | "money", thai: boolean) {
+  const format = kind === "money" ? formatMoney : formatNumber;
+  const difference = current - previous;
+  const percentage = previous === 0 ? null : (difference / Math.abs(previous)) * 100;
+  const delta = `${difference >= 0 ? "+" : ""}${format(difference)}`;
+  const percentText = percentage === null
+    ? (thai ? "ไม่มีฐานเดิมสำหรับคำนวณ %" : "no prior base for %")
+    : `${percentage >= 0 ? "+" : ""}${formatNumber(percentage)}%`;
+  return `${format(current)} ${thai ? "เทียบกับ" : "vs"} ${format(previous)} · ${delta} (${percentText})`;
+}
+
+function formatExecutiveEvidence(group: ExecutiveSignalGroup, thai: boolean) {
+  const signal = group.signals[0];
+  if (!signal) return "";
+  const values = signal.values;
+  const evidence: string[] = [];
+  if (typeof values.product === "string") evidence.push(`${thai ? "สินค้า" : "Product"} ${values.product}`);
+  if (typeof values.achievement === "number") evidence.push(`Achievement ${formatNumber(values.achievement)}%`);
+  if (typeof values.salesChange === "number") evidence.push(`Sales ${values.salesChange >= 0 ? "+" : ""}${formatNumber(values.salesChange)}%`);
+  if (typeof values.bookingChange === "number") evidence.push(`Booking ${values.bookingChange >= 0 ? "+" : ""}${formatNumber(values.bookingChange)}%`);
+  if (typeof values.gpChange === "number") evidence.push(`GP ${values.gpChange >= 0 ? "+" : ""}${formatNumber(values.gpChange)} ${thai ? "จุดเปอร์เซ็นต์" : "pp"}`);
+  if (typeof values.sales === "number") evidence.push(`Sales ${formatNumber(values.sales)}`);
+  if (typeof values.booking === "number") evidence.push(`Booking ${formatNumber(values.booking)}`);
+  if (typeof values.stock === "number") evidence.push(`Stock ${formatNumber(values.stock)}`);
+  if (typeof values.stockCoverProxy === "number") evidence.push(`Stock Cover Proxy ${formatNumber(values.stockCoverProxy)}`);
+  if (typeof values.gap === "number") evidence.push(`Gap ${formatNumber(values.gap)}`);
+  return evidence.join(" · ");
 }
 
 function executiveWhyAnswer(message: string, snapshot: Awaited<ReturnType<typeof buildExecutiveSnapshot>>, signals: ExecutiveSignal[], priorities: ReturnType<typeof rankExecutivePriorities>, range: DateRange, thai: boolean): KaiToolOutput {
@@ -562,7 +746,7 @@ function resolveProduct(message: string): ProductGroup | null {
  * "เดือนนี้" is the current calendar month/year, while all-years month
  * aggregation requires an explicit historical request such as "ทุกปี".
  */
-export function resolveKmmDateRange(message: string, now: Date): DateRange {
+export function resolveKmmDateRange(message: string, now: Date, timeZone = "Asia/Yangon"): DateRange {
   const dates = [...message.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map((match) => match[1]);
   if (dates.length) {
     const start = dates[0];
@@ -579,7 +763,7 @@ export function resolveKmmDateRange(message: string, now: Date): DateRange {
       return { kind: "dateRange", start: `${startYear}-01-01`, end: `${endYear}-12-31`, label: "year range", scopeLabel: `${startYear}–${endYear}` };
     }
   }
-  const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Yangon" }));
+  const local = businessLocalDate(now, timeZone);
   if (/(วันนี้|today)/i.test(message)) return dayRange(local, "today");
   if (/(เมื่อวาน|yesterday)/i.test(message)) return dayRange(new Date(local.getFullYear(), local.getMonth(), local.getDate() - 1), "yesterday");
 
@@ -619,11 +803,60 @@ function wantsPreviousMonthComparison(message: string) {
   return /(เทียบ.*เดือนก่อน|เดือนนี้.*เทียบ|month.?over.?month|mom|compare.*last month)/i.test(message);
 }
 
-function previousMonthRange(now: Date) {
-  const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Yangon" }));
+function previousMonthRange(now: Date, timeZone = "Asia/Yangon") {
+  const local = businessLocalDate(now, timeZone);
   const year = local.getMonth() === 0 ? local.getFullYear() - 1 : local.getFullYear();
   const month = local.getMonth() || 12;
   return monthRange(year, month, "previous month");
+}
+
+export function resolveExecutiveComparableScope(
+  range: Extract<DateRange, { kind: "dateRange" }>,
+  now: Date,
+  timeZone = "Asia/Yangon",
+) {
+  const period = { start: range.start, end: range.end, scopeLabel: range.scopeLabel };
+  const local = businessLocalDate(now, timeZone);
+  const localIso = isoDate(local);
+  const rangeYear = Number(range.start.slice(0, 4));
+  const rangeMonth = Number(range.start.slice(5, 7));
+  const expectedMonthEnd = isoDate(new Date(rangeYear, rangeMonth, 0));
+  const isCurrentCalendarMonth = range.start.endsWith("-01")
+    && range.end === expectedMonthEnd
+    && range.start.slice(0, 7) === localIso.slice(0, 7);
+
+  if (!isCurrentCalendarMonth) return { period, previous: undefined, partial: false };
+
+  const previousStartDate = new Date(rangeYear, rangeMonth - 2, 1);
+  const previousYear = previousStartDate.getFullYear();
+  const previousMonth = previousStartDate.getMonth() + 1;
+  const previousMonthDays = new Date(previousYear, previousMonth, 0).getDate();
+  const previousEndDate = new Date(
+    previousYear,
+    previousMonth - 1,
+    Math.min(local.getDate(), previousMonthDays),
+  );
+  return {
+    period: {
+      start: range.start,
+      end: localIso,
+      scopeLabel: `${range.scopeLabel} MTD`,
+    },
+    previous: {
+      start: isoDate(previousStartDate),
+      end: isoDate(previousEndDate),
+      scopeLabel: `${formatMonthScope(previousYear, previousMonth)} MTD`,
+    },
+    partial: true,
+  };
+}
+
+function businessLocalDate(now: Date, timeZone: string) {
+  try {
+    return new Date(now.toLocaleString("en-US", { timeZone }));
+  } catch {
+    return new Date(now.toLocaleString("en-US", { timeZone: "Asia/Yangon" }));
+  }
 }
 
 function findNamedMonth(message: string) {
@@ -709,26 +942,26 @@ export function formatBusinessAnswer(message: string, data: { source: string; ra
   const lines: string[] = [];
   for (const result of data.results as Array<Record<string, unknown>>) {
     if (result.area === "sales") {
-      lines.push(`${thai ? "ยอดขาย KMM" : "KMM Sales"}${result.range && (result.range as DateRange).label === "previous month" ? (thai ? " — เดือนก่อน" : " — previous month") : ""}`);
+      lines.push(`${thai ? `ยอดขาย ${companyCode}` : `${companyCode} Sales`}${result.range && (result.range as DateRange).label === "previous month" ? (thai ? " — เดือนก่อน" : " — previous month") : ""}`);
       lines.push(`• ${thai ? "Sales" : "Sales"}: ${formatNumber(result.units)} ${thai ? "คัน" : "units"}`);
-      lines.push(`• ${thai ? "Sales Value" : "Sales Value"}: ${formatMoney(result.salesValue)}`);
-      lines.push(`• ${thai ? "กำไรขั้นต้น" : "Gross Profit"}: ${formatMoney(result.grossProfit)}`);
+      lines.push(`• ${thai ? "Sales Value" : "Sales Value"}: ${formatMoney(result.salesValue)} ${currency}`);
+      lines.push(`• ${thai ? "กำไรขั้นต้น" : "Gross Profit"}: ${formatMoney(result.grossProfit)} ${currency}`);
       if (result.grossProfitPercent !== null) lines.push(`• GP: ${formatNumber(result.grossProfitPercent)}%`);
-      if (branchReport) appendBranchLines(lines, result.branchBreakdown, "sales", thai);
+      if (branchReport) appendBranchLines(lines, result.branchBreakdown, "sales", thai, currency);
     }
     if (result.area === "booking") {
-      lines.push(thai ? "Booking KMM" : "KMM Booking");
+      lines.push(thai ? `Booking ${companyCode}` : `${companyCode} Booking`);
       lines.push(`• ${thai ? "รับจอง" : "Open bookings"}: ${formatNumber(result.units)} ${thai ? "คัน" : "units"}`);
-      lines.push(`• ${thai ? "มูลค่าจอง" : "Booking Value"}: ${formatMoney(result.bookingValue)}`);
-      if (branchReport) appendBranchLines(lines, result.branchBreakdown, "booking", thai);
+      lines.push(`• ${thai ? "มูลค่าจอง" : "Booking Value"}: ${formatMoney(result.bookingValue)} ${currency}`);
+      if (branchReport) appendBranchLines(lines, result.branchBreakdown, "booking", thai, currency);
     }
     if (result.area === "stock") {
-      lines.push(thai ? "Stock KMM" : "KMM Stock");
+      lines.push(thai ? `Stock ${companyCode}` : `${companyCode} Stock`);
       if (result.dataAvailable === false) {
         lines.push(thai ? "• ไม่มี Stock snapshot ในช่วงเวลาที่ถาม" : "• No Stock snapshot is available in the requested period");
       } else {
         lines.push(`• ${thai ? "คงเหลือ" : "Available"}: ${formatNumber(result.units)} ${thai ? "คัน" : "units"}`);
-        lines.push(`• ${thai ? "มูลค่า Stock" : "Stock Value"}: ${formatMoney(result.stockValue)}`);
+        lines.push(`• ${thai ? "มูลค่า Stock" : "Stock Value"}: ${formatMoney(result.stockValue)} ${currency}`);
         lines.push(`${thai ? "ข้อมูล Stock ณ วันที่" : "Stock snapshot"}: ${String(result.snapshotDate ?? "not available")}`);
         if (branchReport) appendBranchLines(lines, result.branchBreakdown, "stock", thai, currency);
       }
@@ -885,12 +1118,12 @@ function securityOutput(kind: "sql" | "mutation" | "pii" | "authorization", mess
   const thai = /[\u0e00-\u0e7f]/.test(message);
   const answer = kind === "sql"
     ? (thai
-      ? "KAI ไม่อนุญาตให้รันหรือเปิดเผย SQL สำหรับฐานข้อมูลภายใน KMM โดยตรง แต่สามารถสรุปข้อมูลที่คุณมีสิทธิ์เข้าถึงผ่านเครื่องมือแบบ Read-only ได้"
-      : "KAI does not allow direct SQL execution or disclosure for KMM internal databases. I can summarize data you are authorized to access through read-only tools.")
+      ? "KAI ไม่อนุญาตให้รันหรือเปิดเผย SQL สำหรับฐานข้อมูลภายในโดยตรง แต่สามารถสรุปข้อมูลที่คุณมีสิทธิ์เข้าถึงผ่านเครื่องมือแบบ Read-only ได้"
+      : "KAI does not allow direct SQL execution or disclosure for internal databases. I can summarize data you are authorized to access through read-only tools.")
     : kind === "mutation"
       ? (thai
-        ? "KAI อยู่ในโหมด Read-only และไม่สามารถแก้ไข ลบ หรือเพิ่มข้อมูล KMM ได้"
-        : "KAI is read-only and cannot modify, delete, or add KMM data.")
+        ? "KAI อยู่ในโหมด Read-only และไม่สามารถแก้ไข ลบ หรือเพิ่มข้อมูลบริษัทได้"
+        : "KAI is read-only and cannot modify, delete, or add company data.")
       : kind === "pii"
         ? (thai
           ? "KAI ไม่สามารถเปิดเผยข้อมูลดิบหรือข้อมูลลูกค้าได้"
@@ -898,17 +1131,17 @@ function securityOutput(kind: "sql" | "mutation" | "pii" | "authorization", mess
         : (thai
           ? "KAI ไม่สามารถเปลี่ยนบริษัทหรือข้ามสิทธิ์การเข้าถึงได้"
           : "KAI cannot switch companies or bypass access permissions.");
-  return { answer, data: { denied: true, kind, source: "KMM Internal Data" } };
+  return { answer, data: { denied: true, kind, source: "Internal Data" } };
 }
 function accessDeniedOutput(message: string): KaiToolOutput {
-  return { answer: /[\u0e00-\u0e7f]/.test(message) ? "คุณไม่มีสิทธิ์เข้าถึง KMM Business Intelligence" : "You do not have permission to access KMM Business Intelligence.", data: { denied: true } };
+  return { answer: /[\u0e00-\u0e7f]/.test(message) ? "คุณไม่มีสิทธิ์เข้าถึง Business Intelligence ของบริษัทที่เลือก" : "You do not have permission to access Business Intelligence for the selected company.", data: { denied: true } };
 }
-function unavailableOutput(kind: "target" | "salesperson" | "business", message: string): KaiToolOutput {
+function unavailableOutput(kind: "target" | "salesperson" | "business", message: string, companyCode = "company"): KaiToolOutput {
   const thai = /[\u0e00-\u0e7f]/.test(message);
   const answer = kind === "target"
     ? (thai ? "ข้อมูล Target ยังไม่ได้เชื่อมต่อกับ KAI" : "Target data is not available in KAI yet.")
     : kind === "salesperson"
       ? (thai ? "KAI ยังไม่เปิดใช้ข้อมูลผลการปฏิบัติงานรายบุคคล เนื่องจากระบบสิทธิ์ระดับพนักงานยังอยู่ระหว่างการจัดเตรียม" : "Individual performance data is not enabled while employee-level permissions are being prepared.")
-      : (thai ? "KAI ไม่พบข้อมูล KMM สำหรับคำถามนี้" : "KAI could not find KMM data for this question.");
-  return { answer, data: { unavailable: kind, source: "KMM Internal Data" } };
+      : (thai ? `KAI ไม่พบข้อมูล ${companyCode} สำหรับคำถามนี้` : `KAI could not find ${companyCode} data for this question.`);
+  return { answer, data: { unavailable: kind, source: `${companyCode} Internal Data` } };
 }

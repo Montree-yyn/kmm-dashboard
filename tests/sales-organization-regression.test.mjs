@@ -16,16 +16,13 @@ test("Sales Organization route preserves authentication and the existing page", 
   assert.match(route, /<SalesOrganizationPage\s*\/>/);
 });
 
-test("organization branches and active employee rules remain unchanged", async () => {
+test("organization branches follow the active Company Master and retain employee rules", async () => {
   const page = await read("components/team/sales-organization-page.tsx");
 
-  for (const branch of [
-    '{ code: "KMM01", name: "Hpa-an" }',
-    '{ code: "KMM02", name: "Mawlamyine" }',
-    '{ code: "KMM03", name: "Tharyarwaddy" }',
-  ]) {
-    assert.ok(page.includes(branch));
-  }
+  assert.match(page, /selectedCompany\?\.branches/);
+  assert.match(page, /const branchDefinitions = useMemo/);
+  assert.match(page, /operationalShowroomForBranch/);
+  assert.doesNotMatch(page, /\{ code: "KMM01", name: "Hpa-an" \}/);
   assert.match(page, /normalizeEmployeeBaseName/);
   assert.match(page, /isInactiveEmployeeName/);
   assert.match(page, /isCurrentEmployee/);
@@ -37,8 +34,8 @@ test("organization branches and active employee rules remain unchanged", async (
 test("Sales Organization KPIs preserve their existing calculations", async () => {
   const page = await read("components/team/sales-organization-page.tsx");
 
-  assert.match(page, /loadLiveSalesData\(\{ allowFallback: false \}\)/);
-  assert.match(page, /loadLiveOperationalData\(\{ allowFallback: false \}\)/);
+  assert.match(page, /loadLiveSalesData\(\{ allowFallback: false, companyId \}\)/);
+  assert.match(page, /loadLiveOperationalData\(\{ allowFallback: false, companyId \}\)/);
   assert.match(page, /kmm:sales-imported/);
   assert.doesNotMatch(page, /dashboard-data\.json/);
   assert.match(page, /const activeKpis = getSalesKpis\(activeSales\)/);
@@ -155,7 +152,7 @@ test("filters retain all dimensions, actions, and accessible geometry", async ()
   assert.match(page, /className="flex h-11 w-full/);
   assert.match(page, /setFilters\(defaultFilters\)/);
   assert.match(page, /onRefresh=\{loadData\}/);
-  assert.match(page, /exportPeople\(people\)/);
+  assert.match(page, /exportPeople\(people, companyCode\)/);
 });
 
 test("reporting views, branch grouping, and employee links remain present", async () => {

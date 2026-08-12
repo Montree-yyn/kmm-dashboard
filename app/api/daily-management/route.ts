@@ -6,9 +6,8 @@ import { buildDailyManagementSnapshot } from "../../../lib/daily-management/busi
 import { attachApprovedTarget } from "../../../lib/daily-management/business-service";
 import { DailyManagementAccessError, requireDailyManagementAccess } from "../../../lib/daily-management/access";
 import { dateInTimeZone, isValidIsoDate, normalizeDailyTimeZone } from "../../../lib/daily-management/date";
-import { canonicalDailyBranch, isDailyManagementBranch } from "../../../lib/daily-management/branch";
+import { ALL_BRANCHES, canonicalDailyBranch } from "../../../lib/daily-management/branch";
 import { companyLocalizations } from "../../../db/schema";
-import { COMPANY_ID } from "../../../lib/company-management/types";
 import { eq } from "drizzle-orm";
 import { getCompanyMonthlyTarget } from "../../../lib/targets/business-service";
 import { AuthError } from "../../../lib/server/firebase-auth";
@@ -24,18 +23,18 @@ export async function GET(request: Request) {
     const requestedDate = url.searchParams.get("date");
     const requestedBranch = canonicalDailyBranch(url.searchParams.get("branch"));
     if (requestedDate && !isValidIsoDate(requestedDate)) throw new DailyManagementRequestError("The report date is invalid.");
-    if (requestedBranch && !isDailyManagementBranch(requestedBranch)) throw new DailyManagementRequestError("The branch scope is invalid.");
+    if (requestedBranch && requestedBranch !== ALL_BRANCHES && !access.branchCodes.includes(requestedBranch)) throw new DailyManagementRequestError("The branch scope is invalid.");
     const [localization] = await access.companyDb
       .select({ timeZone: companyLocalizations.defaultTimeZone })
       .from(companyLocalizations)
-      .where(eq(companyLocalizations.companyId, COMPANY_ID))
+      .where(eq(companyLocalizations.companyId, access.id))
       .limit(1);
     const timeZone = normalizeDailyTimeZone(localization?.timeZone);
     const currentDate = dateInTimeZone(new Date(), timeZone);
     const [salesRows, bookingRows, stockRows] = await Promise.all([
-      listSalesTransactions(),
-      listBookingTransactions(),
-      listStockTransactions(),
+      listSalesTransactions(access.id),
+      listBookingTransactions(access.id),
+      listStockTransactions(access.id),
     ]);
     const baseSnapshot = buildDailyManagementSnapshot({
       sales: salesRows.map(toCanonicalSalesRow),
@@ -48,7 +47,7 @@ export async function GET(request: Request) {
     });
     const [year, month] = baseSnapshot.asOfDate.split("-").map(Number);
     const approvedTarget = baseSnapshot.scope.branch ? null : await getCompanyMonthlyTarget({
-      companyId: COMPANY_ID,
+      companyId: access.id,
       year,
       month,
       metric: "SALES_UNITS",
@@ -56,6 +55,7 @@ export async function GET(request: Request) {
     const snapshot = attachApprovedTarget(baseSnapshot, approvedTarget, currentDate);
     return Response.json({
       source: "d1",
+      company: { id: access.id, code: access.code, name: access.name },
       generatedAt: new Date().toISOString(),
       timeZone,
       snapshot,

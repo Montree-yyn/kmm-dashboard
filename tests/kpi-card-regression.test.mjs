@@ -60,39 +60,39 @@ test("Dashboard, Sales, and Booking use only the shared executive KPI Card", asy
   }
 });
 
-test("approved KPI labels remain unchanged after migration", async () => {
+test("approved KPI meanings are localized without changing their metric contracts", async () => {
   const [dashboard, sales, booking] = await Promise.all([
     read("components/dashboard/dashboard-page.tsx"),
     read("components/sales/sales-page.tsx"),
     read("components/booking/booking-intelligence-page.tsx"),
   ]);
 
-  for (const label of [
-    "Sales Unit",
-    "Sales Value",
-    "Gross Profit",
-    "Open Booking Unit",
-    "Stock Unit",
+  for (const key of [
+    "salesUnit",
+    "salesValue",
+    "grossProfit",
+    "bookingUnit",
+    "stockUnit",
   ]) {
-    assert.match(dashboard, new RegExp(`title="${label}"`));
+    assert.match(dashboard, new RegExp(`title=\\{t\\("metric\\.${key}"\\)\\}`));
   }
-  for (const label of [
-    "Sales Unit",
-    "Sales Value",
-    "Gross Profit",
-    "Achievement",
-    "Average Selling Price \\(ASP\\)",
+  for (const key of [
+    "salesUnit",
+    "salesValue",
+    "grossProfit",
+    "achievement",
+    "averageSellingPrice",
   ]) {
-    assert.match(sales, new RegExp(`title="${label}"`));
+    assert.match(sales, new RegExp(`title=\\{t\\("metric\\.${key}"\\)\\}`));
   }
-  for (const label of [
-    "Open Booking Unit",
-    "Booking Value",
-    "Deposit Received",
-    "Average Booking Age",
-    "Booking Conversion Rate",
+  for (const key of [
+    "bookingUnit",
+    "bookingValue",
+    "depositReceived",
+    "averageBookingAge",
+    "bookingConversionRate",
   ]) {
-    assert.match(booking, new RegExp(`title="${label}"`));
+    assert.match(booking, new RegExp(`title=\\{t\\("metric\\.${key}"\\)\\}`));
   }
 });
 

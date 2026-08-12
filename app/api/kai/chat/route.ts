@@ -55,13 +55,13 @@ export async function POST(request: Request) {
 
     const rawBody = await readBoundedBody(request);
     const input = parseInput(rawBody);
-    // Resolve access only for recognized KMM BI requests. The resolver is
+    // Resolve access only for recognized company BI requests. The resolver is
     // read-only and derives the company exclusively from active membership.
     // Security denials are deterministic and must not trigger even a
     // read-only access lookup before the tool router refuses the request.
     const securityRequest = isKmmSecurityRequest(input.message);
     const businessAccess = isKmmBusinessQuestion(input.message) && !securityRequest
-      ? await resolveKaiBusinessAccess(user.id)
+      ? await resolveKaiBusinessAccess(user, request, input.companyId)
       : undefined;
 
     const { env } = await import("cloudflare:workers");
@@ -186,7 +186,7 @@ async function readBoundedBody(request: Request) {
   return rawBody;
 }
 
-function parseInput(rawBody: string): { message: string; history: KaiMessage[] } {
+function parseInput(rawBody: string): { message: string; history: KaiMessage[]; companyId?: string } {
   let body: unknown;
   try {
     body = JSON.parse(rawBody);
@@ -234,7 +234,10 @@ function parseInput(rawBody: string): { message: string; history: KaiMessage[] }
   if (historyCharacters > KAI_MAX_HISTORY_CHARACTERS) {
     throw new KaiRequestError("The conversation history is too long.", 400);
   }
-  return { message, history: cleanHistory };
+  const companyId = typeof record.companyId === "string"
+    ? record.companyId.trim()
+    : undefined;
+  return { message, history: cleanHistory, companyId: companyId || undefined };
 }
 
 function takeRateLimitToken(userId: string) {

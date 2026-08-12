@@ -74,7 +74,7 @@ test("visible navigation order is centralized and hidden modules leave no gaps",
   assert.match(config, /\.filter\(\s*\(item\) => item\.visible/);
 });
 
-test("sidebar geometry and nested active state follow the shared standard", async () => {
+test("sidebar geometry and nested active state follow the V3.3 compact standard", async () => {
   const [config, sidebar] = await Promise.all([
     read("components/navigation/navigation-config.ts"),
     read("components/navigation/app-sidebar.tsx"),
@@ -87,7 +87,10 @@ test("sidebar geometry and nested active state follow the shared standard", asyn
   assert.match(sidebar, /rounded-\[14px\]/);
   assert.match(sidebar, /gap-4/);
   assert.match(sidebar, /text-base font-medium/);
-  assert.match(sidebar, /px-4 py-6/);
+  assert.match(sidebar, /px-3 py-5/);
+  assert.match(sidebar, /w-\[72px\]/);
+  assert.match(sidebar, /w-\[216px\]/);
+  assert.match(sidebar, /shadow-\[inset_1px_0_0_var\(--brand-500\)\]/);
   assert.match(sidebar, /\{renderSidebar\(collapsed\)\}/);
   assert.match(sidebar, /\{renderSidebar\(false\)\}/);
   assert.match(config, /pathname\.startsWith\(`\$\{href\}\/`\)/);

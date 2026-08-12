@@ -1,6 +1,9 @@
+"use client";
+
 import type { LucideIcon } from "lucide-react";
 import { Check, ChevronRight } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useLocale } from "../../src/hooks/useLocale";
 
 export type SettingsCardDefinition = {
   id: string;
@@ -20,6 +23,7 @@ export function SettingsCard({
   selected,
   onSelect,
 }: SettingsCardProps) {
+  const { t } = useLocale();
   const Icon = item.icon;
 
   return (
@@ -35,7 +39,7 @@ export function SettingsCard({
       )}
       onClick={() => onSelect(item)}
       aria-pressed={selected}
-      aria-label={`Open ${item.title}`}
+      aria-label={`${t("settings.open")} ${item.title}`}
       data-settings-card={item.id}
     >
       <span
@@ -60,7 +64,7 @@ export function SettingsCard({
       <span className="mt-auto flex w-full items-center justify-between gap-3 pt-5">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--status-success)_10%,white)] px-2.5 py-1 text-[11px] font-semibold text-[var(--status-success)]">
           <Check size={12} aria-hidden="true" />
-          Active
+          {t("settings.active")}
         </span>
         <ChevronRight
           size={18}

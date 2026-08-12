@@ -44,7 +44,7 @@ export function FreshnessIndicator({
   }, []);
 
   if (!Number.isFinite(parsed)) {
-    return <p className={cn("text-xs text-[var(--text-tertiary)]", className)}>{resolvedLabel}</p>;
+    return <p className={cn("text-xs text-[var(--text-tertiary)]", className)}>{label ?? t("common.freshnessUnavailable")}</p>;
   }
 
   const exact = new Intl.DateTimeFormat(locale, {

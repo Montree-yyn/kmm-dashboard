@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { tsImport } from "tsx/esm/api";
 
-const { formatBusinessAnswer, isExecutiveQuestion, isKmmBusinessQuestion, selectKmmStockSnapshotRows, summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
+const { formatBusinessAnswer, isExecutiveQuestion, isKmmBusinessQuestion, resolveExecutiveAnalysisMode, resolveExecutiveComparableScope, resolveKmmDateRange, selectKmmStockSnapshotRows, summarizeKmmStockRows } = await tsImport("../lib/kai/tools/kmm-business.ts", import.meta.url);
 
 const stockRow = (overrides = {}) => ({
   date: "2026-08-08",
@@ -84,6 +84,104 @@ test("KAI routes descriptive stock branch breakdowns to the canonical stock summ
     { branch: "KMM01", units: 2, stockValue: 11_000 },
     { branch: "KMM02", units: 1, stockValue: 1_000 },
   ]);
+});
+
+test("KAI recognizes business assessment and period-comparison questions", () => {
+  assert.equal(isExecutiveQuestion("สรุปจุดแข็งและจุดอ่อนของธุรกิจเดือนนี้"), true);
+  assert.equal(isExecutiveQuestion("เปรียบเทียบยอดขายเดือนนี้กับเดือนก่อน"), true);
+  assert.equal(isKmmBusinessQuestion("สรุปจุดแข็งและจุดอ่อนของธุรกิจเดือนนี้"), true);
+  assert.equal(isKmmBusinessQuestion("เปรียบเทียบยอดขายเดือนนี้กับเดือนก่อน"), true);
+  assert.equal(resolveExecutiveAnalysisMode("สรุปจุดแข็งและจุดอ่อนของธุรกิจเดือนนี้"), "assessment");
+  assert.equal(resolveExecutiveAnalysisMode("เปรียบเทียบยอดขายเดือนนี้กับเดือนก่อน"), "comparison");
+  assert.equal(isExecutiveQuestion("สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ"), true);
+  assert.equal(isKmmBusinessQuestion("สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ"), true);
+  assert.equal(resolveExecutiveAnalysisMode("สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ"), "product");
+  assert.equal(isExecutiveQuestion("compare the weather this month"), false);
+});
+
+test("KAI keeps branch ranking in the requested business domain", () => {
+  const range = { kind: "dateRange", start: "2026-08-01", end: "2026-08-31", label: "current month", scopeLabel: "สิงหาคม 2026" };
+  const sales = formatBusinessAnswer("เดือนนี้สาขาไหนขายสูงสุด", {
+    source: "KMM Internal Data",
+    range,
+    results: [{ area: "sales", branchBreakdown: [{ branch: "KMM01", units: 5, salesValue: 100 }] }],
+  });
+  const booking = formatBusinessAnswer("เดือนนี้สาขาไหนมี Booking มากที่สุด", {
+    source: "KMM Internal Data",
+    range,
+    results: [{ area: "booking", units: 5, bookingValue: 100, branchBreakdown: [{ branch: "KMM02", units: 4, bookingValue: 80 }] }],
+  });
+  const stock = formatBusinessAnswer("เดือนนี้สาขาไหนมี Stock มากที่สุด", {
+    source: "KMM Internal Data",
+    range,
+    results: [{ area: "stock", dataAvailable: true, units: 5, stockValue: 100, snapshotDate: "2026-08-08", branchBreakdown: [{ branch: "KMM03", units: 3, stockValue: 60 }] }],
+  });
+  assert.match(sales, /อันดับสาขาตามจำนวน Sales Unit/);
+  assert.match(sales, /KMM01/);
+  assert.match(booking, /Booking KMM/);
+  assert.match(booking, /KMM02/);
+  assert.doesNotMatch(booking, /อันดับสาขาตามจำนวน Sales Unit/);
+  assert.match(stock, /Stock KMM/);
+  assert.match(stock, /KMM03/);
+  assert.doesNotMatch(stock, /อันดับสาขาตามจำนวน Sales Unit/);
+});
+
+test("KAI formats Sales month-over-month comparisons instead of two unrelated summaries", () => {
+  const answer = formatBusinessAnswer("ยอดขายเดือนนี้เทียบเดือนที่แล้ว", {
+    source: "KMM Internal Data",
+    range: { kind: "dateRange", start: "2026-08-01", end: "2026-08-31", label: "current month", scopeLabel: "สิงหาคม 2026" },
+    results: [
+      { area: "sales", units: 12, salesValue: 1_200, grossProfit: 100, grossProfitPercent: 8, range: { kind: "dateRange", start: "2026-08-01", end: "2026-08-31", label: "current month", scopeLabel: "สิงหาคม 2026" } },
+      { area: "sales", units: 10, salesValue: 1_000, grossProfit: 80, grossProfitPercent: 8, range: { kind: "dateRange", start: "2026-07-01", end: "2026-07-31", label: "previous month", scopeLabel: "กรกฎาคม 2026" } },
+    ],
+  });
+  assert.match(answer, /ยอดขายเปรียบเทียบเดือนนี้กับเดือนก่อน/);
+  assert.match(answer, /Difference: \+2/);
+  assert.match(answer, /Growth:/);
+  assert.match(answer, /กรกฎาคม 2026/);
+});
+
+test("KAI keeps the current month as the primary scope in Month-over-Month questions", () => {
+  const range = resolveKmmDateRange("ยอดขายเดือนนี้เทียบเดือนที่แล้ว", new Date("2026-08-12T12:00:00.000Z"), "Asia/Bangkok");
+  assert.equal(range.start, "2026-08-01");
+  assert.equal(range.end, "2026-08-31");
+  assert.equal(range.label, "current month");
+});
+
+test("KAI compares the current month-to-date with the same elapsed days of the previous month", () => {
+  const currentAugust = {
+    kind: "dateRange",
+    start: "2026-08-01",
+    end: "2026-08-31",
+    label: "current month",
+    scopeLabel: "สิงหาคม 2026",
+  };
+  assert.deepEqual(
+    resolveExecutiveComparableScope(currentAugust, new Date("2026-08-11T05:00:00.000Z"), "Asia/Bangkok"),
+    {
+      period: { start: "2026-08-01", end: "2026-08-11", scopeLabel: "สิงหาคม 2026 MTD" },
+      previous: { start: "2026-07-01", end: "2026-07-11", scopeLabel: "กรกฎาคม 2026 MTD" },
+      partial: true,
+    },
+  );
+});
+
+test("KAI preserves completed historical months as full-period comparisons", () => {
+  const historicalJuly = {
+    kind: "dateRange",
+    start: "2026-07-01",
+    end: "2026-07-31",
+    label: "named month",
+    scopeLabel: "กรกฎาคม 2026",
+  };
+  assert.deepEqual(
+    resolveExecutiveComparableScope(historicalJuly, new Date("2026-08-11T05:00:00.000Z"), "Asia/Bangkok"),
+    {
+      period: { start: "2026-07-01", end: "2026-07-31", scopeLabel: "กรกฎาคม 2026" },
+      previous: undefined,
+      partial: false,
+    },
+  );
 });
 
 test("KAI stock responses use snapshot metadata rather than a monthly range", async () => {

@@ -77,16 +77,30 @@ export function SettingsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const localizedCards = useMemo(() => {
+    const copy: Record<string, { title: string; description: readonly string[] }> = {
+      company: { title: t("settings.companyTitle"), description: [t("settings.companyDescription")] },
+      users: { title: t("settings.usersTitle"), description: [t("settings.usersDescription")] },
+      roles: { title: t("settings.rolesTitle"), description: [t("settings.rolesDescription")] },
+      ai: { title: t("settings.aiTitle"), description: [t("settings.aiDescription")] },
+      dashboard: { title: t("settings.dashboardTitle"), description: [t("settings.dashboardDescription")] },
+      theme: { title: t("settings.themeTitle"), description: [t("settings.themeDescription")] },
+      backup: { title: t("settings.backupTitle"), description: [t("settings.backupDescription")] },
+      audit: { title: t("settings.auditTitle"), description: [t("settings.auditDescription")] },
+    };
+    return settingsCards.map((item) => ({ ...item, ...copy[item.id] }));
+  }, [t]);
+
   const visibleCards = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return settingsCards;
-    return settingsCards.filter((item) =>
+    if (!normalized) return localizedCards;
+    return localizedCards.filter((item) =>
       [item.title, ...item.description]
         .join(" ")
         .toLowerCase()
         .includes(normalized),
     );
-  }, [query]);
+  }, [localizedCards, query]);
 
   function selectCard(item: SettingsCardDefinition) {
     if (item.id === "company") {
@@ -101,13 +115,6 @@ export function SettingsPage() {
       <main className="mx-auto max-w-[1720px] p-4 sm:p-5 xl:p-6">
           <div className="grid min-w-0 gap-5 xl:gap-6">
             <div className="min-w-0 space-y-5 xl:space-y-6">
-              <div className="max-w-xl">
-                <SettingsSearch
-                  value={query}
-                  onChange={setQuery}
-                  inputRef={searchRef}
-                />
-              </div>
               <section aria-labelledby="settings-overview-title">
                 <h1
                   id="settings-overview-title"
@@ -119,6 +126,14 @@ export function SettingsPage() {
                   {t("settings.overviewDescription")}
                 </p>
               </section>
+
+              <div className="max-w-lg">
+                <SettingsSearch
+                  value={query}
+                  onChange={setQuery}
+                  inputRef={searchRef}
+                />
+              </div>
 
               <section aria-label="Settings categories">
                 {visibleCards.length ? (
@@ -136,10 +151,10 @@ export function SettingsPage() {
                   <div className="grid min-h-64 place-items-center rounded-[var(--radius-card)] border border-dashed border-[var(--border-default)] bg-[var(--surface-default)] p-8 text-center">
                     <div>
                       <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                        No settings found
+                        {t("settings.noResults")}
                       </h2>
                       <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                        Try a different search term.
+                        {t("settings.noResultsHint")}
                       </p>
                       <button
                         type="button"
@@ -149,7 +164,7 @@ export function SettingsPage() {
                           searchRef.current?.focus();
                         }}
                       >
-                        Clear search
+                        {t("settings.clearSearch")}
                       </button>
                     </div>
                   </div>
@@ -158,7 +173,7 @@ export function SettingsPage() {
 
               <p className="sr-only" aria-live="polite">
                 {selectedId
-                  ? `${settingsCards.find((item) => item.id === selectedId)?.title} selected`
+                  ? `${localizedCards.find((item) => item.id === selectedId)?.title} ${t("settings.active")}`
                   : ""}
               </p>
             </div>

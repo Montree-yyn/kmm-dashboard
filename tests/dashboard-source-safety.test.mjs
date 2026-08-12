@@ -12,11 +12,11 @@ test("Dashboard operational KPIs are API-only and explicitly reject local fallba
     read("lib/operations/client.ts"),
   ]);
 
-  assert.match(dashboard, /loadLiveSalesData\(\{ allowFallback: false \}\)/);
-  assert.match(dashboard, /loadLiveOperationalData\(\{ allowFallback: false \}\)/);
+  assert.match(dashboard, /loadLiveSalesData\(\{ allowFallback: false, companyId \}\)/);
+  assert.match(dashboard, /loadLiveOperationalData\(\{ allowFallback: false, companyId \}\)/);
   assert.doesNotMatch(dashboard, /dashboard-data\.json/);
   assert.doesNotMatch(dashboard, /allowLegacyDashboardFallback/);
-  assert.match(dashboard, /<ErrorState message=\{error\} onRetry=\{loadDashboardData\}/);
+  assert.match(dashboard, /<ErrorState message=\{dashboardError\} onRetry=\{loadDashboardData\}/);
   assert.match(salesClient, /if \(options\.allowFallback === false\) throw new Error\(`Unable to load live D1 Sales data/);
   assert.match(operationsClient, /if \(options\.allowFallback === false\) throw error/);
 });

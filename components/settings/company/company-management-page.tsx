@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -44,6 +45,7 @@ import {
   companySections,
 } from "./company-navigation";
 import { CompanyOverview } from "./company-overview";
+import { useCompany } from "../../../src/hooks/useCompany";
 
 type ToastState = {
   tone: "success" | "error";
@@ -52,6 +54,8 @@ type ToastState = {
 
 export function CompanyManagementPage() {
   const router = useRouter();
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id;
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] =
     useState<CompanySection>("overview");
@@ -81,10 +85,6 @@ export function CompanyManagementPage() {
     [data?.published, draft],
   );
   useEffect(() => {
-    void refresh();
-  }, []);
-
-  useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (!dirty) return;
       event.preventDefault();
@@ -108,11 +108,11 @@ export function CompanyManagementPage() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setLoadError("");
     try {
-      const response = await loadCompanyManagement();
+      const response = await loadCompanyManagement(companyId);
       setData(response);
       setDraft(structuredClone(response.draft));
       setSavedDraft(structuredClone(response.draft));
@@ -126,7 +126,12 @@ export function CompanyManagementPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [companyId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
 
   function patchDraft(patch: Partial<CompanySettingsSnapshot>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -144,7 +149,7 @@ export function CompanyManagementPage() {
     }
     setSaving(true);
     try {
-      const response = await saveCompanyDraft(draft);
+      const response = await saveCompanyDraft(draft, companyId);
       setData(response);
       setDraft(structuredClone(response.draft));
       setSavedDraft(structuredClone(response.draft));
@@ -174,7 +179,7 @@ export function CompanyManagementPage() {
         const saved = await handleSave(false);
         if (!saved) return;
       }
-      const response = await publishCompanyDraft();
+      const response = await publishCompanyDraft(companyId);
       setData(response);
       setDraft(structuredClone(response.draft));
       setSavedDraft(structuredClone(response.draft));
@@ -207,7 +212,7 @@ export function CompanyManagementPage() {
       patchDraft({
         company: { ...draft.company, logoUrl },
       });
-      await recordLogoAudit("company.logo_uploaded", oldValue, logoUrl);
+      await recordLogoAudit("company.logo_uploaded", oldValue, logoUrl, companyId);
       setToast({
         tone: "success",
         message: "Logo uploaded. Save the draft to keep this change.",
@@ -226,7 +231,7 @@ export function CompanyManagementPage() {
     const oldValue = draft.company.logoUrl;
     patchDraft({ company: { ...draft.company, logoUrl: "" } });
     try {
-      await recordLogoAudit("company.logo_removed", oldValue, "");
+      await recordLogoAudit("company.logo_removed", oldValue, "", companyId);
     } catch (error) {
       setToast({
         tone: "error",

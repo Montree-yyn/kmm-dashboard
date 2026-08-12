@@ -63,9 +63,10 @@
 :root {
   color-scheme: light;
 
-  /* KMM Design System v2.0: brand and semantic color foundation. */
+  /* KMM Design System v3.3: Precision Operations / Selective Glass. */
   --brand-50: #fff8f3;
   --brand-100: #fff0e6;
+  --brand-200: #ffd9bf;
   --brand-300: #ffc2a1;
   --brand-400: #ff9d66;
   --brand-500: #f56600;
@@ -74,20 +75,23 @@
   --brand-focus: rgb(159 61 0 / 24%);
   --focus-ring: #9f3d00;
 
-  --surface-canvas: #f5f5f7;
+  --surface-canvas: #f6f6f3;
   --surface-default: #ffffff;
-  --surface-subtle: #fafafc;
-  --surface-muted: #f1f1f4;
-  --surface-elevated: rgb(255 255 255 / 92%);
+  --surface-subtle: #fafaf8;
+  --surface-muted: #f0f0ed;
+  --surface-elevated: rgb(255 255 255 / 82%);
+  --surface-glass: rgb(255 255 255 / 76%);
+  --surface-glass-strong: rgb(255 255 255 / 88%);
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #86868b;
-  --text-disabled: #a1a1a6;
+  --text-primary: #171718;
+  --text-secondary: #5f6065;
+  --text-tertiary: #6b6c70;
+  --text-disabled: #9b9ca1;
 
-  --border-default: #e5e5ea;
+  --border-default: #e1e1de;
   --border-subtle: rgb(0 0 0 / 6%);
-  --divider: #ededf2;
+  --border-glass: rgb(255 255 255 / 76%);
+  --divider: #ececea;
 
   --status-success: #0f6b35;
   --status-success-bg: #eaf7ef;
@@ -101,6 +105,12 @@
   --chart-current: #f56600;
   --chart-previous: #f7a35c;
   --chart-neutral: #86868b;
+  --chart-ink: #35363a;
+  --chart-warm-gray: #9b948a;
+  --chart-soft: #c9c4bc;
+  --chart-health: #52685d;
+  --chart-watch: #a96624;
+  --chart-critical: #a8483d;
   --chart-grid: #ededf2;
 
   --space-1: 4px;
@@ -116,14 +126,18 @@
 
   --radius-control: 10px;
   --radius-control-lg: 12px;
-  --radius-card: 16px;
-  --radius-panel: 20px;
+  --radius-card: 14px;
+  --radius-panel: 18px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 4%);
-  --shadow-hover: 0 4px 16px rgb(0 0 0 / 6%);
-  --shadow-floating: 0 12px 32px rgb(0 0 0 / 12%);
+  --shadow-card: 0 1px 2px rgb(20 20 18 / 4%);
+  --shadow-hover: 0 8px 22px rgb(20 20 18 / 7%);
+  --shadow-glass: 0 12px 34px rgb(28 28 24 / 9%), inset 0 1px 0 rgb(255 255 255 / 72%);
+  --shadow-floating: 0 14px 36px rgb(20 20 18 / 12%);
   --shadow-overlay: 0 18px 50px rgb(0 0 0 / 16%);
+
+  --sidebar-expanded: 216px;
+  --sidebar-collapsed: 72px;
 
   --motion-fast: 160ms;
   --motion-standard: 200ms;
@@ -132,9 +146,9 @@
   --ease-state: cubic-bezier(0.4, 0, 0.2, 1);
 
   --font-kmm:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Noto Sans Thai", "Noto Sans Myanmar", "Myanmar Text", "Leelawadee UI",
-    "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    "IBM Plex Sans Thai", "Noto Sans Myanmar", -apple-system,
+    BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Myanmar Text",
+    "Leelawadee UI", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --background: var(--surface-canvas);
   --foreground: var(--text-primary);
 }
@@ -182,6 +196,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+button,
+a,
+select,
+summary {
+  touch-action: manipulation;
+}
+
 html[data-locale="my"] body {
   line-height: 1.55;
 }
@@ -206,8 +227,45 @@ html[data-locale="my"] body {
   box-shadow: var(--shadow-floating);
 }
 
+.kmm-data-surface {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-default);
+  box-shadow: var(--shadow-card);
+}
+
+.kmm-glass-bar {
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-panel);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-glass);
+  -webkit-backdrop-filter: saturate(145%) blur(18px);
+  backdrop-filter: saturate(145%) blur(18px);
+}
+
+.kmm-glass-control {
+  border: 1px solid rgb(20 20 18 / 9%);
+  background: var(--surface-glass-strong);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%);
+  -webkit-backdrop-filter: saturate(135%) blur(14px);
+  backdrop-filter: saturate(135%) blur(14px);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .kmm-glass-bar,
+  .kmm-glass-control {
+    background: var(--surface-default);
+  }
+}
+
 .kmm-tabular {
   font-variant-numeric: tabular-nums lining-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 .presentation-trigger {
@@ -216,11 +274,13 @@ html[data-locale="my"] body {
   height: 40px;
   flex: 0 0 40px;
   place-items: center;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgb(20 20 18 / 9%);
   border-radius: 12px;
-  background: #ffffff;
-  color: #4b5563;
-  box-shadow: 0 6px 18px rgb(31 41 55 / 8%);
+  background: var(--surface-glass-strong);
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%);
+  -webkit-backdrop-filter: saturate(135%) blur(14px);
+  backdrop-filter: saturate(135%) blur(14px);
   transition:
     border-color 180ms ease,
     background 180ms ease,
@@ -233,7 +293,7 @@ html[data-locale="my"] body {
   border-color: #fed7aa;
   background: #fff7ed;
   color: #e86f00;
-  box-shadow: 0 8px 22px rgb(255 122 0 / 14%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%);
 }
 
 .presentation-trigger:focus-visible,
@@ -256,7 +316,6 @@ html[data-locale="my"] body {
   max-width: none !important;
   min-height: 100vh;
   padding: 24px !important;
-  transition: padding 300ms ease;
 }
 
 .presentation-controls-open main {
@@ -670,7 +729,7 @@ a:focus-visible,
 }
 
 .kmm-intelligence-action {
-  box-shadow: inset 3px 0 0 rgb(245 102 0 / 50%);
+  box-shadow: inset 1px 0 0 rgb(245 102 0 / 50%);
 }
 
 .kmm-intelligence-metadata {

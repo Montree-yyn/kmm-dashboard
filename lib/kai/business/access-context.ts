@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
-import { companyUsers } from "../../../db/schema";
-import { getCompanyDb } from "../../../db";
-import { COMPANY_ID, type CompanyRole } from "../../company-management/types";
+import type { AuthenticatedUser } from "../../server/firebase-auth";
+import {
+  CompanyAccessError,
+  requireCompanyContextForUser,
+} from "../../server/company-context";
 import type { KaiBusinessAccess } from "../tools/types";
 
 const ALLOWED_ROLES = new Set<KaiBusinessAccess["role"]>([
@@ -11,22 +12,31 @@ const ALLOWED_ROLES = new Set<KaiBusinessAccess["role"]>([
 ]);
 
 /**
- * Phase 3A access policy: an authenticated user must already be an active KMM
- * member with an approved company-wide role. This function is intentionally
- * read-only; unlike Company Management's context resolver it never provisions
- * a company_users record. Branch and salesperson scoping are unavailable in
- * Phase 3A, so every allowed role receives company-wide aggregates only.
+ * Business access is read-only and derived from an active membership for the
+ * selected company. It never provisions a membership and never grants access
+ * from a client-supplied company id alone.
  */
-export async function resolveKaiBusinessAccess(userId: string): Promise<KaiBusinessAccess | null> {
-  const db = await getCompanyDb();
-  const [membership] = await db
-    .select({ role: companyUsers.role, status: companyUsers.status })
-    .from(companyUsers)
-    .where(and(eq(companyUsers.companyId, COMPANY_ID), eq(companyUsers.userId, userId)))
-    .limit(1);
-
-  if (!membership || membership.status !== "active") return null;
-  const role = membership.role as CompanyRole;
-  if (!ALLOWED_ROLES.has(role as KaiBusinessAccess["role"])) return null;
-  return { companyId: COMPANY_ID, role: role as KaiBusinessAccess["role"] };
+export async function resolveKaiBusinessAccess(
+  user: AuthenticatedUser,
+  request: Request,
+  companyId?: string,
+): Promise<KaiBusinessAccess | null> {
+  try {
+    const context = await requireCompanyContextForUser(user, request, {
+      companyId,
+      permission: "view",
+    });
+    if (!ALLOWED_ROLES.has(context.role as KaiBusinessAccess["role"])) return null;
+    return {
+      companyId: context.id,
+      companyCode: context.code,
+      companyName: context.name,
+      currency: context.currency,
+      timeZone: context.timeZone,
+      role: context.role as KaiBusinessAccess["role"],
+    };
+  } catch (error) {
+    if (error instanceof CompanyAccessError) return null;
+    throw error;
+  }
 }

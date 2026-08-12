@@ -1,6 +1,5 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import { getCompanyDb } from "../../db";
 import {
   auditLogs,
   branches,
@@ -8,7 +7,6 @@ import {
   companyCurrencies,
   companyLocalizations,
   companySettingDrafts,
-  companyUsers,
   departments,
   fiscalYears,
   holidays,
@@ -16,15 +14,15 @@ import {
 } from "../../db/schema";
 import {
   COMPANY_ID,
+  createDefaultCompanySnapshot,
   DEFAULT_COMPANY_SNAPSHOT,
-  TENANT_ID,
+  KM_COMPANY_ID,
   type AuditEntry,
   type CompanyManagementResponse,
   type CompanyRole,
   type CompanySettingsSnapshot,
 } from "../company-management/types";
 import {
-  isCompanyRole,
   ROLE_PERMISSIONS,
 } from "../company-management/permissions";
 import {
@@ -32,16 +30,16 @@ import {
   validateCompanySnapshot,
 } from "../company-management/validation";
 import {
-  AuthError,
-  type AuthenticatedUser,
-  verifyFirebaseRequest,
-} from "./firebase-auth";
+  CompanyAccessError,
+  requireCompanyContext,
+  type CompanyContext as BaseCompanyContext,
+} from "./company-context";
+import { AuthError } from "./firebase-auth";
 
-type CompanyContext = {
-  db: Awaited<ReturnType<typeof getCompanyDb>>;
+type CompanyContext = BaseCompanyContext & {
+  companyId: string;
+  db: BaseCompanyContext["companyDb"];
   request: Request;
-  user: AuthenticatedUser;
-  role: CompanyRole;
 };
 
 export const COMPANY_AUDIT_ACTIONS = [
@@ -87,17 +85,17 @@ export async function getCompanyManagement(
   const [draftRow] = await context.db
     .select()
     .from(companySettingDrafts)
-    .where(eq(companySettingDrafts.companyId, COMPANY_ID))
+    .where(eq(companySettingDrafts.companyId, context.companyId))
     .limit(1);
   const draft = draftRow
     ? parseSnapshot(draftRow.payload)
     : structuredClone(published);
   const audit = await readAudit(context);
 
-  await writeAudit(context, "company.viewed", "company", COMPANY_ID, null, null);
+  await writeAudit(context, "company.viewed", "company", context.companyId, null, null);
 
   return {
-    companyId: COMPANY_ID,
+    companyId: context.companyId,
     role: context.role,
     permissions,
     published,
@@ -109,7 +107,7 @@ export async function getCompanyManagement(
       await context.db
         .select({ value: companies.publishedAt })
         .from(companies)
-        .where(eq(companies.id, COMPANY_ID))
+        .where(eq(companies.id, context.companyId))
         .limit(1)
     )[0]?.value ?? null,
     audit,
@@ -126,6 +124,7 @@ export async function saveCompanyDraft(
   }
 
   const normalized = normalizeCompanySnapshot(snapshot);
+  enforceCompanyIdentity(context, normalized);
   const errors = validateCompanySnapshot(normalized);
   if (Object.keys(errors).length) {
     throw new CompanyServiceError("Please correct the highlighted fields.", 422, errors);
@@ -134,7 +133,7 @@ export async function saveCompanyDraft(
   const [existing] = await context.db
     .select()
     .from(companySettingDrafts)
-    .where(eq(companySettingDrafts.companyId, COMPANY_ID))
+    .where(eq(companySettingDrafts.companyId, context.companyId))
     .limit(1);
   const previous = existing ? parseSnapshot(existing.payload) : null;
   const permissions = ROLE_PERMISSIONS[context.role];
@@ -148,8 +147,8 @@ export async function saveCompanyDraft(
     .insert(companySettingDrafts)
     .values({
       id: existing?.id ?? crypto.randomUUID(),
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
       payload: JSON.stringify(normalized),
       revision,
       status: "draft",
@@ -172,7 +171,7 @@ export async function saveCompanyDraft(
     context,
     "company.draft_saved",
     "company_setting_draft",
-    COMPANY_ID,
+    context.companyId,
     previous,
     normalized,
   );
@@ -207,6 +206,17 @@ function enforceStatusPermissions(
   }
 }
 
+function enforceCompanyIdentity(
+  context: CompanyContext,
+  snapshot: CompanySettingsSnapshot,
+) {
+  if (snapshot.company.id !== context.companyId) {
+    throw new CompanyServiceError("The company identifier cannot be changed.", 422, {
+      "company.id": "The company identifier must match the selected company.",
+    });
+  }
+}
+
 function statusTransitions<T extends { id: string; status: string }>(
   previous: T[],
   next: T[],
@@ -228,13 +238,14 @@ export async function publishCompanyDraft(
   const [draftRow] = await context.db
     .select()
     .from(companySettingDrafts)
-    .where(eq(companySettingDrafts.companyId, COMPANY_ID))
+    .where(eq(companySettingDrafts.companyId, context.companyId))
     .limit(1);
   if (!draftRow) {
     throw new CompanyServiceError("Save a draft before publishing.", 409);
   }
 
   const snapshot = normalizeCompanySnapshot(parseSnapshot(draftRow.payload));
+  enforceCompanyIdentity(context, snapshot);
   const errors = validateCompanySnapshot(snapshot);
   if (Object.keys(errors).length) {
     throw new CompanyServiceError("The draft is not ready to publish.", 422, errors);
@@ -254,8 +265,8 @@ export async function publishCompanyDraft(
       .insert(companies)
       .values({
         ...snapshot.company,
-        tenantId: TENANT_ID,
-        companyId: COMPANY_ID,
+        tenantId: context.tenantId,
+        companyId: context.companyId,
         publishedAt: now,
         createdBy: context.user.id,
         updatedBy: context.user.id,
@@ -284,50 +295,50 @@ export async function publishCompanyDraft(
           updatedAt: now,
         },
       }),
-    context.db.delete(branches).where(eq(branches.companyId, COMPANY_ID)),
+    context.db.delete(branches).where(eq(branches.companyId, context.companyId)),
     context.db
       .delete(departments)
-      .where(eq(departments.companyId, COMPANY_ID)),
+      .where(eq(departments.companyId, context.companyId)),
     context.db
       .delete(fiscalYears)
-      .where(eq(fiscalYears.companyId, COMPANY_ID)),
+      .where(eq(fiscalYears.companyId, context.companyId)),
     context.db.insert(fiscalYears).values({
       ...snapshot.fiscalYear,
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
       createdBy: context.user.id,
       updatedBy: context.user.id,
       updatedAt: now,
     }),
     context.db
       .delete(companyCurrencies)
-      .where(eq(companyCurrencies.companyId, COMPANY_ID)),
+      .where(eq(companyCurrencies.companyId, context.companyId)),
     context.db.insert(companyCurrencies).values({
       ...snapshot.currency,
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
       createdBy: context.user.id,
       updatedBy: context.user.id,
       updatedAt: now,
     }),
     context.db
       .delete(companyLocalizations)
-      .where(eq(companyLocalizations.companyId, COMPANY_ID)),
+      .where(eq(companyLocalizations.companyId, context.companyId)),
     context.db.insert(companyLocalizations).values({
       ...snapshot.localization,
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
       createdBy: context.user.id,
       updatedBy: context.user.id,
       updatedAt: now,
     }),
     context.db
       .delete(workingCalendars)
-      .where(eq(workingCalendars.companyId, COMPANY_ID)),
+      .where(eq(workingCalendars.companyId, context.companyId)),
     context.db.insert(workingCalendars).values({
       id: snapshot.workingCalendar.id,
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
       workingDays: JSON.stringify(snapshot.workingCalendar.workingDays),
       weekendDays: JSON.stringify(snapshot.workingCalendar.weekendDays),
       workingStartTime: snapshot.workingCalendar.workingStartTime,
@@ -337,7 +348,7 @@ export async function publishCompanyDraft(
       updatedBy: context.user.id,
       updatedAt: now,
     }),
-    context.db.delete(holidays).where(eq(holidays.companyId, COMPANY_ID)),
+    context.db.delete(holidays).where(eq(holidays.companyId, context.companyId)),
     context.db
       .update(companySettingDrafts)
       .set({
@@ -346,15 +357,15 @@ export async function publishCompanyDraft(
         updatedAt: now,
         updatedBy: context.user.id,
       })
-      .where(eq(companySettingDrafts.companyId, COMPANY_ID)),
+      .where(eq(companySettingDrafts.companyId, context.companyId)),
   ];
   if (snapshot.branches.length) {
     statements.push(
       context.db.insert(branches).values(
         snapshot.branches.map((branch) => ({
           ...branch,
-          tenantId: TENANT_ID,
-          companyId: COMPANY_ID,
+          tenantId: context.tenantId,
+          companyId: context.companyId,
           createdBy: context.user.id,
           updatedBy: context.user.id,
           updatedAt: now,
@@ -367,8 +378,8 @@ export async function publishCompanyDraft(
       context.db.insert(departments).values(
         snapshot.departments.map((department) => ({
           ...department,
-          tenantId: TENANT_ID,
-          companyId: COMPANY_ID,
+          tenantId: context.tenantId,
+          companyId: context.companyId,
           createdBy: context.user.id,
           updatedBy: context.user.id,
           updatedAt: now,
@@ -381,8 +392,8 @@ export async function publishCompanyDraft(
       context.db.insert(holidays).values(
         snapshot.workingCalendar.holidays.map((holiday) => ({
           ...holiday,
-          tenantId: TENANT_ID,
-          companyId: COMPANY_ID,
+          tenantId: context.tenantId,
+          companyId: context.companyId,
           createdBy: context.user.id,
           updatedBy: context.user.id,
           updatedAt: now,
@@ -398,7 +409,7 @@ export async function publishCompanyDraft(
     context,
     "company.published",
     "company",
-    COMPANY_ID,
+    context.companyId,
     previous,
     snapshot,
   );
@@ -419,128 +430,53 @@ export async function recordCompanyAudit(
     context,
     action,
     "company",
-    COMPANY_ID,
+    context.companyId,
     oldValue,
     newValue,
   );
 }
 
 async function getCompanyContext(request: Request): Promise<CompanyContext> {
-  let user: AuthenticatedUser;
   try {
-    user = await verifyFirebaseRequest(request);
+    const context = await requireCompanyContext(request, {
+      permission: "view",
+      includeDisabledCompany: true,
+    });
+    return {
+      ...context,
+      companyId: context.id,
+      db: context.companyDb,
+      request,
+    };
   } catch (error) {
-    if (error instanceof AuthError) {
+    if (error instanceof CompanyAccessError || error instanceof AuthError) {
       throw new CompanyServiceError(error.message, error.status);
     }
     throw error;
   }
-
-  const db = await getCompanyDb();
-  const [existing] = await db
-    .select()
-    .from(companyUsers)
-    .where(
-      and(
-        eq(companyUsers.companyId, COMPANY_ID),
-        eq(companyUsers.userId, user.id),
-        eq(companyUsers.status, "active"),
-      ),
-    )
-    .limit(1);
-
-  let role: CompanyRole;
-  if (existing && isCompanyRole(existing.role)) {
-    role = existing.role;
-  } else {
-    const [count] = await db
-      .select({ value: sql<number>`count(*)` })
-      .from(companyUsers)
-      .where(
-        and(
-          eq(companyUsers.companyId, COMPANY_ID),
-          eq(companyUsers.status, "active"),
-        ),
-      );
-    role = Number(count?.value ?? 0) === 0 ? "super_admin" : "viewer";
-    const now = new Date().toISOString();
-    await db
-      .insert(companyUsers)
-      .values({
-        id: crypto.randomUUID(),
-        tenantId: TENANT_ID,
-        companyId: COMPANY_ID,
-        userId: user.id,
-        email: user.email,
-        role,
-        status: "active",
-        createdBy: user.id,
-        updatedBy: user.id,
-        updatedAt: now,
-      })
-      .onConflictDoNothing();
-  }
-
-  return { db, request, user, role };
 }
 
 async function ensureCompanySeed(context: CompanyContext) {
   const [existing] = await context.db
     .select({ id: companies.id })
     .from(companies)
-    .where(eq(companies.id, COMPANY_ID))
+    .where(eq(companies.id, context.companyId))
     .limit(1);
-  if (existing) return;
-
-  const now = new Date().toISOString();
-  const snapshot = DEFAULT_COMPANY_SNAPSHOT;
-  await context.db
-    .insert(companies)
-    .values({
-      ...snapshot.company,
-      tenantId: TENANT_ID,
-      companyId: COMPANY_ID,
-      createdBy: context.user.id,
-      updatedBy: context.user.id,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  await persistDefaultConfiguration(context, snapshot, now);
+  if (!existing) {
+    throw new CompanyServiceError("The selected company is unavailable.", 404);
+  }
 }
 
-async function persistDefaultConfiguration(
-  context: CompanyContext,
-  snapshot: CompanySettingsSnapshot,
-  now: string,
-) {
-  const metadata = {
-    tenantId: TENANT_ID,
-    companyId: COMPANY_ID,
-    createdBy: context.user.id,
-    updatedBy: context.user.id,
-    updatedAt: now,
-  };
-  await context.db.insert(fiscalYears).values({
-    ...snapshot.fiscalYear,
-    ...metadata,
-  }).onConflictDoNothing();
-  await context.db.insert(companyCurrencies).values({
-    ...snapshot.currency,
-    ...metadata,
-  }).onConflictDoNothing();
-  await context.db.insert(companyLocalizations).values({
-    ...snapshot.localization,
-    ...metadata,
-  }).onConflictDoNothing();
-  await context.db.insert(workingCalendars).values({
-    id: snapshot.workingCalendar.id,
-    ...metadata,
-    workingDays: JSON.stringify(snapshot.workingCalendar.workingDays),
-    weekendDays: JSON.stringify(snapshot.workingCalendar.weekendDays),
-    workingStartTime: snapshot.workingCalendar.workingStartTime,
-    workingEndTime: snapshot.workingCalendar.workingEndTime,
-    status: snapshot.workingCalendar.status,
-  }).onConflictDoNothing();
+function defaultSnapshotForContext(context: CompanyContext) {
+  if (context.companyId === COMPANY_ID) {
+    return structuredClone(DEFAULT_COMPANY_SNAPSHOT);
+  }
+  return createDefaultCompanySnapshot({
+    id: context.companyId,
+    companyName: context.name,
+    companyCode: context.code,
+    country: context.companyId === KM_COMPANY_ID ? "TH" : "MM",
+  });
 }
 
 async function readPublishedSnapshot(
@@ -549,42 +485,43 @@ async function readPublishedSnapshot(
   const [company] = await context.db
     .select()
     .from(companies)
-    .where(eq(companies.id, COMPANY_ID))
+    .where(eq(companies.id, context.companyId))
     .limit(1);
-  if (!company) return structuredClone(DEFAULT_COMPANY_SNAPSHOT);
+  const defaults = defaultSnapshotForContext(context);
+  if (!company) return defaults;
 
   const branchRows = await context.db
     .select()
     .from(branches)
-    .where(eq(branches.companyId, COMPANY_ID));
+    .where(eq(branches.companyId, context.companyId));
   const departmentRows = await context.db
     .select()
     .from(departments)
-    .where(eq(departments.companyId, COMPANY_ID));
+    .where(eq(departments.companyId, context.companyId));
   const [fiscal] = await context.db
     .select()
     .from(fiscalYears)
-    .where(eq(fiscalYears.companyId, COMPANY_ID))
+    .where(eq(fiscalYears.companyId, context.companyId))
     .limit(1);
   const [currency] = await context.db
     .select()
     .from(companyCurrencies)
-    .where(eq(companyCurrencies.companyId, COMPANY_ID))
+    .where(eq(companyCurrencies.companyId, context.companyId))
     .limit(1);
   const [localization] = await context.db
     .select()
     .from(companyLocalizations)
-    .where(eq(companyLocalizations.companyId, COMPANY_ID))
+    .where(eq(companyLocalizations.companyId, context.companyId))
     .limit(1);
   const [calendar] = await context.db
     .select()
     .from(workingCalendars)
-    .where(eq(workingCalendars.companyId, COMPANY_ID))
+    .where(eq(workingCalendars.companyId, context.companyId))
     .limit(1);
   const holidayRows = await context.db
     .select()
     .from(holidays)
-    .where(eq(holidays.companyId, COMPANY_ID));
+    .where(eq(holidays.companyId, context.companyId));
 
   return {
     company: {
@@ -643,7 +580,7 @@ async function readPublishedSnapshot(
           currentFiscalYear: fiscal.currentFiscalYear,
           status: toEntityStatus(fiscal.status),
         }
-      : structuredClone(DEFAULT_COMPANY_SNAPSHOT.fiscalYear),
+      : structuredClone(defaults.fiscalYear),
     currency: currency
       ? {
           id: currency.id,
@@ -658,7 +595,7 @@ async function readPublishedSnapshot(
           lastRateUpdate: currency.lastRateUpdate,
           status: toEntityStatus(currency.status),
         }
-      : structuredClone(DEFAULT_COMPANY_SNAPSHOT.currency),
+      : structuredClone(defaults.currency),
     localization: localization
       ? {
           id: localization.id,
@@ -671,7 +608,7 @@ async function readPublishedSnapshot(
           firstDayOfWeek: localization.firstDayOfWeek,
           status: toEntityStatus(localization.status),
         }
-      : structuredClone(DEFAULT_COMPANY_SNAPSHOT.localization),
+      : structuredClone(defaults.localization),
     workingCalendar: calendar
       ? {
           id: calendar.id,
@@ -691,7 +628,7 @@ async function readPublishedSnapshot(
           })),
           status: toEntityStatus(calendar.status),
         }
-      : structuredClone(DEFAULT_COMPANY_SNAPSHOT.workingCalendar),
+      : structuredClone(defaults.workingCalendar),
   };
 }
 
@@ -699,7 +636,7 @@ async function readAudit(context: CompanyContext): Promise<AuditEntry[]> {
   const rows = await context.db
     .select()
     .from(auditLogs)
-    .where(eq(auditLogs.companyId, COMPANY_ID))
+    .where(eq(auditLogs.companyId, context.companyId))
     .orderBy(desc(auditLogs.createdAt))
     .limit(5);
   return rows.map((row) => ({
@@ -723,8 +660,8 @@ async function writeAudit(
   const now = new Date().toISOString();
   await context.db.insert(auditLogs).values({
     id: crypto.randomUUID(),
-    tenantId: TENANT_ID,
-    companyId: COMPANY_ID,
+    tenantId: context.tenantId,
+    companyId: context.companyId,
     userId: context.user.id,
     action,
     entity,

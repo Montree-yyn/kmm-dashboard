@@ -3,12 +3,16 @@
 import {
   AlertTriangle,
   ArrowRight,
+  BarChart3,
+  CalendarCheck2,
   CheckCircle2,
   ChevronDown,
   Download,
   FileSpreadsheet,
   History,
+  PackageSearch,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   UploadCloud,
   X,
@@ -16,6 +20,7 @@ import {
 import {
   type DragEvent,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -42,12 +47,19 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 
 const importModules: Array<{ id: ImportModule; label: string }> = [
   { id: "sales", label: "Sales" },
   { id: "booking", label: "Booking" },
   { id: "stock", label: "Stock" },
 ];
+
+const onboardingModuleIcons: Record<ImportModule, typeof BarChart3> = {
+  sales: BarChart3,
+  booking: CalendarCheck2,
+  stock: PackageSearch,
+};
 
 type SmartImportState = {
   sourceFile: File | null;
@@ -229,11 +241,15 @@ function HistoryDisclosure({ history }: { history: ImportHistoryRecord[] }) {
 
 export function SmartImportCenter() {
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedModule, setSelectedModule] = useState<ImportModule | "">("");
   const [autoDetected, setAutoDetected] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(selectedCompany?.code === "KM");
   const [state, setState] = useState<SmartImportState>(emptyImportState);
   const [history, setHistory] = useState<ImportHistoryRecord[]>([]);
+  const selectedCompanyId = selectedCompany?.id ?? "";
+  const branchMasterReady = Boolean(selectedCompany?.branchCount);
 
   const mappingWarnings = useMemo(
     () => state.mappings.filter((mapping) => mapping.status === "warning").length,
@@ -241,7 +257,10 @@ export function SmartImportCenter() {
   );
   const periodReady = Boolean(state.year && state.month && state.month >= 1 && state.month <= 12);
   const canImport = Boolean(
-    selectedModule
+    selectedCompanyId
+      && selectedCompany?.role !== "viewer"
+      && branchMasterReady
+      && selectedModule
       && state.mappedFile
       && state.validation?.canImport
       && periodReady
@@ -249,11 +268,11 @@ export function SmartImportCenter() {
       && state.status !== "success",
   );
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async (companyId: string) => {
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
-      const response = await globalThis["fetch"]("/api/data-hub/import", {
+      const response = await globalThis["fetch"](`/api/data-hub/import?companyId=${encodeURIComponent(companyId)}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
@@ -263,9 +282,15 @@ export function SmartImportCenter() {
     } catch {
       // Upload and validation remain available if the optional history read fails.
     }
-  };
+  }, []);
 
-  useEffect(() => { void loadHistory(); }, []);
+  useEffect(() => {
+    if (selectedCompanyId) void loadHistory(selectedCompanyId);
+  }, [loadHistory, selectedCompanyId]);
+
+  useEffect(() => {
+    setOnboardingOpen(selectedCompany?.code === "KM");
+  }, [selectedCompany?.code, selectedCompanyId]);
 
   const buildValidatedState = async (file: File, module: ImportModule, parsed?: ParsedImportFile) => {
     const finalParsed = parsed && parsed.detectedModule === module
@@ -273,7 +298,12 @@ export function SmartImportCenter() {
       : await parseSpreadsheetFile(file, { module });
     if (finalParsed.structureError) throw new Error(finalParsed.structureError);
     const source = getImportSourceDefinition(module, "product");
-    const mappings = createColumnMappings(source, finalParsed.headers, loadSavedMapping(module), finalParsed.inferredFields);
+    const mappings = createColumnMappings(
+      source,
+      finalParsed.headers,
+      loadSavedMapping(module, selectedCompanyId),
+      finalParsed.inferredFields,
+    );
     const mappedFile = applyColumnMappings(finalParsed, mappings);
     const validation = validateImportRows(source, mappedFile.headers, mappedFile.rows, {
       quantityRule: mappedFile.quantityRule,
@@ -364,6 +394,13 @@ export function SmartImportCenter() {
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const startModuleUpload = (module: ImportModule) => {
+    reset();
+    setSelectedModule(module);
+    setAutoDetected(false);
+    window.requestAnimationFrame(() => inputRef.current?.click());
+  };
+
   const downloadErrorReport = () => {
     const rows = state.validation?.issues.length
       ? state.validation.issues
@@ -382,7 +419,7 @@ export function SmartImportCenter() {
   };
 
   const importFile = async () => {
-    if (!selectedModule || !state.mappedFile || !state.validation?.canImport || !state.year || !state.month) return;
+    if (!selectedCompanyId || !selectedModule || !state.mappedFile || !state.validation?.canImport || !state.year || !state.month) return;
     setState((current) => ({ ...current, status: "importing", error: null }));
     try {
       const record = await completeUnifiedModuleImport({
@@ -392,6 +429,7 @@ export function SmartImportCenter() {
         year: state.year,
         month: state.month,
         businessWeek: state.mappedFile.detection?.businessWeek.value ?? null,
+        companyId: selectedCompanyId,
         emitRefresh: true,
       });
       setHistory((current) => [record, ...current]);
@@ -406,6 +444,10 @@ export function SmartImportCenter() {
   };
 
   const selectedLabel = importModules.find((module) => module.id === selectedModule)?.label;
+  const completedModules = importModules.filter(({ id }) =>
+    history.some((record) =>
+      record.module.toLowerCase() === id && record.status === "success"),
+  ).length;
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
@@ -413,7 +455,7 @@ export function SmartImportCenter() {
         <div className="space-y-5">
           <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand-600)]">Data Hub · KMM</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand-600)]">Data Hub · {selectedCompany?.code ?? "Company"}</p>
               <h1 className="mt-1.5 text-[28px] font-semibold leading-tight tracking-tight sm:text-[30px]">{t("dataHub.smartImport")}</h1>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("dataHub.smartImportDescription")}</p>
             </div>
@@ -422,11 +464,56 @@ export function SmartImportCenter() {
             </a>
           </header>
 
+          <details
+            className="group overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]"
+            open={onboardingOpen}
+            onToggle={(event) => setOnboardingOpen(event.currentTarget.open)}
+          >
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)] sm:px-5">
+              <span className="min-w-0">
+                <span className="block text-base font-semibold text-[var(--text-primary)]">{selectedCompany?.code} Data Onboarding</span>
+                <span className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">Choose a module, validate its file, then approve an isolated import for this company.</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-[var(--text-tertiary)]">
+                {completedModules}/3 imported
+                <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+              </span>
+            </summary>
+            <div className="border-t border-[var(--divider)] px-4 py-4 sm:px-5">
+              {!branchMasterReady && (
+                <div className="mb-4 flex flex-col gap-3 rounded-[var(--radius-control-lg)] bg-[var(--status-warning-bg)] px-4 py-3 text-sm text-[var(--status-warning)] sm:flex-row sm:items-center sm:justify-between" role="status">
+                  <span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" /><span><strong>Branch Master required.</strong> Files can be selected and validated now, but D1 import stays locked until {selectedCompany?.code} has an active branch.</span></span>
+                  <a href={`/settings/company?companyId=${encodeURIComponent(selectedCompanyId)}`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><Settings2 size={15} aria-hidden="true" />Configure branches</a>
+                </div>
+              )}
+              <div className="grid gap-2 lg:grid-cols-3">
+                {importModules.map((module) => {
+                  const Icon = onboardingModuleIcons[module.id];
+                  const latest = history.find((record) => record.module.toLowerCase() === module.id && record.status === "success");
+                  return (
+                    <div key={module.id} className="flex min-w-0 items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--divider)] px-3 py-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-[var(--surface-subtle)] text-[var(--brand-700)]"><Icon size={19} aria-hidden="true" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-[var(--text-primary)]">{module.label}</span>
+                        <span className="block truncate text-[11px] text-[var(--text-tertiary)]">{latest ? `Last import ${new Date(latest.importedAt).toLocaleDateString()}` : "No verified import"}</span>
+                      </span>
+                      <button type="button" onClick={() => startModuleUpload(module.id)} disabled={selectedCompany?.role === "viewer" || state.status === "reading" || state.status === "importing"} className="min-h-10 shrink-0 rounded-[var(--radius-control)] border border-[var(--border-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50">Choose file</button>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] leading-5 text-[var(--text-tertiary)]">Selecting a file does not upload or persist it. Data is written only after validation and explicit approval.</p>
+            </div>
+          </details>
+
           <Card className="overflow-hidden p-0">
-            <div className="grid gap-4 border-b border-[var(--divider)] px-4 py-4 sm:grid-cols-[minmax(0,1fr)_230px] sm:items-end sm:px-5">
+            <div className="grid gap-4 border-b border-[var(--divider)] px-4 py-4 sm:grid-cols-[minmax(0,1fr)_220px_230px] sm:items-end sm:px-5">
               <div>
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">{t("dataHub.upload")}</h2>
                 <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{t("dataHub.uploadDescription")}</p>
+              </div>
+              <div className="text-xs font-semibold text-[var(--text-secondary)]">Active company
+                <div className="mt-1 flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 text-sm font-medium text-[var(--text-primary)]" title={selectedCompany?.name}>{selectedCompany?.code} · <span className="ml-1 min-w-0 truncate">{selectedCompany?.name}</span></div>
               </div>
               <FileTypeSelect value={selectedModule} disabled={state.status === "reading" || state.status === "importing"} onChange={(value) => void handleTypeChange(value)} />
             </div>
@@ -497,6 +584,13 @@ export function SmartImportCenter() {
                       <div><p className="text-sm font-semibold">Confirm reporting period</p><p className="mt-1 text-xs text-[var(--text-secondary)]">The file type is confirmed, but its year or month could not be detected.</p></div>
                       <label className="text-xs font-semibold">Year<input aria-label="Import year" inputMode="numeric" value={state.year ?? ""} onChange={(event) => setState((current) => ({ ...current, year: Number(event.target.value) || null }))} className="mt-1 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-white px-3 text-sm" /></label>
                       <label className="text-xs font-semibold">Month<select aria-label="Import month" value={state.month ?? ""} onChange={(event) => setState((current) => ({ ...current, month: Number(event.target.value) || null }))} className="mt-1 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-white px-3 text-sm"><option value="">Select month</option>{Array.from({ length: 12 }, (_, index) => index + 1).map((month) => <option key={month} value={month}>{new Intl.DateTimeFormat("en", { month: "long" }).format(new Date(2020, month - 1, 1))}</option>)}</select></label>
+                    </div>
+                  )}
+
+                  {!branchMasterReady && state.mappedFile && (
+                    <div className="flex items-start gap-2 rounded-[var(--radius-control-lg)] bg-[var(--status-warning-bg)] px-4 py-3 text-sm text-[var(--status-warning)]" role="status">
+                      <AlertTriangle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
+                      <span>Validation can continue, but import is locked until the {selectedCompany?.code} Branch Master is configured.</span>
                     </div>
                   )}
 

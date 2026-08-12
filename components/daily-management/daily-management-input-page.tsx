@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { loadDailyManagementInput, persistDailyManagementInput } from "../../lib/daily-management/input-client";
 import {
-  defaultDailyManagementInput,
+  createDefaultDailyManagementInput,
   loadDailyManagementDraft,
   publishDailyManagementInput,
   saveDailyManagementDraft,
@@ -29,9 +29,9 @@ import {
 } from "../../lib/daily-management/input-storage";
 import { parseDailyManagementWorkbook } from "../../lib/daily-management/parse-input-workbook";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 import {
   ALL_BRANCHES,
-  DAILY_MANAGEMENT_BRANCHES,
   canonicalDailyBranch,
   isDailyManagementBranch,
 } from "../../lib/daily-management/branch";
@@ -66,8 +66,16 @@ function lines(value: string) {
 
 export function DailyManagementInputPage() {
   const { t } = useLocale();
-  const [draft, setDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
-  const [savedDraft, setSavedDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultDailyManagementInput));
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const companyBranches = selectedCompany?.branches ?? [];
+  const defaultInput = createDefaultDailyManagementInput({
+    companyCode,
+    timeZone: selectedCompany?.timeZone,
+  });
+  const [draft, setDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultInput));
+  const [savedDraft, setSavedDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultInput));
   const [hasRemoteRecord, setHasRemoteRecord] = useState(false);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "neutral" | "success" | "danger" }>({ text: "", tone: "neutral" });
@@ -84,18 +92,21 @@ export function DailyManagementInputPage() {
     const searchParams = new URLSearchParams(window.location.search);
     const requestedDate = searchParams.get("date") ?? "";
     const requestedBranch = canonicalDailyBranch(searchParams.get("branch"));
-    const hasRequestedScope = isValidIsoDate(requestedDate) && isDailyManagementBranch(requestedBranch);
-    const stored = loadDailyManagementDraft();
+    const hasRequestedScope = isValidIsoDate(requestedDate) && isDailyManagementBranch(requestedBranch, companyBranches);
+    const stored = loadDailyManagementDraft(companyId, {
+      companyCode,
+      timeZone: selectedCompany?.timeZone,
+    });
     const scope = hasRequestedScope ? { date: requestedDate, branch: requestedBranch } : undefined;
-    void loadDailyManagementInput("draft", scope)
+    void loadDailyManagementInput("draft", { ...scope, companyId })
       .then(async (draftRemote) => {
         const publishedRemote = !draftRemote && scope
-          ? await loadDailyManagementInput("published", scope)
+          ? await loadDailyManagementInput("published", { ...scope, companyId })
           : null;
         if (!active) return;
         const remote = draftRemote ?? publishedRemote;
         const resolved = remote ?? (scope
-          ? { ...structuredClone(defaultDailyManagementInput), reportDate: requestedDate, branch: requestedBranch }
+          ? { ...structuredClone(defaultInput), reportDate: requestedDate, branch: requestedBranch }
           : stored);
         setDraft(resolved);
         setSavedDraft(structuredClone(resolved));
@@ -122,7 +133,7 @@ export function DailyManagementInputPage() {
         if (active) setReady(true);
       });
     return () => { active = false; };
-  }, []);
+  }, [companyId]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(savedDraft), [draft, savedDraft]);
   const validation = useMemo(() => {
@@ -198,8 +209,8 @@ export function DailyManagementInputPage() {
     if (validation.length) return setMessage({ text: validation[0], tone: "danger" });
     setSaving("draft");
     try {
-      const remote = await persistDailyManagementInput(draft, "draft");
-      const saved = saveDailyManagementDraft(remote);
+      const remote = await persistDailyManagementInput(draft, "draft", companyId);
+      const saved = saveDailyManagementDraft(remote, companyId);
       setDraft(saved);
       setSavedDraft(structuredClone(saved));
       setHasRemoteRecord(true);
@@ -215,8 +226,8 @@ export function DailyManagementInputPage() {
     if (validation.length) return setMessage({ text: validation[0], tone: "danger" });
     setSaving("publish");
     try {
-      const remote = await persistDailyManagementInput(draft, "publish");
-      const published = publishDailyManagementInput(remote);
+      const remote = await persistDailyManagementInput(draft, "publish", companyId);
+      const published = publishDailyManagementInput(remote, companyId);
       setDraft(published);
       setSavedDraft(structuredClone(published));
       setHasRemoteRecord(true);
@@ -253,7 +264,7 @@ export function DailyManagementInputPage() {
             <SectionHeader title={t("daily.reportInfo")} description={t("daily.reportInfoDescription")} />
             <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
               <Field label={t("daily.reportDate")}><input type="date" value={draft.reportDate} onChange={(event) => patch({ reportDate: event.target.value })} className={inputClass} /></Field>
-              <Field label={t("daily.branch")}><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option value={ALL_BRANCHES}>{ALL_BRANCHES}</option>{DAILY_MANAGEMENT_BRANCHES.map((branch) => <option key={branch.code} value={branch.code}>{branch.code} · {branch.name}</option>)}</select></Field>
+              <Field label={t("daily.branch")}><select value={draft.branch} onChange={(event) => patch({ branch: event.target.value })} className={inputClass}><option value={ALL_BRANCHES}>{ALL_BRANCHES}</option>{companyBranches.map((branch) => <option key={branch.code} value={branch.code}>{branch.code} · {branch.name}</option>)}</select></Field>
               <Field label={t("daily.preparedBy")}><input value={draft.preparedBy} onChange={(event) => patch({ preparedBy: event.target.value })} className={inputClass} /></Field>
             </div>
             <div className="flex items-start gap-2 border-t border-[var(--divider)] bg-[#F8FAF9] px-5 py-3 text-[11px] leading-4 text-[#42604C]"><Check className="mt-0.5 shrink-0 text-[#2E7D47]" size={14} /><span>{t("daily.lifecycleAutomatic")}</span></div>
@@ -292,7 +303,7 @@ export function DailyManagementInputPage() {
         <details className="group mt-4 overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-white">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[12px] font-semibold marker:hidden"><span>{t("daily.importExcel")} <span className="ml-2 font-normal text-[var(--text-tertiary)]">{t("daily.excelAlternative")}</span></span><ChevronDown size={16} className="transition group-open:rotate-180" /></summary>
           <div className="grid gap-4 border-t border-[var(--divider)] p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div><p className="text-[11px] leading-4 text-[var(--text-secondary)]">{t("daily.templateOnly")}</p><a href="/api/daily-management/template" download="KMM_Daily_Management_Input_Template.xlsx" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[11px] font-semibold transition hover:bg-[#FAFAFB]"><Download size={14} />{t("daily.downloadTemplate")}</a></div>
+            <div><p className="text-[11px] leading-4 text-[var(--text-secondary)]">{companyCode === "KMM" ? t("daily.templateOnly") : "KM Daily Management template is not approved yet. Use Data Hub for Sales, Booking and Stock onboarding."}</p>{companyCode === "KMM" && <a href="/api/daily-management/template" download="KMM_Daily_Management_Input_Template.xlsx" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[11px] font-semibold transition hover:bg-[#FAFAFB]"><Download size={14} />{t("daily.downloadTemplate")}</a>}</div>
             <div>
               <input ref={fileInput} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkbook(file); event.target.value = ""; }} />
               <div onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`flex min-h-32 flex-col items-center justify-center rounded-[12px] border border-dashed p-4 text-center transition ${dragging ? "border-[var(--brand-500)] bg-[#FFF7F1]" : fileName ? "border-[#89B597] bg-[#F5FBF7]" : importError ? "border-[#E4A5A0] bg-[#FFF7F6]" : "border-[#C9CCD2] bg-[#FAFAFB]"}`}>

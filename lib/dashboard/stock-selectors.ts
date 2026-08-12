@@ -1,10 +1,12 @@
 import { stockPhysicalIdentifierKeys } from "../stock/physical-identifiers";
+import { COMPANY_ID } from "../company-management/types";
 
 export const STOCK_UNIT_PRODUCTS = ["TT", "CH", "EX", "TP", "MAX"] as const;
 export const STOCK_VALUE_PRODUCTS = [...STOCK_UNIT_PRODUCTS, "IM", "IMO", "OT"] as const;
 
 export type StockProduct = (typeof STOCK_VALUE_PRODUCTS)[number] | "Unknown";
 export type StockRow = {
+  companyId?: string | null;
   year?: number | null;
   month?: number | null;
   kmm?: unknown;
@@ -17,6 +19,7 @@ export type StockRow = {
   engineNumber?: string | null;
   chassisNumber?: string | null;
   branch?: string | null;
+  salesperson?: string | null;
   msrp?: number | null;
   ageDays?: number | null;
 };
@@ -71,11 +74,22 @@ export function isKmmFreeStock(row: Pick<StockRow, "kmm" | "currentStatus">) {
   return normalizeKmmValue(row) === 1 && normalizeStockStatus(row) === "FREE STOCK";
 }
 
-/** Current KMM stock only: KMM = 1 and Status PD = Free Stock, deduplicated on any shared physical identifier. */
+export function isCurrentCompanyStock(
+  row: Pick<StockRow, "companyId" | "kmm" | "currentStatus">,
+) {
+  if (normalizeStockStatus(row) !== "FREE STOCK") return false;
+  // KMM's approved source requires its ownership flag. Other companies are
+  // already isolated by company_id and use the shared Free Stock status until
+  // a company-specific ownership field is formally mapped.
+  return Boolean(row.companyId && row.companyId !== COMPANY_ID)
+    || normalizeKmmValue(row) === 1;
+}
+
+/** Current company stock, deduplicated on any shared physical identifier. */
 export function getCurrentStockRows<T extends StockRow>(rows: T[]) {
   const seen = new Set<string>();
   return rows.filter((row) => {
-    if (!isKmmFreeStock(row)) return false;
+    if (!isCurrentCompanyStock(row)) return false;
     const ids = stockPhysicalIdentifierKeys(row);
     const duplicate = ids.some((id) => seen.has(id));
     ids.forEach((id) => seen.add(id));

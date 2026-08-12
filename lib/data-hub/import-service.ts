@@ -4,6 +4,7 @@ import type {
   ParsedImportFile,
   ValidationSummary,
 } from "./types";
+import { resolveActiveCompanyId } from "../company-context/client-store";
 
 export type ImportRequest = {
   source: DataSourceDefinition;
@@ -46,7 +47,7 @@ export async function completeSessionImport({
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       action: "replace",
-      companyId: companyId ?? "kmm-company",
+      companyId: resolveActiveCompanyId(companyId),
       year: year ?? new Date(String(file.rows[0]?.sale_date)).getFullYear(),
       month: month ?? new Date(String(file.rows[0]?.sale_date)).getMonth() + 1,
       filename: file.filename,
@@ -60,12 +61,16 @@ export async function completeSessionImport({
   return { ...payload.history, durationMs: Math.max(payload.history.durationMs, Math.round(performance.now() - startedAt)) };
 }
 
-export async function persistSalesMapping(mapping: Record<string, string | null>) {
+export async function persistSalesMapping(mapping: Record<string, string | null>, companyId?: string) {
   const token = await getAuthToken();
   const response = await globalThis["fetch"]("/api/data-hub/sales", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ action: "save_mapping", companyId: "kmm-company", mapping }),
+    body: JSON.stringify({
+      action: "save_mapping",
+      companyId: resolveActiveCompanyId(companyId),
+      mapping,
+    }),
   });
   const payload = await response.json() as { error?: string };
   if (!response.ok) throw new Error(payload.error ?? "Unable to save this mapping.");

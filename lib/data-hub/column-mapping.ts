@@ -91,8 +91,8 @@ function normalize(value: string) {
   return value.trim().toLowerCase().replace(/%/g, " percent ").replace(/[_\-]+/g, " ").replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
 }
 
-function storageKey(module: DataModule) {
-  return `kmm-data-hub-column-mapping:${module}`;
+function storageKey(module: DataModule, companyId?: string) {
+  return `kmm-data-hub-column-mapping:${companyId?.trim() || "legacy-kmm"}:${module}`;
 }
 
 function statusFor(source: DataSourceDefinition, fieldKey: string | null): MappingStatus {
@@ -103,22 +103,22 @@ function statusFor(source: DataSourceDefinition, fieldKey: string | null): Mappi
   return "mapped";
 }
 
-export function loadSavedMapping(module: DataModule): SavedMapping {
+export function loadSavedMapping(module: DataModule, companyId?: string): SavedMapping {
   if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(window.localStorage.getItem(storageKey(module)) ?? "{}") as SavedMapping;
+    return JSON.parse(window.localStorage.getItem(storageKey(module, companyId)) ?? "{}") as SavedMapping;
   } catch {
     return {};
   }
 }
 
-export function saveMapping(module: DataModule, mappings: ColumnMapping[]) {
+export function saveMapping(module: DataModule, mappings: ColumnMapping[], companyId?: string) {
   const mapping: SavedMapping = Object.fromEntries(
     mappings
       .filter((item) => item.excelColumn !== "—")
       .map((item) => [normalize(item.excelColumn), item.fieldKey]),
   );
-  window.localStorage.setItem(storageKey(module), JSON.stringify(mapping));
+  window.localStorage.setItem(storageKey(module, companyId), JSON.stringify(mapping));
 }
 
 export function createColumnMappings(

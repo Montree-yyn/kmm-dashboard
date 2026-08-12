@@ -4,13 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
   RotateCcw,
   Search,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { ChartCard } from "../design-system/chart-card";
 import { EmptyState } from "../design-system/empty-state";
@@ -20,11 +18,17 @@ import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
 import { ProductBadge } from "../design-system/product-badge";
 import { FilterBar } from "../design-system/filter-bar";
-import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
 import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import type { StandardLineSeries } from "../common/charts/StandardLineChart";
+import {
+  BulletChart,
+  CumulativeRankChart,
+  LollipopChart,
+  PercentStackedBar,
+} from "../common/charts/AnalyticalCharts";
 import { loadLiveSalesData } from "../../lib/sales/client";
 import {
   getBranchSummary,
@@ -37,6 +41,7 @@ import {
   salesProductGroup,
 } from "../../lib/sales/business-service";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 
 // Legacy QA fallback contract remains available through fetch(`/dashboard-data.json?ts=${Date.now()}`).
 
@@ -58,6 +63,13 @@ const PRODUCT_FILTER_OPTIONS = [
   "All Products",
   ...PRODUCT_GROUPS.UNIT_PRODUCTS,
 ];
+const PRODUCT_COLORS: Record<string, string> = {
+  TT: "#F56600",
+  CH: "#35363A",
+  EX: "#86868B",
+  TP: "#B6B7BA",
+  MAX: "#245487",
+};
 
 type FilterKey = "year" | "month" | "branch" | "salesperson" | "productGroup";
 type FilterState = Record<FilterKey, string[]>;
@@ -234,21 +246,20 @@ function SalesFilters({
   filters,
   options,
   onChange,
-  onRefresh,
   onReset,
   onExport,
 }: {
   filters: FilterState;
   options: FilterState;
   onChange: (key: FilterKey, values: string[]) => void;
-  onRefresh: () => void;
   onReset: () => void;
   onExport: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <FilterBar
-      filterGridClassName="sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5"
-      ariaLabel="Sales filters"
+      filterGridClassName="sm:grid-cols-2 xl:grid-cols-4"
+      ariaLabel={t("common.filters")}
       actions={
         <>
           <Button
@@ -257,49 +268,37 @@ function SalesFilters({
             onClick={onReset}
           >
             <RotateCcw size={16} />
-            Reset
-          </Button>
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onRefresh}
-          >
-            <RefreshCw size={16} />
-            Refresh
+            {t("common.reset")}
           </Button>
           <ExportButton onClick={onExport} />
         </>
       }
     >
           <MultiSelectFilter
-            label="Year"
+            label={t("filter.year")}
             options={options.year}
             values={filters.year}
             onChange={(values) => onChange("year", values)}
           />
           <MultiSelectFilter
-            label="Month"
+            label={t("filter.month")}
             options={options.month}
             values={filters.month}
             onChange={(values) => onChange("month", values)}
           />
           <MultiSelectFilter
-            label="Branch"
+            label={t("filter.branch")}
             options={options.branch}
             values={filters.branch}
             onChange={(values) => onChange("branch", values)}
           />
           <MultiSelectFilter
-            label="Salesperson"
-            options={options.salesperson}
-            values={filters.salesperson}
-            onChange={(values) => onChange("salesperson", values)}
-          />
-          <MultiSelectFilter
-            label="Product Group"
+            label={t("filter.productGroup")}
             options={options.productGroup}
             values={filters.productGroup}
             onChange={(values) => onChange("productGroup", values)}
+            allValues={["All Products"]}
+            allLabel={t("filter.allProducts")}
             getNextValues={(option, current) => {
               if (option === "All Products") return ["All Products"];
               const next = current.includes(option)
@@ -392,10 +391,12 @@ function SalesTrendChart({
   sales,
   filters,
   plan,
+  currency = "MMK",
 }: {
   sales: SalesRow[];
   filters: FilterState;
   plan: SalesData["plan"];
+  currency?: string;
 }) {
   const availableYears = useMemo(
     () => [...new Set(sales.map((row) => row.year))].sort((a, b) => b - a),
@@ -500,7 +501,7 @@ function SalesTrendChart({
       ? "No data"
       : metric === "unit"
         ? value.toLocaleString()
-        : `${formatCompact(value)} MMK`;
+        : `${formatCompact(value)} ${currency}`;
   const hovered = hoveredMonth === null ? null : points[hoveredMonth];
   const baseYear = visibleYears[0];
   const comparisonYear = visibleYears[1];
@@ -659,7 +660,7 @@ function SalesTrendChart({
             );
           })}
           <text x={padX} y={18} fill="#4B5563" fontSize="12" fontWeight="700">
-            {metric === "unit" ? "Unit" : "MMK"}
+            {metric === "unit" ? "Unit" : currency}
           </text>
           {visibleYears.map((year, index) => (
             <g key={year}>
@@ -769,11 +770,14 @@ function ExecutiveSalesTrend({
   sales,
   filters,
   plan,
+  currency,
 }: {
   sales: SalesRow[];
   filters: FilterState;
   plan: SalesData["plan"];
+  currency: string;
 }) {
+  const { t } = useLocale();
   const [metric, setMetric] = useState<TrendMetric>("unit");
   const availableYears = useMemo(
     () => [...new Set(sales.map((row) => row.year))].sort((a, b) => b - a),
@@ -812,22 +816,22 @@ function ExecutiveSalesTrend({
     series.push({
       id: "target",
       year: plan.year,
-      label: "Target",
+      label: t("sales.target"),
       kind: "target",
       values: plan.units.map((value) => value || null),
     });
   return (
     <PremiumTrendChart
-      title="Sales Trend"
-      subtitle="Compare sales performance by year, period and metric."
+      title={t("chart.salesTrendTitle")}
+      subtitle={t("chart.salesTrendDescription")}
       labels={MONTHS}
-      unit={metric === "unit" ? "Unit" : "MMK"}
+      unit={metric === "unit" ? t("common.units") : currency}
       formatValue={
         metric === "unit" ? (value) => value.toLocaleString() : formatCompact
       }
       metricOptions={[
-        { id: "unit", label: "Sales Unit" },
-        { id: "value", label: "Sales Value" },
+        { id: "unit", label: t("metric.salesUnit") },
+        { id: "value", label: t("metric.salesValue") },
       ]}
       defaultMetric="unit"
       onMetricChange={(value) => setMetric(value as TrendMetric)}
@@ -845,86 +849,33 @@ function TargetProgressCard({
   target: number | null;
   actual: number;
 }) {
-  const achievement = target && target > 0 ? (actual / target) * 100 : null;
-  const remaining = target && target > 0 ? Math.max(target - actual, 0) : null;
-  const progress = achievement === null ? 0 : Math.min(achievement, 100);
+  const { t } = useLocale();
 
   return (
-    <Card className="flex h-full min-h-[420px] min-w-0 flex-col justify-between rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-      <div>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">
-              Target Progress
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Monthly sales unit plan
-            </p>
-          </div>
-          <span className="rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-            Sales Unit
-          </span>
+    <Card className="h-full min-h-[420px] min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">
+            {t("sales.targetProgress")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            {t("sales.monthlyUnitPlan")}
+          </p>
         </div>
-        <div className="mt-8 space-y-6">
-          <div>
-            <p className="text-xs font-medium text-[var(--text-tertiary)]">
-              Target
-            </p>
-            <p className="kmm-tabular mt-2 text-[32px] font-semibold leading-none tracking-normal text-[var(--text-primary)]">
-              {target === null ? "Target not configured" : formatCompact(target)}{" "}
-              <span className="text-xs font-medium text-[var(--text-secondary)]">
-                Unit
-              </span>
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-1 overflow-hidden rounded-[var(--radius-control-lg)] bg-[var(--divider)]">
-            <div>
-              <div className="h-full bg-[var(--surface-subtle)] p-4">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">
-                  Actual
-                </p>
-                <p className="kmm-tabular mt-2 text-2xl font-semibold tracking-normal text-[var(--text-primary)]">
-                  {formatCompact(actual)}
-                </p>
-              </div>
-            </div>
-            <div>
-              <div className="h-full bg-[var(--surface-subtle)] p-4">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">
-                  Remaining
-                </p>
-                <p className="kmm-tabular mt-2 text-2xl font-semibold tracking-normal text-[var(--text-primary)]">
-                  {remaining === null ? "Target not configured" : formatCompact(remaining)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <span className="rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+          {t("metric.salesUnit")}
+        </span>
       </div>
-      <div className="mt-8">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-medium text-[var(--text-secondary)]">
-            Achievement
-          </span>
-          <span
-            className={cn(
-              "kmm-tabular text-base font-semibold",
-              achievement === null
-                ? "text-[var(--text-secondary)]"
-                : achievement >= 100
-                  ? "text-[var(--status-success)]"
-                  : "text-[var(--status-danger)]",
-            )}
-          >
-            {achievement === null ? "N/A" : `${achievement.toFixed(1)}%`}
-          </span>
-        </div>
-        <div className="h-2 rounded-full bg-[var(--divider)]">
-          <div
-            className="h-2 rounded-full bg-[var(--brand-500)] transition-[width] duration-200"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+      <div className="mt-10">
+        <BulletChart
+          actual={actual}
+          target={target}
+          unit={t("common.units")}
+          formatValue={formatCompact}
+          actualLabel={t("sales.actual")}
+          targetLabel={t("sales.target")}
+          emptyMessage={t("sales.targetNotConfigured")}
+        />
       </div>
     </Card>
   );
@@ -937,6 +888,7 @@ function SalesPageTable({
   rows: SalesRow[];
   onExport: () => void;
 }) {
+  const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<
     "date" | "branch" | "salesperson" | "model" | "value" | "gp"
@@ -999,10 +951,10 @@ function SalesPageTable({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">
-            Sales Transaction Table
+            {t("sales.transactionTableTitle")}
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Source-backed transaction detail for the active filters.
+            {t("sales.transactionTableDescription")}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1121,7 +1073,7 @@ function SalesPageTable({
   );
 }
 
-function exportRows(rows: SalesRow[]) {
+function exportRows(rows: SalesRow[], companyCode: string) {
   const csvRows = [
     [
       "Date",
@@ -1158,7 +1110,7 @@ function exportRows(rows: SalesRow[]) {
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "kmm-sales-transactions.csv";
+  anchor.download = `${companyCode.toLowerCase()}-sales-transactions.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -1186,18 +1138,20 @@ function filterOptions(rows: SalesRow[], filters: FilterState): FilterState {
 
 export function SalesPage() {
   const { t } = useLocale();
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const currency = selectedCompany?.currency ?? "MMK";
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [data, setData] = useState<SalesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showAllModels, setShowAllModels] = useState(false);
-  const [showAllPeople, setShowAllPeople] = useState(false);
 
   async function loadData() {
     setLoading(true);
     setError("");
     try {
-      setData(await loadLiveSalesData());
+      setData(await loadLiveSalesData({ companyId }));
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -1211,7 +1165,7 @@ export function SalesPage() {
 
   useEffect(() => {
     let ignore = false;
-    loadLiveSalesData()
+    loadLiveSalesData({ companyId })
       .then((loadedData) => {
         if (!ignore) setData(loadedData);
       })
@@ -1232,7 +1186,7 @@ export function SalesPage() {
       ignore = true;
       window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
-  }, []);
+  }, [companyId]);
 
   const options = data
     ? filterOptions(data.sales, filters)
@@ -1248,7 +1202,11 @@ export function SalesPage() {
     [data, filters],
   );
   const businessKpis = getSalesKpis(data?.sales ?? [], filters);
-  const previousBusinessKpis = getSalesKpis(data?.sales ?? [], previousYearFilters(filters));
+  const yearsForComparison = selectedYears(filters);
+  const comparisonEnabled = yearsForComparison.length === 1;
+  const previousBusinessKpis = comparisonEnabled
+    ? getSalesKpis(data?.sales ?? [], previousYearFilters(filters))
+    : null;
   const salesValue = businessKpis.salesValue ?? 0;
   const grossProfit = businessKpis.grossProfit ?? 0;
   const salesTarget = getTargetAvailability(filters, null).available ? (data ? targetValue(data, filters) : null) : null;
@@ -1258,10 +1216,11 @@ export function SalesPage() {
       : null;
   const asp = getSalesAsp(data?.sales ?? [], filters);
   const selectedMonthNumbers = selectedMonths(filters);
-  const comparisonLabel =
-    selectedYears(filters).length === 1 && selectedMonthNumbers.length === 1
-      ? `vs ${MONTHS[selectedMonthNumbers[0] - 1]} ${selectedYears(filters)[0] - 1}`
-      : "vs same period last year";
+  const comparisonLabel = comparisonEnabled
+    ? selectedMonthNumbers.length === 1
+      ? `${t("dashboard.compareWith")} ${MONTHS[selectedMonthNumbers[0] - 1]} ${yearsForComparison[0] - 1}`
+      : `${t("dashboard.compareWith")} ${yearsForComparison[0] - 1}`
+    : t("dashboard.selectOneYearForYoy");
   const byBranch = getBranchSummary(rows);
   const byProduct = getProductSummary(rows);
   const modelGroups = getModelSummary(rows);
@@ -1295,20 +1254,11 @@ export function SalesPage() {
                   {t("route.sales.title")}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.sales.subtitle")}
+                  {t("route.sales.subtitle").replaceAll("KMM", companyCode)}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
                 {data && <FreshnessIndicator timestamp={data.meta.sourceUpdatedAt} />}
-                <ActiveFilterSummary
-                  filters={filters}
-                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson", productGroup: "Product Group" }}
-                  excludeValues={{ productGroup: ["All Products"] }}
-                  clearValues={{ productGroup: ["All Products"] }}
-                  onChange={updateFilter}
-                  onReset={() => setFilters(defaultFilters)}
-                  className="mt-0 max-w-full justify-start sm:justify-end"
-                />
               </div>
             </section>
             <section aria-label="Sales filters">
@@ -1316,9 +1266,8 @@ export function SalesPage() {
                 filters={filters}
                 options={options}
                 onChange={updateFilter}
-                onRefresh={loadData}
                 onReset={() => setFilters(defaultFilters)}
-                onExport={() => exportRows(rows)}
+                onExport={() => exportRows(rows, companyCode)}
               />
             </section>
             {loading && (
@@ -1352,46 +1301,46 @@ export function SalesPage() {
                 >
                   <KpiCard
                     variant="executive"
-                    title="Sales Unit"
+                    title={t("metric.salesUnit")}
                     value={businessKpis.salesUnit}
-                    unit="Unit"
+                    unit={t("common.units")}
                     {...KpiComparison({
                       value: percentChange(
                       businessKpis.salesUnit,
-                        previousBusinessKpis.salesUnit,
+                        previousBusinessKpis?.salesUnit ?? 0,
                       ),
                       label: comparisonLabel,
                     })}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Sales Value"
+                    title={t("metric.salesValue")}
                     value={formatCompact(salesValue)}
-                    unit="MMK"
+                    unit={currency}
                     {...KpiComparison({
                       value: percentChange(
                         salesValue,
-                        previousBusinessKpis.salesValue ?? 0,
+                        previousBusinessKpis?.salesValue ?? 0,
                       ),
                       label: comparisonLabel,
                     })}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Gross Profit"
+                    title={t("metric.grossProfit")}
                     value={businessKpis.grossProfitAvailable ? formatCompact(grossProfit) : "Unavailable"}
-                    unit="MMK"
+                    unit={currency}
                     {...KpiComparison({
                       value: percentChange(
                         grossProfit,
-                        previousBusinessKpis.grossProfit ?? 0,
+                        previousBusinessKpis?.grossProfit ?? 0,
                       ),
                       label: comparisonLabel,
                     })}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Achievement"
+                    title={t("metric.achievement")}
                     value={
                       achievement === null
                         ? "N/A"
@@ -1400,10 +1349,10 @@ export function SalesPage() {
                     unit=""
                     subtitle={
                       achievement === null
-                        ? "Target not configured"
+                        ? t("sales.targetNotConfigured")
                         : achievement >= 100
-                          ? "Target met"
-                          : "Below target"
+                          ? t("sales.targetMet")
+                          : t("sales.belowTarget")
                     }
                     status={
                       achievement === null
@@ -1415,18 +1364,18 @@ export function SalesPage() {
                   />
                   <KpiCard
                     variant="executive"
-                    title="Average Selling Price (ASP)"
+                    title={t("metric.averageSellingPrice")}
                     value={asp === null ? "N/A" : formatCompact(asp)}
-                    unit="MMK"
+                    unit={currency}
                   />
                 </section>
                 <section aria-labelledby="sales-trajectory" className="space-y-3">
                   <div>
                     <h2 id="sales-trajectory" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Sales trajectory
+                      {t("section.salesTrajectory")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Trend performance and target variance for the selected scope.
+                      {t("section.salesTrajectoryDescription")}
                     </p>
                   </div>
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
@@ -1434,6 +1383,7 @@ export function SalesPage() {
                       sales={data.sales}
                       filters={filters}
                       plan={data.plan}
+                      currency={currency}
                     />
                     <TargetProgressCard
                       target={salesTarget}
@@ -1444,61 +1394,67 @@ export function SalesPage() {
                 <section aria-labelledby="sales-rankings" className="space-y-3">
                   <div>
                     <h2 id="sales-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Rankings &amp; mix
+                      {t("section.rankingsMix")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Branch, salesperson, product-group, and model performance.
+                      {t("section.rankingsMixDescription")}
                     </p>
                   </div>
-                  <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
+                  <div className="grid gap-5 xl:grid-cols-2">
                   <ChartCard
-                    title="Sales by Branch"
-                    subtitle="Sales Unit by branch"
+                    title={t("chart.salesByBranchTitle")}
+                    subtitle={t("chart.salesByBranchDescription")}
                     className="min-w-0 [&_h2]:tracking-normal"
                   >
                     <BarChart data={byBranch} />
                   </ChartCard>
                   <ChartCard
-                    title="Salesperson Ranking"
-                    subtitle="Sales Unit by salesperson"
+                    title={t("chart.salespersonConcentrationTitle")}
+                    subtitle={t("chart.salespersonConcentrationDescription")}
                     className="min-w-0 [&_h2]:tracking-normal"
                   >
-                    <BarChart
-                      data={peopleGroups}
-                      limit={showAllPeople ? undefined : 10}
-                      onViewAll={() => setShowAllPeople(true)}
+                    <CumulativeRankChart
+                      items={peopleGroups}
+                      categoryLabel={t("filter.salesperson")}
+                      contributionLabel={t("common.contribution")}
+                      valueLabel={t("common.value")}
+                      cumulativeLabel={t("common.cumulative")}
                     />
                   </ChartCard>
                   <ChartCard
-                    title="Sales by Product Group"
-                    subtitle="Sales Unit product mix"
+                    title={t("chart.salesProductGroupTitle")}
+                    subtitle={t("chart.salesProductGroupDescription")}
                     className="min-w-0 [&_h2]:tracking-normal"
                   >
-                    <BarChart data={byProduct} />
+                    <PercentStackedBar
+                      segments={byProduct.map((item) => ({
+                        id: item.label,
+                        label: item.label,
+                        value: item.value,
+                        color: PRODUCT_COLORS[item.label] ?? "#B6B7BA",
+                      }))}
+                      formatValue={formatCompact}
+                    />
                   </ChartCard>
                   <ChartCard
-                    title="Top Model"
-                    subtitle="Sales Unit by model"
+                    title={t("chart.topModelTitle")}
+                    subtitle={t("chart.topModelDescription")}
                     className="min-w-0 [&_h2]:tracking-normal"
                   >
-                    <BarChart
-                      data={modelGroups}
-                      limit={showAllModels ? undefined : 10}
-                      onViewAll={() => setShowAllModels(true)}
-                    />
+                    <LollipopChart items={modelGroups} suffix={` ${t("common.units")}`} />
                   </ChartCard>
                   </div>
                 </section>
                 <section aria-labelledby="sales-transactions" className="space-y-3">
                   <div>
                     <h2 id="sales-transactions" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      Transactions
+                      {t("section.transactions")}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      Source-backed detail for the active filters.
+                      {t("section.transactionsDescription")}
                     </p>
                   </div>
-                  <SalesPageTable rows={rows} onExport={() => exportRows(rows)} />
+                  <SalesPageTable rows={rows} onExport={() => exportRows(rows, companyCode)} />
                 </section>
                 <p className="text-xs text-[var(--text-tertiary)]">
                   Source: {data.meta.sources.join(" · ")}

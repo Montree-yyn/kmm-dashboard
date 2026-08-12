@@ -6,6 +6,7 @@ import type {
   CompanyManagementResponse,
   CompanySettingsSnapshot,
 } from "./types";
+import { resolveActiveCompanyId } from "../company-context/client-store";
 
 type ApiErrorPayload = {
   error?: string;
@@ -22,33 +23,34 @@ export class CompanyApiError extends Error {
   }
 }
 
-export async function loadCompanyManagement() {
-  return companyRequest<CompanyManagementResponse>("/api/company-management");
+export async function loadCompanyManagement(companyId?: string) {
+  return companyRequest<CompanyManagementResponse>("/api/company-management", {}, companyId);
 }
 
-export async function saveCompanyDraft(snapshot: CompanySettingsSnapshot) {
+export async function saveCompanyDraft(snapshot: CompanySettingsSnapshot, companyId?: string) {
   return companyRequest<CompanyManagementResponse>("/api/company-management", {
     method: "POST",
     body: JSON.stringify({ action: "save_draft", snapshot }),
-  });
+  }, companyId);
 }
 
-export async function publishCompanyDraft() {
+export async function publishCompanyDraft(companyId?: string) {
   return companyRequest<CompanyManagementResponse>("/api/company-management", {
     method: "POST",
     body: JSON.stringify({ action: "publish" }),
-  });
+  }, companyId);
 }
 
 export async function recordLogoAudit(
   action: "company.logo_uploaded" | "company.logo_removed",
   oldValue: string,
   newValue: string,
+  companyId?: string,
 ) {
   await companyRequest("/api/company-management", {
     method: "POST",
     body: JSON.stringify({ action, oldValue, newValue }),
-  });
+  }, companyId);
 }
 
 export async function uploadCompanyLogo(file: File): Promise<string> {
@@ -76,15 +78,18 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
 async function companyRequest<T = { ok: true }>(
   input: string,
   init: RequestInit = {},
+  companyId?: string,
 ): Promise<T> {
   const user = auth.currentUser;
   if (!user) throw new CompanyApiError("Authentication is required.", 401);
   const token = await user.getIdToken();
+  const resolvedCompanyId = resolveActiveCompanyId(companyId);
   const response = await fetch(input, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      ...(resolvedCompanyId ? { "X-Company-Id": resolvedCompanyId } : {}),
       ...init.headers,
     },
     cache: "no-store",

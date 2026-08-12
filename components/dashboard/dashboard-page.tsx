@@ -1,24 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  RefreshCw,
+  Boxes,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  Database,
   RotateCcw,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import {
-  getBookingByProduct,
-  getBookingValue,
-  getDepositAmount,
   getOpenBookingUnit,
-  getOpenBookingUnitRows,
 } from "../../lib/dashboard/booking-selectors";
 import {
   getCurrentStockRows,
-  getStockByProduct,
   getStockUnit,
   normalizeProductType,
   STOCK_UNIT_PRODUCTS,
@@ -29,9 +30,17 @@ import { ExportButton } from "../design-system/export-button";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { KpiCard } from "../design-system/kpi-card";
 import { FilterBar } from "../design-system/filter-bar";
-import { ActiveFilterSummary, MultiSelectFilter } from "../design-system/data-controls";
+import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import {
+  HeatmapMatrix,
+  PairedBarChart,
+  PercentStackedBar,
+  StackedColumnChart,
+} from "../common/charts/AnalyticalCharts";
+import { buildMonthlyLifecycle } from "../common/charts/chartData";
 import { loadLiveSalesData } from "../../lib/sales/client";
 import {
   getBranchSummary,
@@ -39,11 +48,11 @@ import {
   getSalesKpis,
   isEngineUnitProduct,
   salesTransactionQuantity,
-  getTargetAvailability,
 } from "../../lib/sales/business-service";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { useLocale } from "../../src/hooks/useLocale";
+import { useCompany } from "../../src/hooks/useCompany";
 
 const MONTHS = [
   "Jan",
@@ -163,11 +172,12 @@ const defaultFilters: FilterState = {
 function createLiveDashboardData(
   liveSales: Awaited<ReturnType<typeof loadLiveSalesData>>,
   liveOperations: Awaited<ReturnType<typeof loadLiveOperationalData>>,
+  company: { name: string; code: string },
 ): DashboardData {
   return {
     meta: {
-      company: "KMM Company",
-      shortName: "KMM",
+      company: company.name,
+      shortName: company.code,
       generatedAt: new Date().toISOString(),
       sourceUpdatedAt: liveSales.meta.sourceUpdatedAt,
       sources: [...liveSales.meta.sources, "Cloudflare D1 operational data"],
@@ -182,15 +192,18 @@ function createLiveDashboardData(
   };
 }
 
-async function loadDashboardPresentationData() {
+async function loadDashboardPresentationData(
+  companyId: string,
+  company: { name: string; code: string },
+) {
   const [liveSales, liveOperations] = await Promise.all([
     // Dashboard operational KPIs are D1/API-only in every runtime. Passing
     // this explicitly avoids any Worker/client environment-detection drift
     // from reactivating the packaged legacy payload after an API failure.
-    loadLiveSalesData({ allowFallback: false }),
-    loadLiveOperationalData({ allowFallback: false }),
+    loadLiveSalesData({ allowFallback: false, companyId }),
+    loadLiveOperationalData({ allowFallback: false, companyId }),
   ]);
-  return createLiveDashboardData(liveSales, liveOperations);
+  return createLiveDashboardData(liveSales, liveOperations, company);
 }
 
 function formatCompact(value: number) {
@@ -203,6 +216,23 @@ function formatCompact(value: number) {
 
 function sum<T>(rows: T[], selector: (row: T) => number | null) {
   return rows.reduce((total, row) => total + (selector(row) ?? 0), 0);
+}
+
+function monthlySparkline<
+  T extends {
+    year: number | null;
+    month: number | null;
+    branch: string;
+    salesperson: string;
+  },
+>(rows: T[], filters: FilterState, selector: (row: T) => number | null) {
+  const scopedYears = selectedYears(filters);
+  if (scopedYears.length !== 1) return [];
+  const year = scopedYears[0];
+  return MONTHS.map((_, index) => sum(
+    rows.filter((row) => rowMatches(row, { ...filters, year: [String(year)], month: [MONTHS[index]] })),
+    selector,
+  ));
 }
 
 function selectedYears(filters: FilterState) {
@@ -269,70 +299,59 @@ function trendStatus(
   return value >= 0 ? "positive" : "negative";
 }
 
+function csvCell(value: unknown) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
 function GlobalFilter({
   filters,
   options,
   onChange,
-  onRefresh,
   onReset,
   onExport,
 }: {
   filters: FilterState;
   options: FilterState;
   onChange: (key: FilterKey, values: string[]) => void;
-  onRefresh: () => void;
   onReset: () => void;
   onExport: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <FilterBar
-      filterGridClassName="sm:grid-cols-2 xl:grid-cols-4"
-      ariaLabel="Dashboard filters"
+      filterGridClassName="grid-cols-1 sm:grid-cols-3 xl:grid-cols-3"
+      ariaLabel={t("common.filters")}
       actions={
         <>
-          <Button
-            className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
-            variant="outline"
-            onClick={onRefresh}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
           <Button
             className="h-11 border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
             variant="outline"
             onClick={onReset}
           >
             <RotateCcw size={16} />
-            Reset
+            {t("common.reset")}
           </Button>
           <ExportButton onClick={onExport} />
         </>
       }
     >
           <MultiSelectFilter
-            label="Year"
+            label={t("filter.year")}
             options={options.year}
             values={filters.year}
             onChange={(values) => onChange("year", values)}
           />
           <MultiSelectFilter
-            label="Month"
+            label={t("filter.month")}
             options={options.month}
             values={filters.month}
             onChange={(values) => onChange("month", values)}
           />
           <MultiSelectFilter
-            label="Branch"
+            label={t("filter.branch")}
             options={options.branch}
             values={filters.branch}
             onChange={(values) => onChange("branch", values)}
-          />
-          <MultiSelectFilter
-            label="Salesperson"
-            options={options.salesperson}
-            values={filters.salesperson}
-            onChange={(values) => onChange("salesperson", values)}
           />
     </FilterBar>
   );
@@ -341,12 +360,20 @@ function GlobalFilter({
 function KpiSection({
   data,
   filters,
+  currency,
 }: {
   data: DashboardData;
   filters: FilterState;
+  currency: string;
 }) {
+  const { t } = useLocale();
   const filteredStock = data.stock.filter((row) => rowMatches(row, filters));
-  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, { year: filters.year, month: filters.month, branch: filters.branch });
+  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, {
+    year: filters.year,
+    month: filters.month,
+    branch: filters.branch,
+    salesperson: filters.salesperson,
+  });
   // Legacy parity expression retained: getStockUnit(currentStock).
   // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
   const currentBooking = operationalBusiness.booking.unit;
@@ -354,25 +381,38 @@ function KpiSection({
   const currentBookingDeposit = operationalBusiness.booking.deposit ?? 0;
   const currentStock = getCurrentStockRows(filteredStock);
 
-  const previousFilters = previousYearFilters(filters);
   const businessKpis = getSalesKpis(data.sales, filters);
-  const previousBusinessKpis = getSalesKpis(data.sales, previousFilters);
-  const salesValue = businessKpis.salesValue ?? 0;
-  const previousSalesValue = previousBusinessKpis.salesValue ?? 0;
-  const grossProfit = businessKpis.grossProfit ?? 0;
-  const previousGrossProfit = previousBusinessKpis.grossProfit ?? 0;
   const years = selectedYears(filters);
   const months = selectedMonths(filters);
-  const comparisonLabel =
-    years.length === 1 && months.length === 1
-      ? `vs ${MONTHS[months[0] - 1]} ${years[0] - 1}`
-      : "vs same period last year";
-  const salesComparison = percentChange(
-    businessKpis.salesUnit,
-    previousBusinessKpis.salesUnit,
+  const comparisonEnabled = years.length === 1;
+  const previousBusinessKpis = comparisonEnabled
+    ? getSalesKpis(data.sales, previousYearFilters(filters))
+    : null;
+  const salesValue = businessKpis.salesValue ?? 0;
+  const previousSalesValue = previousBusinessKpis?.salesValue ?? 0;
+  const grossProfit = businessKpis.grossProfit ?? 0;
+  const previousGrossProfit = previousBusinessKpis?.grossProfit ?? 0;
+  const comparisonLabel = comparisonEnabled
+    ? months.length === 1
+      ? `${t("dashboard.compareWith")} ${MONTHS[months[0] - 1]} ${years[0] - 1}`
+      : `${t("dashboard.compareWith")} ${years[0] - 1}`
+    : t("dashboard.selectOneYearForYoy");
+  const salesComparison = previousBusinessKpis
+    ? percentChange(businessKpis.salesUnit, previousBusinessKpis.salesUnit)
+    : null;
+  const salesValueComparison = previousBusinessKpis
+    ? percentChange(salesValue, previousSalesValue)
+    : null;
+  const grossProfitComparison = previousBusinessKpis?.grossProfitAvailable
+    ? percentChange(grossProfit, previousGrossProfit)
+    : null;
+  const salesUnitSparkline = monthlySparkline(data.sales, filters, (row) =>
+    isEngineUnitProduct(row) ? salesTransactionQuantity(row) : 0,
   );
-  const salesValueComparison = percentChange(salesValue, previousSalesValue);
-  const grossProfitComparison = percentChange(grossProfit, previousGrossProfit);
+  const salesValueSparkline = monthlySparkline(data.sales, filters, (row) => row.finalReceived ?? 0);
+  const grossProfitSparkline = businessKpis.grossProfitAvailable
+    ? monthlySparkline(data.sales, filters, (row) => row.gp1 ?? 0)
+    : [];
 
   return (
     <section
@@ -381,57 +421,61 @@ function KpiSection({
     >
       <KpiCard
         variant="executive"
-        title="Sales Unit"
+        featured
+        title={t("metric.salesUnit")}
         value={businessKpis.salesUnit}
-        unit="Unit"
+        unit={t("common.units")}
         trendValue={trendText(salesComparison)}
         trendDirection={trendDirection(salesComparison)}
         comparisonLabel={comparisonLabel}
         status={trendStatus(salesComparison)}
+        sparklineValues={salesUnitSparkline}
       />
       <KpiCard
         variant="executive"
-        title="Sales Value"
+        title={t("metric.salesValue")}
         value={formatCompact(salesValue)}
-        unit="MMK"
+        unit={currency}
         trendValue={trendText(salesValueComparison)}
         trendDirection={trendDirection(salesValueComparison)}
         comparisonLabel={comparisonLabel}
         status={trendStatus(salesValueComparison)}
+        sparklineValues={salesValueSparkline}
       />
       <KpiCard
         variant="executive"
-        title="Gross Profit"
+        title={t("metric.grossProfit")}
         value={businessKpis.grossProfitAvailable ? formatCompact(grossProfit) : "Unavailable"}
-        unit="MMK"
+        unit={currency}
         trendValue={trendText(grossProfitComparison)}
         trendDirection={trendDirection(grossProfitComparison)}
         comparisonLabel={comparisonLabel}
         status={trendStatus(grossProfitComparison)}
+        sparklineValues={grossProfitSparkline}
       />
       <KpiCard
         variant="executive"
-        title="Open Booking Unit"
+        title={t("metric.bookingUnit")}
         value={currentBooking}
-        unit="Units"
-        subtitle={`Booking value: ${formatCompact(currentBookingValue)} MMK · Deposit: ${formatCompact(currentBookingDeposit)} MMK`}
+        unit={t("common.units")}
+        subtitle={`${t("dashboard.bookingValue")}: ${formatCompact(currentBookingValue)} ${currency} · ${t("dashboard.deposit")}: ${formatCompact(currentBookingDeposit)} ${currency}`}
       />
       <KpiCard
         variant="executive"
-        title="Stock Unit"
-        value={operationalBusiness.stock.unit}
-        unit="Total Unit"
+        title={t("metric.stockUnit")}
+        value={getStockUnit(currentStock)}
+        unit={t("common.units")}
       />
     </section>
   );
 }
 
 const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#FF7A00",
-  CH: "#4B5563",
-  EX: "#9CA3AF",
-  TP: "#D1D5DB",
-  MAX: "#F3F4F6",
+  TT: "#F56600",
+  CH: "#35363A",
+  EX: "#86868B",
+  TP: "#B6B7BA",
+  MAX: "#245487",
 };
 
 function filterForCharts<
@@ -499,6 +543,7 @@ function LegacyLineChart({
   variant = "orange",
   unitLabel = "Unit",
   valueLabel = "Sales Value",
+  currency = "MMK",
   minPlotHeight = 240,
 }: {
   unitData: TrendDatum[];
@@ -507,6 +552,7 @@ function LegacyLineChart({
   variant?: "orange" | "gray";
   unitLabel?: string;
   valueLabel?: string;
+  currency?: string;
   minPlotHeight?: number;
 }) {
   const [tooltip, setTooltip] = useState<{
@@ -633,7 +679,7 @@ function LegacyLineChart({
               fontSize="12"
               fontWeight="700"
             >
-              MMK
+              {currency}
             </text>
           )}
           {linePath(unitPoints).map((path, index) => (
@@ -775,6 +821,8 @@ function YearTrendChart({
   unitRows,
   valueRows,
   unitLabel = "Unit",
+  valueLabel = "Value",
+  currency,
   height = 420,
   className,
 }: {
@@ -782,12 +830,21 @@ function YearTrendChart({
   unitRows: YearTrendRow[];
   valueRows: YearTrendRow[];
   unitLabel?: string;
+  valueLabel?: string;
+  currency: string;
   height?: number;
   className?: string;
 }) {
   const [metric, setMetric] = useState<"unit" | "value">("unit");
   const rows = metric === "unit" ? unitRows : valueRows;
-  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({
+  const availableYears = Array.from(
+    new Set(
+      rows
+        .map((row) => row.year)
+        .filter((year): year is number => year !== null),
+    ),
+  ).sort((a, b) => b - a);
+  const series = availableYears.map((year, index) => ({
     id: String(year),
     year,
     label: String(year),
@@ -808,16 +865,22 @@ function YearTrendChart({
   }));
   return (
     <PremiumTrendChart
+      key={`${metric}-${availableYears.join("-")}`}
       height={height}
       className={cn("min-w-0 border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] [&_h2]:tracking-normal [&>header]:!flex-col [&>header]:!items-stretch [&>header>div:last-child]:!w-full [&>header>div:last-child]:!justify-start [&>header_button]:!h-11 [&>header_select]:!h-11 min-[1400px]:[&>header]:!flex-row min-[1400px]:[&>header]:!items-center min-[1400px]:[&>header>div:last-child]:!w-auto min-[1400px]:[&>header>div:last-child]:!justify-end", className)}
       title={title}
       labels={MONTHS}
-      unit={metric === "unit" ? unitLabel : "MMK"}
+      unit={metric === "unit" ? unitLabel : currency}
       formatValue={
         metric === "unit" ? (value) => value.toLocaleString() : formatCompact
       }
-      defaultSeriesIds={["2026", "2025"]}
+      metricOptions={[
+        { id: "unit", label: unitLabel },
+        { id: "value", label: valueLabel },
+      ]}
+      defaultSeriesIds={availableYears.slice(0, 2).map(String)}
       onMetricChange={(value) => setMetric(value as "unit" | "value")}
+      visualStyle="precision"
       series={series}
     />
   );
@@ -867,196 +930,187 @@ function HorizontalBarChart({
   );
 }
 
-function DonutChart({ data }: { data: { label: string; value: number }[] }) {
-  const total = sum(data, (item) => item.value);
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const segments = data.reduce<
-    { label: string; value: number; length: number; offset: number }[]
-  >((items, item) => {
-    const offset = items.reduce(
-      (totalOffset, segment) => totalOffset + segment.length,
-      0,
-    );
-    const length = total ? (item.value / total) * circumference : 0;
-    return [...items, { ...item, length, offset }];
-  }, []);
+function AttentionPanel({
+  openBookings,
+  criticalStock,
+  sourceUpdatedAt,
+}: {
+  openBookings: number;
+  criticalStock: number;
+  sourceUpdatedAt: string;
+}) {
+  const { t, language } = useLocale();
+  const refreshed = new Date(sourceUpdatedAt);
+  const refreshedLabel = Number.isNaN(refreshed.getTime())
+    ? t("common.freshnessUnavailable")
+    : refreshed.toLocaleString(
+        language === "th" ? "th-TH" : language === "my" ? "my-MM-u-nu-latn" : "en-US",
+        { dateStyle: "medium", timeStyle: "short" },
+      );
 
   return (
-    <div className="grid gap-6 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
-      <div className="relative mx-auto size-[150px]">
-        <svg
-          className="size-[150px] -rotate-90"
-          viewBox="0 0 150 150"
-          role="img"
-        >
-          <title>Product mix donut chart</title>
-          <circle
-            cx="75"
-            cy="75"
-            r={radius}
-            fill="none"
-            stroke="#F3F4F6"
-            strokeWidth="18"
-          />
-          {segments.map((item) => (
-            <circle
-              key={item.label}
-              cx="75"
-              cy="75"
-              r={radius}
-              fill="none"
-              stroke={PRODUCT_COLORS[item.label] ?? "#D1D5DB"}
-              strokeWidth="18"
-              strokeDasharray={`${item.length} ${circumference - item.length}`}
-              strokeDashoffset={-item.offset}
-              strokeLinecap="butt"
-            />
-          ))}
-        </svg>
-        <div className="absolute inset-0 grid place-items-center text-center">
-          <div>
-            <strong className="block text-2xl tracking-[-0.04em] text-[#1F2937]">
-              {formatCompact(total)}
-            </strong>
-            <span className="text-[11px] font-semibold text-[#4B5563]">
-              Sales Unit
-            </span>
-          </div>
+    <Card className="h-full min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--divider)] pb-4">
+        <div>
+          <h2 className="text-[19px] font-semibold text-[var(--text-primary)]">{t("dashboard.attentionTitle")}</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("dashboard.attentionDescription")}</p>
         </div>
+        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{t("dashboard.liveScope")}</span>
       </div>
-      <div className="min-w-0 space-y-2.5">
-        {data.map((item) => (
-          <div
-            key={item.label}
-            className="flex min-w-0 items-center justify-between gap-3 text-sm"
-          >
-            <span className="flex min-w-0 items-center gap-2 font-semibold text-[#4B5563]">
-              <i
-                className="size-2.5 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: PRODUCT_COLORS[item.label] ?? "#D1D5DB",
-                }}
-              />
+
+      <div className="mt-4 space-y-3">
+        <Link href="/booking" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)]/55 p-3 transition-colors hover:border-[var(--brand-300)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-warning)]">
+            <ClipboardList size={18} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-[var(--text-primary)]">{t("dashboard.openBookingsReview")}</span>
+            <span className="block text-xs text-[var(--text-secondary)]">{openBookings.toLocaleString()} {t("dashboard.bookingUnitsInScope")}</span>
+          </span>
+          <ChevronRight className="shrink-0 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" size={17} aria-hidden="true" />
+        </Link>
+
+        <Link href="/stock" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-danger-bg)] bg-[var(--status-danger-bg)]/55 p-3 transition-colors hover:border-[var(--status-danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-danger)]">
+            {criticalStock > 0 ? <TriangleAlert size={18} aria-hidden="true" /> : <CheckCircle2 size={18} aria-hidden="true" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-[var(--text-primary)]">{t("dashboard.agedStockReview")}</span>
+            <span className="block text-xs text-[var(--text-secondary)]">{criticalStock.toLocaleString()} {t("dashboard.stockUnitsReview")}</span>
+          </span>
+          <ChevronRight className="shrink-0 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" size={17} aria-hidden="true" />
+        </Link>
+
+        <Link href="/data-hub" className="group flex min-h-[78px] items-center gap-3 rounded-[var(--radius-control-lg)] border border-[var(--status-info-bg)] bg-[var(--status-info-bg)]/55 p-3 transition-colors hover:border-[var(--status-info)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] bg-white text-[var(--status-info)]">
+            <Database size={18} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-[var(--text-primary)]">{t("dashboard.sourceFreshness")}</span>
+            <span className="block text-xs text-[var(--text-secondary)]">{t("dashboard.updatedAt")} {refreshedLabel}</span>
+          </span>
+          <ChevronRight className="shrink-0 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" size={17} aria-hidden="true" />
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
+type StockHealthTone = "healthy" | "watch" | "critical";
+
+const STOCK_AGE_BANDS = ["0–30", "31–60", "61–90", ">90"] as const;
+
+function stockAgeBand(ageBucket: string): (typeof STOCK_AGE_BANDS)[number] | null {
+  const normalized = String(ageBucket ?? "").trim().toLowerCase();
+  if (/91|90\+|over\s*90|>\s*90/.test(normalized)) return ">90";
+  const values = (normalized.match(/\d+/g) ?? []).map(Number);
+  const upper = values.at(-1);
+  if (upper === undefined) return null;
+  if (upper !== undefined && upper <= 30) return "0–30";
+  if (upper !== undefined && upper <= 60) return "31–60";
+  return "61–90";
+}
+
+function stockHealthTone(ageBucket: string): StockHealthTone {
+  const normalized = String(ageBucket ?? "").trim().toLowerCase();
+  if (/91|90\+|over\s*90|>\s*90/.test(normalized)) return "critical";
+  const firstNumber = Number(normalized.match(/\d+/)?.[0] ?? Number.NaN);
+  if (Number.isFinite(firstNumber) && firstNumber <= 30) return "healthy";
+  return "watch";
+}
+
+function StockHealthCard({ rows }: { rows: StockRow[] }) {
+  const { t } = useLocale();
+  const counts = rows.reduce<Record<StockHealthTone, number>>((result, row) => {
+    result[stockHealthTone(row.ageBucket)] += 1;
+    return result;
+  }, { healthy: 0, watch: 0, critical: 0 });
+  const total = Math.max(rows.length, 1);
+  const items = [
+    { id: "healthy" as const, label: `${t("status.healthy")} · 0–30 ${t("common.days")}`, value: counts.healthy, color: "var(--chart-health)" },
+    { id: "watch" as const, label: `${t("status.watch")} · 31–90 ${t("common.days")}`, value: counts.watch, color: "var(--chart-watch)" },
+    { id: "critical" as const, label: `${t("status.critical")} · 91+ ${t("common.days")}`, value: counts.critical, color: "var(--chart-critical)" },
+  ];
+
+  return (
+    <Card className="h-full min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[19px] font-semibold text-[var(--text-primary)]">{t("dashboard.stockHealthTitle")}</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("dashboard.stockHealthDescription")}</p>
+        </div>
+        <Boxes className="text-[var(--text-tertiary)]" size={19} aria-hidden="true" />
+      </div>
+      <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]" role="img" aria-label={`Stock health: ${counts.healthy} healthy, ${counts.watch} watch, ${counts.critical} critical`}>
+        {items.map((item) => item.value > 0 && (
+          <span key={item.id} style={{ width: `${(item.value / total) * 100}%`, backgroundColor: item.color }} title={`${item.label}: ${item.value}`} />
+        ))}
+      </div>
+      <div className="mt-5 space-y-3">
+        {items.map((item) => (
+          <div key={item.id} className="flex min-h-9 items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2 text-[var(--text-secondary)]">
+              <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} aria-hidden="true" />
               {item.label}
             </span>
-            <span className="shrink-0 text-xs font-bold text-[#4B5563]">
-              {formatCompact(item.value)} ·{" "}
-              {total ? Math.round((item.value / total) * 100) : 0}%
-            </span>
+            <strong className="kmm-tabular text-[var(--text-primary)]">{item.value.toLocaleString()}</strong>
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
-function targetValue(data: DashboardData, filters: FilterState) {
-  const years = selectedYears(filters);
-  if (years.length !== 1 || years[0] !== data.plan.year) return null;
-
-  const months = selectedMonths(filters);
-  const monthIndexes = months.length
-    ? months.map((month) => month - 1)
-    : data.plan.months.map((_, index) => index);
-  const value = monthIndexes.reduce(
-    (total, index) => total + (data.plan.units[index] ?? 0),
-    0,
-  );
-  return value > 0 ? value : null;
-}
-
-function TargetProgressItem({
-  name,
-  actual,
-  target,
-}: {
-  name: string;
-  actual: number;
-  target: number | null;
-}) {
-  const achievement = target && target > 0 ? (actual / target) * 100 : null;
-  const remaining = target && target > 0 ? Math.max(target - actual, 0) : null;
-  const progressWidth = achievement === null ? 0 : Math.min(achievement, 100);
-  const percentageTone =
-    achievement === null
-      ? "text-[#4B5563]"
-      : achievement >= 100
-        ? "text-[#16A34A]"
-        : "text-[#DC2626]";
-
+function RecentActivityTable({ rows }: { rows: ActivityRow[] }) {
+  const { t } = useLocale();
   return (
-    <div className="rounded-[var(--radius-control-lg)] border border-[var(--divider)] bg-[var(--surface-subtle)] p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-[var(--text-secondary)]">
-          {name}
-        </p>
-        <span className={cn("text-[15px] font-semibold", percentageTone)}>
-          {achievement === null ? "Target not configured" : `${Math.round(achievement)}%`}
-        </span>
+    <Card className="overflow-hidden rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-0 shadow-[var(--shadow-card)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--divider)] px-5 py-4 sm:px-6">
+        <div>
+          <h2 className="text-[19px] font-semibold text-[var(--text-primary)]">{t("dashboard.recentActivityTitle")}</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("dashboard.recentActivityDescription")}</p>
+        </div>
+        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">{rows.length} {t("common.records")}</span>
       </div>
-      <div className="flex items-end justify-between gap-3">
-        <p className="kmm-tabular text-[22px] font-semibold leading-none tracking-normal text-[var(--text-primary)]">
-          {formatCompact(actual)}{" "}
-          <span className="text-sm font-medium text-[var(--text-secondary)]">
-            / {target === null ? "Target not configured" : `${formatCompact(target)} Unit`}
-          </span>
-        </p>
-      </div>
-      <p className="mt-3 text-xs font-normal text-[var(--text-secondary)]">
-        Remaining {remaining === null ? "Target not configured" : `${formatCompact(remaining)} Unit`}
-      </p>
-      <div className="mt-3 h-2 rounded-full bg-[var(--divider)]">
-        <div
-          className="h-2 rounded-full bg-[var(--brand-500)] transition-[width] duration-200"
-          style={{ width: `${progressWidth}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function TargetProgress({
-  data,
-  filters,
-}: {
-  data: DashboardData;
-  filters: FilterState;
-}) {
-  const filteredSales = filterForCharts(data.sales, filters);
-  const filteredStock = filterForCharts(data.stock, filters);
-  const salesActual = getSalesKpis(filteredSales).salesUnit;
-  const bookingActual = getOpenBookingUnit(data.booking, filters);
-  const landingActual = getStockUnit(filteredStock);
-  const salesTarget = getTargetAvailability(filters, null).available ? targetValue(data, filters) : null;
-
-  return (
-    <Card className="min-h-[420px] min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">
-          Target Progress
-        </h2>
-        <span className="rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-          Monthly
-        </span>
-      </div>
-      <div className="space-y-4">
-        <TargetProgressItem
-          name="Sales Unit Target"
-          actual={salesActual}
-          target={salesTarget}
-        />
-        <TargetProgressItem
-          name="Booking Unit Target"
-          actual={bookingActual}
-          target={null}
-        />
-        <TargetProgressItem
-          name="Landing Unit Target"
-          actual={landingActual}
-          target={null}
-        />
-      </div>
+      {rows.length ? (
+        <ResponsiveDataTable ariaLabel="Recent operational activity table">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <thead className="bg-[var(--surface-subtle)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+              <tr>
+                <th className="px-5 py-3 sm:px-6">{t("common.date")}</th>
+                <th className="px-4 py-3">{t("filter.branch")}</th>
+                <th className="px-4 py-3">{t("common.activity")}</th>
+                <th className="px-4 py-3">{t("common.owner")}</th>
+                <th className="px-5 py-3 text-right sm:px-6">{t("common.status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const normalizedStatus = row.status.trim().toLowerCase();
+                const completed = normalizedStatus.includes("complete") || normalizedStatus.includes("deliver");
+                const statusTone = completed
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success)]"
+                  : normalizedStatus
+                    ? "bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
+                    : "bg-[var(--surface-muted)] text-[var(--text-secondary)]";
+                return (
+                  <tr key={`${row.date}-${row.branch}-${index}`} className="border-t border-[var(--divider)] transition-colors hover:bg-[var(--surface-subtle)]">
+                    <td className="kmm-tabular whitespace-nowrap px-5 py-3.5 text-[var(--text-secondary)] sm:px-6">{row.date}</td>
+                    <td className="px-4 py-3.5 font-medium text-[var(--text-primary)]">{row.branch || "—"}</td>
+                    <td className="max-w-[360px] px-4 py-3.5 text-[var(--text-secondary)]"><span className="line-clamp-2">{row.activity}</span></td>
+                    <td className="px-4 py-3.5 text-[var(--text-secondary)]">{row.salesperson}</td>
+                    <td className="px-5 py-3.5 text-right sm:px-6">
+                      <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold", statusTone)}>{row.status || "Not provided"}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ResponsiveDataTable>
+      ) : (
+        <p className="px-6 py-10 text-center text-sm text-[var(--text-secondary)]">{t("dashboard.noRecentActivity")}</p>
+      )}
     </Card>
   );
 }
@@ -1064,20 +1118,17 @@ function TargetProgress({
 function ChartsSection({
   data,
   filters,
+  currency,
 }: {
   data: DashboardData;
   filters: FilterState;
+  currency: string;
 }) {
+  const { t } = useLocale();
   const trendFilters = { ...filters, year: [], month: [] };
   const trendSales = filterForCharts(data.sales, trendFilters);
-  const trendStock = filterForCharts(data.stock, trendFilters);
   const filteredSales = filterForCharts(data.sales, filters);
-  const bookingRows = getOpenBookingUnitRows(data.booking, trendFilters);
-  const stockRows = getCurrentStockRows(trendStock).filter((row) =>
-    STOCK_UNIT_PRODUCTS.includes(
-      normalizeProductType(row) as (typeof STOCK_UNIT_PRODUCTS)[number],
-    ),
-  );
+  const lifecycleRows = filterForCharts(data.booking, trendFilters);
   const salesUnitTrendRows = trendSales.map((row) => ({
     year: row.year,
     month: row.month,
@@ -1088,29 +1139,15 @@ function ChartsSection({
     month: row.month,
     value: row.finalReceived ?? 0,
   }));
-  const bookingUnitTrendRows = bookingRows.map((row) => ({
-    year: row.year,
-    month: row.month,
-    value: 1,
-  }));
-  const bookingValueTrendRows = bookingRows.map((row) => ({
-    year: row.year,
-    month: row.month,
-    value: row.price ?? 0,
-  }));
-  const stockUnitTrendRows = stockRows.map((row) => ({
-    year: row.year,
-    month: row.month,
-    value: 1,
-  }));
-  const stockValueTrendRows = stockRows.map((row) => ({
-    year: row.year,
-    month: row.month,
-    value: row.msrp ?? 0,
-  }));
   const salesByBranch = getBranchSummary(filteredSales);
   const productMix = getProductSummary(filteredSales);
-  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, { year: filters.year, month: filters.month, branch: filters.branch });
+  const bookingLifecycle = buildMonthlyLifecycle(lifecycleRows);
+  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, {
+    year: filters.year,
+    month: filters.month,
+    branch: filters.branch,
+    salesperson: filters.salesperson,
+  });
   const bookingByProduct = operationalBusiness.booking.byProduct
     .filter((item) =>
       (PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[]).includes(
@@ -1125,96 +1162,166 @@ function ChartsSection({
       ),
     )
     .map((item) => ({ label: item.product, value: item.unit }));
+  const stockBookingComparison = Array.from(
+    new Set([
+      ...bookingByProduct.map((item) => item.label),
+      ...stockByProduct.map((item) => item.label),
+    ]),
+  )
+    .map((label) => ({
+      label,
+      left: bookingByProduct.find((item) => item.label === label)?.value ?? 0,
+      right: stockByProduct.find((item) => item.label === label)?.value ?? 0,
+    }))
+    .sort((left, right) => {
+      const leftGap = left.right - left.left;
+      const rightGap = right.right - right.left;
+      return leftGap - rightGap || Math.max(right.left, right.right) - Math.max(left.left, left.right);
+    });
+  const currentStockForHealth = getCurrentStockRows(filterForCharts(data.stock, filters)).filter((row) =>
+    STOCK_UNIT_PRODUCTS.includes(normalizeProductType(row) as (typeof STOCK_UNIT_PRODUCTS)[number]),
+  );
+  const agingRisk = STOCK_UNIT_PRODUCTS.map((product) => {
+    const productRows = currentStockForHealth.filter(
+      (row) => normalizeProductType(row) === product,
+    );
+    return {
+      label: product,
+      values: STOCK_AGE_BANDS.map(
+        (band) => productRows.filter((row) => stockAgeBand(row.ageBucket) === band).length,
+      ),
+    };
+  }).filter((item) => item.values.some((value) => value > 0));
+  const criticalStock = currentStockForHealth.filter((row) => stockHealthTone(row.ageBucket) === "critical").length;
+  const openBookings = getOpenBookingUnit(data.booking, filters);
+  const recentActivities = buildRecentActivities(data, filters).slice(0, 6);
+  const displayBookingStatus = (label: string) => {
+    const normalized = label.trim().toLowerCase();
+    if (normalized === "open") return t("status.open");
+    if (normalized === "delivered" || normalized.includes("complete")) return t("status.delivered");
+    if (normalized === "cancelled" || normalized === "canceled") return t("status.cancelled");
+    return label;
+  };
 
   return (
     <section className="space-y-8" aria-label="Executive charts">
       <section className="space-y-3" aria-labelledby="dashboard-primary-trend">
         <div>
           <h2 id="dashboard-primary-trend" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            Sales trajectory
+            {t("section.salesTrajectory")}
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Current sales performance and target variance for the active scope.
+            {t("section.salesTrajectoryDescription")}
           </p>
         </div>
         <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
         <YearTrendChart
-          title="Sales Trend"
+          title={t("chart.salesTrendTitle")}
           unitRows={salesUnitTrendRows}
           valueRows={salesValueTrendRows}
-          unitLabel="Sales Unit"
+          unitLabel={t("metric.salesUnit")}
+          valueLabel={t("metric.salesValue")}
+          currency={currency}
           height={460}
           className="shadow-[var(--shadow-hover)]"
         />
-        <TargetProgress data={data} filters={filters} />
+        <AttentionPanel openBookings={openBookings} criticalStock={criticalStock} sourceUpdatedAt={data.meta.sourceUpdatedAt} />
         </div>
       </section>
 
       <section className="space-y-3" aria-labelledby="dashboard-rankings">
         <div>
           <h2 id="dashboard-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            Rankings
+            {t("section.rankingsMix")}
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Branch performance ranked within the active filter scope.
+            {t("section.rankingsMixDescription")}
           </p>
         </div>
-        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(300px,29%)]">
+        <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.9fr)]">
           <ChartCard
             className="min-w-0 shadow-[var(--shadow-hover)] [&_h2]:tracking-normal"
-            title="Sales by Branch"
-            subtitle="Sales Unit by branch"
+            title={t("chart.branchPerformanceTitle")}
+            subtitle={t("chart.branchPerformanceDescription")}
           >
             <HorizontalBarChart data={salesByBranch} />
           </ChartCard>
-          <ChartCard
-            className="min-w-0 [&_h2]:tracking-normal"
-            title="Product Mix"
-            subtitle="Sales Unit by product group"
-          >
-            <DonutChart data={productMix} />
-          </ChartCard>
+          <StockHealthCard rows={currentStockForHealth} />
         </div>
       </section>
+
+      <RecentActivityTable rows={recentActivities} />
 
       <section className="space-y-3" aria-labelledby="dashboard-secondary-analysis">
         <div>
           <h2 id="dashboard-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            Secondary analysis
+            {t("section.secondaryAnalysis")}
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Booking, stock, and product context for operational follow-up.
+            {t("section.dashboardSecondaryDescription")}
           </p>
         </div>
       <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-2">
-        <YearTrendChart
-          title="Booking Trend"
-          unitRows={bookingUnitTrendRows}
-          valueRows={bookingValueTrendRows}
-          unitLabel="Booking Unit"
-        />
-        <YearTrendChart
-          title="Stock Trend"
-          unitRows={stockUnitTrendRows}
-          valueRows={stockValueTrendRows}
-          unitLabel="Stock Unit"
-        />
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
         <ChartCard
           className="min-w-0 [&_h2]:tracking-normal"
-          title="Booking by Product"
-          subtitle="Open booking units by product group"
+          title={t("chart.bookingLifecycleTitle")}
+          subtitle={t("chart.bookingLifecycleDescription")}
         >
-          <HorizontalBarChart data={bookingByProduct} />
+          <StackedColumnChart
+            labels={bookingLifecycle.labels}
+            series={bookingLifecycle.series.map((item) => ({
+              ...item,
+              label: displayBookingStatus(item.label),
+            }))}
+            unit={t("common.records")}
+          />
         </ChartCard>
         <ChartCard
           className="min-w-0 [&_h2]:tracking-normal"
-          title="Stock by Product"
-          subtitle="Current stock units by product group"
+          title={t("chart.stockVsBookingTitle")}
+          subtitle={t("chart.stockVsBookingDescription")}
         >
-          <HorizontalBarChart data={stockByProduct} color="#4B5563" />
+          <PairedBarChart
+            items={stockBookingComparison}
+            leftLabel={t("metric.bookingUnit")}
+            rightLabel={t("metric.stockUnit")}
+            leftShortLabel={t("common.booking")}
+            rightShortLabel={t("common.stock")}
+            shortageLabel={t("comparison.shortage")}
+            surplusLabel={t("comparison.surplus")}
+            balancedLabel={t("comparison.balanced")}
+          />
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-5 [&>*]:min-w-0 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <ChartCard
+          className="min-w-0 [&_h2]:tracking-normal"
+          title={t("chart.productMixTitle")}
+          subtitle={t("chart.productMixDescription")}
+        >
+          <PercentStackedBar
+            segments={productMix.map((item) => ({
+              id: item.label,
+              label: item.label,
+              value: item.value,
+              color: PRODUCT_COLORS[item.label] ?? "#D1D5DB",
+            }))}
+            formatValue={formatCompact}
+          />
+        </ChartCard>
+        <ChartCard
+          className="min-w-0 [&_h2]:tracking-normal"
+          title={t("chart.agingRiskTitle")}
+          subtitle={t("chart.agingRiskDescription")}
+        >
+          <HeatmapMatrix
+            columns={[...STOCK_AGE_BANDS]}
+            rows={agingRisk}
+            categoryLabel={t("filter.productGroup")}
+            lowerLabel={t("common.lowerConcentration")}
+            higherLabel={t("common.higherConcentration")}
+          />
         </ChartCard>
       </div>
       </section>
@@ -1232,8 +1339,8 @@ function buildRecentActivities(
       date: row.date,
       branch: row.branch,
       salesperson: row.salesperson || "-",
-      activity: `Sales delivery: ${row.model || row.productType || "Unknown model"}`,
-      status: "Completed",
+      activity: `Sales record: ${row.model || row.productType || "Unknown model"}`,
+      status: "",
     }));
   const booking = data.booking
     .filter((row) => rowMatches(row, filters))
@@ -1286,57 +1393,99 @@ function buildFilterOptions(data: DashboardData): FilterState {
 
 export function DashboardPage() {
   const { t } = useLocale();
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { selectedCompany } = useCompany();
+  const companyId = selectedCompany?.id ?? "";
+  const companyCode = selectedCompany?.code ?? "KMM";
+  const companyName = selectedCompany?.name ?? "KMM Company";
+  const currency = selectedCompany?.currency ?? "MMK";
+  const [filterSnapshot, setFilterSnapshot] = useState<{
+    companyId: string;
+    filters: FilterState;
+  }>({ companyId: "", filters: defaultFilters });
+  const filters = filterSnapshot.companyId === companyId
+    ? filterSnapshot.filters
+    : defaultFilters;
+  const [dashboardState, setDashboardState] = useState<{
+    companyId: string;
+    status: "loading" | "ready" | "error";
+    data: DashboardData | null;
+    error: string;
+  }>({ companyId: "", status: "loading", data: null, error: "" });
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const dashboardData = dashboardState.companyId === companyId
+    ? dashboardState.data
+    : null;
+  const dashboardLoading = dashboardState.companyId !== companyId
+    || dashboardState.status === "loading";
+  const dashboardError = dashboardState.companyId === companyId
+    && dashboardState.status === "error"
+    ? dashboardState.error
+    : "";
 
-  async function loadDashboardData() {
-    setLoading(true);
-    setError("");
-    try {
-      setDashboardData(await loadDashboardPresentationData());
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load dashboard data",
-      );
-    } finally {
-      setLoading(false);
-    }
+  function loadDashboardData() {
+    setDashboardState({
+      companyId,
+      status: "loading",
+      data: null,
+      error: "",
+    });
+    setReloadVersion((current) => current + 1);
   }
 
   useEffect(() => {
     let ignore = false;
-    loadDashboardPresentationData()
+    loadDashboardPresentationData(companyId, { name: companyName, code: companyCode })
       .then((data) => {
-        if (!ignore) setDashboardData(data);
+        if (!ignore) {
+          setDashboardState({
+            companyId,
+            status: "ready",
+            data,
+            error: "",
+          });
+        }
       })
       .catch((loadError: unknown) => {
-        if (!ignore)
-          setError(
-            loadError instanceof Error
+        if (!ignore) {
+          setDashboardState({
+            companyId,
+            status: "error",
+            data: null,
+            error: loadError instanceof Error
               ? loadError.message
               : "Unable to load dashboard data",
-          );
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
+          });
+        }
       });
 
-    const refreshAfterImport = () => { void loadDashboardData(); };
+    const refreshAfterImport = () => {
+      setDashboardState({
+        companyId,
+        status: "loading",
+        data: null,
+        error: "",
+      });
+      setReloadVersion((current) => current + 1);
+    };
     window.addEventListener("kmm:sales-imported", refreshAfterImport);
     return () => {
       ignore = true;
       window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
-  }, []);
+  }, [companyCode, companyId, companyName, reloadVersion]);
 
   function updateFilter(key: FilterKey, values: string[]) {
-    setFilters((current) => ({ ...current, [key]: values }));
+    setFilterSnapshot((current) => ({
+      companyId,
+      filters: {
+        ...(current.companyId === companyId ? current.filters : defaultFilters),
+        [key]: values,
+      },
+    }));
+  }
+
+  function resetFilters() {
+    setFilterSnapshot({ companyId, filters: defaultFilters });
   }
 
   function exportDashboard() {
@@ -1352,13 +1501,13 @@ export function DashboardPage() {
         item.status,
       ]),
     ];
-    const blob = new Blob([csv.map((row) => row.join(",")).join("\n")], {
-      type: "text/csv",
+    const blob = new Blob([`\uFEFF${csv.map((row) => row.map(csvCell).join(",")).join("\n")}`], {
+      type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "kmm-executive-dashboard-activity.csv";
+    a.download = `${companyCode.toLowerCase()}-executive-dashboard-activity.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1387,20 +1536,13 @@ export function DashboardPage() {
                   {t("route.dashboard.title")}
                 </h1>
                 <p className="mt-1 text-sm font-normal leading-5 text-[var(--text-secondary)]">
-                  {t("route.dashboard.subtitle")}
+                  {t("route.dashboard.subtitle").replaceAll("KMM", companyCode)}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
                 {dashboardData && (
                   <FreshnessIndicator timestamp={dashboardData.meta.sourceUpdatedAt} className="font-normal" />
                 )}
-                <ActiveFilterSummary
-                  filters={filters}
-                  labels={{ year: "Year", month: "Month", branch: "Branch", salesperson: "Salesperson" }}
-                  onChange={updateFilter}
-                  onReset={() => setFilters(defaultFilters)}
-                  className="mt-0 max-w-full justify-start sm:justify-end"
-                />
               </div>
             </section>
 
@@ -1409,13 +1551,12 @@ export function DashboardPage() {
                 filters={filters}
                 options={filterOptions}
                 onChange={updateFilter}
-                onRefresh={loadDashboardData}
-                onReset={() => setFilters(defaultFilters)}
+                onReset={resetFilters}
                 onExport={exportDashboard}
               />
             </section>
 
-            {loading && (
+            {dashboardLoading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-8 text-center text-sm font-medium text-[var(--text-secondary)] shadow-[var(--shadow-card)]"
                 aria-busy="true"
@@ -1427,19 +1568,19 @@ export function DashboardPage() {
                 </div>
               </Card>
             )}
-            {error && !loading && (
+            {dashboardError && !dashboardLoading && (
               <Card
                 className="grid min-h-[320px] place-items-center rounded-[var(--radius-card)] border-[var(--status-danger)] bg-[var(--surface-default)] p-8 shadow-[var(--shadow-card)]"
                 role="alert"
                 aria-live="assertive"
               >
-                <ErrorState message={error} onRetry={loadDashboardData} />
+                <ErrorState message={dashboardError} onRetry={loadDashboardData} />
               </Card>
             )}
-            {dashboardData && !loading && !error && (
+            {dashboardData && !dashboardLoading && !dashboardError && (
               <>
-                <KpiSection data={dashboardData} filters={filters} />
-                <ChartsSection data={dashboardData} filters={filters} />
+                <KpiSection data={dashboardData} filters={filters} currency={currency} />
+                <ChartsSection data={dashboardData} filters={filters} currency={currency} />
               </>
             )}
           </div>

@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { Search, X } from "lucide-react";
+import { useLocale } from "../../src/hooks/useLocale";
 
 type SettingsSearchProps = {
   value: string;
@@ -12,6 +13,7 @@ export function SettingsSearch({
   onChange,
   inputRef,
 }: SettingsSearchProps) {
+  const { t } = useLocale();
   return (
     <div className="relative min-w-0 flex-1">
       <Search
@@ -25,8 +27,8 @@ export function SettingsSearch({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] pl-10 pr-12 text-sm text-[var(--text-primary)] shadow-[var(--shadow-card)] outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[var(--text-tertiary)] focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)]"
-        placeholder="Search settings..."
-        aria-label="Search settings"
+        placeholder={t("settings.searchPlaceholder")}
+        aria-label={t("settings.searchLabel")}
       />
       {value ? (
         <button
@@ -36,7 +38,7 @@ export function SettingsSearch({
             onChange("");
             inputRef.current?.focus();
           }}
-          aria-label="Clear settings search"
+          aria-label={t("settings.clearSearch")}
         >
           <X size={15} aria-hidden="true" />
         </button>

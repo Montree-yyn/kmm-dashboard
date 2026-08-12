@@ -20,5 +20,9 @@ export function getOperationalBusiness(bookingRows: BookingRow[], stockRows: Sto
 function filterStockRows(rows: StockRow[], filters: OperationalFilters) {
   const years = (filters.year ?? []).map(Number).filter(Number.isFinite);
   const months = (filters.month ?? []).map((value) => typeof value === "number" ? value : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(value) + 1).filter((value) => value > 0);
-  return rows.filter((row) => (!years.length || (row as StockRow & { year?: number | null }).year === undefined || years.includes((row as StockRow & { year?: number | null }).year ?? 0)) && (!months.length || (row as StockRow & { month?: number | null }).month === undefined || months.includes((row as StockRow & { month?: number | null }).month ?? 0)) && (!filters.branch?.length || filters.branch.includes(row.branch ?? "")) && (!filters.product?.length || filters.product.includes(normalizeProductType(row))));
+  return rows.filter((row) => (!years.length || row.year === undefined || years.includes(row.year ?? 0))
+    && (!months.length || row.month === undefined || months.includes(row.month ?? 0))
+    && (!filters.branch?.length || filters.branch.includes(row.branch ?? ""))
+    && (!filters.salesperson?.length || filters.salesperson.includes(row.salesperson ?? ""))
+    && (!filters.product?.length || filters.product.includes(normalizeProductType(row))));
 }

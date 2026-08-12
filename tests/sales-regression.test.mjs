@@ -48,38 +48,39 @@ test("Sales page follows the Golden Reference shell and KPI hierarchy", async ()
   );
 });
 
-test("Sales filters retain all dimensions with accessible 44px controls", async () => {
+test("Sales filters keep the four decision-driving dimensions with accessible 44px controls", async () => {
   const [page, controls] = await Promise.all([
     read("components/sales/sales-page.tsx"),
     read("components/design-system/data-controls.tsx"),
   ]);
-  for (const label of [
-    "Year",
-    "Month",
-    "Branch",
-    "Salesperson",
-    "Product Group",
+  for (const key of [
+    "year",
+    "month",
+    "branch",
+    "productGroup",
   ]) {
     assert.match(
       page,
-      new RegExp(`MultiSelectFilter[\\s\\S]*?label="${label}"`),
+      new RegExp(`MultiSelectFilter[\\s\\S]*?label=\\{t\\("filter\\.${key}"\\)\\}`),
     );
   }
-  assert.match(controls, /aria-label=\{`\$\{label\} filter`\}/);
+  assert.doesNotMatch(page, /label=\{t\("filter\.salesperson"\)\}/);
+  assert.match(controls, /aria-label=\{`\$\{t\("common\.filters"\)\}: \$\{label\}`\}/);
   assert.match(controls, /className="flex h-11 w-full/);
-  assert.match(page, /2xl:grid-cols-5/);
+  assert.match(page, /xl:grid-cols-4/);
 });
 
-test("Sales charts and rankings preserve their existing data inputs", async () => {
+test("Sales charts use distinct analytical forms while preserving existing data inputs", async () => {
   const page = await read("components/sales/sales-page.tsx");
   assert.match(
     page,
     /<ExecutiveSalesTrend[\s\S]*?sales=\{data\.sales\}[\s\S]*?filters=\{filters\}[\s\S]*?plan=\{data\.plan\}/,
   );
   assert.match(page, /<BarChart[\s\S]*?data=\{byBranch\}/);
-  assert.match(page, /<BarChart[\s\S]*?data=\{peopleGroups\}/);
-  assert.match(page, /<BarChart[\s\S]*?data=\{byProduct\}/);
-  assert.match(page, /<BarChart[\s\S]*?data=\{modelGroups\}/);
+  assert.match(page, /<CumulativeRankChart[\s\S]*?items=\{peopleGroups\}/);
+  assert.match(page, /segments=\{byProduct\.map/);
+  assert.match(page, /<LollipopChart[\s\S]*?items=\{modelGroups\}/);
+  assert.match(page, /<BulletChart[\s\S]*?actual=\{actual\}[\s\S]*?target=\{target\}/);
 });
 
 test("Sales transaction table preserves columns, sorting, and contained scrolling", async () => {

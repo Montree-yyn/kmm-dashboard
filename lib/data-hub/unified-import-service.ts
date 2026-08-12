@@ -1,5 +1,6 @@
 import type { ImportModule, ImportHistoryRecord, ParsedImportFile, ValidationSummary } from "./types";
 import { completeSessionImport } from "./import-service";
+import { resolveActiveCompanyId } from "../company-context/client-store";
 
 export type UnifiedModuleImportRequest = {
   module: ImportModule;
@@ -8,18 +9,19 @@ export type UnifiedModuleImportRequest = {
   year: number;
   month: number;
   businessWeek: number | null;
+  companyId?: string;
   emitRefresh?: boolean;
 };
 
-export async function completeUnifiedModuleImport({ module, file, validation, year, month, businessWeek, emitRefresh = true }: UnifiedModuleImportRequest): Promise<ImportHistoryRecord> {
+export async function completeUnifiedModuleImport({ module, file, validation, year, month, businessWeek, companyId, emitRefresh = true }: UnifiedModuleImportRequest): Promise<ImportHistoryRecord> {
   if (module === "sales") {
-    return completeSessionImport({ source: { id: "sales", label: "Sales", description: "", visible: true, fields: [], duplicateKey: [] }, file, validation, user: "current-user", year, month, companyId: "kmm-company", emitRefresh });
+    return completeSessionImport({ source: { id: "sales", label: "Sales", description: "", visible: true, fields: [], duplicateKey: [] }, file, validation, user: "current-user", year, month, companyId, emitRefresh });
   }
   const token = await getAuthToken();
   const response = await globalThis["fetch"]("/api/data-hub/import", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ module, filename: file.filename, year, month, businessWeek, rows: file.rows, validation }),
+    body: JSON.stringify({ companyId: resolveActiveCompanyId(companyId), module, filename: file.filename, year, month, businessWeek, rows: file.rows, validation }),
   });
   const payload = (await response.json()) as { error?: string; history?: ImportHistoryRecord };
   if (!response.ok || !payload.history) throw new Error(payload.error ?? `Unable to import ${module}.`);

@@ -23,4 +23,4 @@ The existing KAI panel called `/api/kai/chat` for every message. The Phase 2A Ru
 - Build and TypeScript: `PASS`
 - Existing regression suite: `288/288 PASS`
 
-The final browser check requires an authenticated Safari session. The endpoint correctly rejects unauthenticated requests with `401`, as required by the existing access boundary.
+Authenticated Safari smoke test: `5/5 PASS` through the existing KAI panel. The endpoint also correctly rejects unauthenticated requests with `401`, as required by the existing access boundary.

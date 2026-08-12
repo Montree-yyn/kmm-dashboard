@@ -299,7 +299,7 @@ export function WeatherMap({
   const selectedRadarFrame = radar?.frames.find((frame) => frame.time === radarFrameTime) ?? latestRadarFrame;
 
   return (
-    <section className="flex h-auto flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)] md:h-[620px] xl:h-[680px]" aria-labelledby="weather-map-title">
+    <section className="flex h-auto flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]" aria-labelledby="weather-map-title">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--divider)] px-5 py-5 sm:px-6">
         <div>
           <div className="flex items-center gap-2">
@@ -313,32 +313,19 @@ export function WeatherMap({
           radar ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]" : "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
         )}>{radar ? "Radar available" : "Radar unavailable"}</span>
       </div>
-      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6 md:grid md:flex-1 md:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] md:gap-4">
-        <div className="relative h-[360px] min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7] sm:h-[420px] md:h-full">
+      <div className="relative mt-4 min-h-0 p-4 sm:mt-6 sm:p-6">
+        <div className="relative h-[360px] min-h-0 overflow-hidden rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[#f7faf7] sm:h-[420px] md:h-[520px] xl:h-[620px]">
           <div className="absolute inset-0">
             <div ref={containerRef} className="size-full" style={{ width: "100%", height: "100%" }} aria-label="Interactive weather map of Myanmar and Tak, Thailand" />
           </div>
           {!mapReady && !mapError && <div className="absolute inset-0 z-[1] grid place-items-center bg-[#edf4f1]/80 text-xs font-semibold text-[var(--text-secondary)]" role="status">Loading interactive map…</div>}
           {mapError && <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-[var(--status-warning-bg)] bg-white/95 px-3 py-2 text-[10px] font-semibold text-[var(--status-warning)]" role="status">{mapError}</div>}
-          <div className="absolute bottom-3 left-3 z-10 hidden max-w-[calc(100%-1.5rem)] rounded-lg border border-white/80 bg-white/92 px-3 py-2 text-[10px] font-semibold leading-4 text-[#4c625e] shadow-sm md:block">Drag · scroll to zoom · click a live pin · radar shows observed rain</div>
-          <div className="absolute bottom-3 right-3 z-10 hidden rounded-lg border border-white/80 bg-white/92 px-2.5 py-1.5 text-[9px] text-[#4c625e] shadow-sm md:block">
-            Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>
-          </div>
         </div>
-        <aside className="hidden min-h-0 overflow-y-auto rounded-xl border border-[var(--border-default)] bg-[var(--surface-subtle)] p-2 md:block" aria-label="Weather map controls">
-          <WeatherMapControls
-            activeLayer={activeLayer}
-            latestRadarFrame={latestRadarFrame}
-            mobile
-            onResetView={resetMapView}
-            onFrameChange={setRadarFrameTime}
-            onLayerChange={setActiveLayer}
-            radar={radar}
-            radarError={radarError}
-            selectedRadarFrame={selectedRadarFrame}
-          />
-        </aside>
-        <details className="group mt-3 md:hidden">
+        <div className="mt-2 flex flex-col gap-1 px-1 text-[10px] leading-4 text-[#4c625e] sm:flex-row sm:items-center sm:justify-between">
+          <span>Drag · pinch or scroll to zoom · tap a live pin · radar shows observed rain</span>
+          <span>Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
+        </div>
+        <details className="group mt-3">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2 shadow-sm [&::-webkit-details-marker]:hidden">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#e7f4fb] text-[#0875a8]"><Radar size={15} aria-hidden="true" /></span>
             <span className="min-w-0 flex-1">
@@ -347,7 +334,7 @@ export function WeatherMap({
             </span>
             <ChevronDown size={17} className="shrink-0 text-[var(--text-secondary)] transition-transform group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="mt-2">
+          <div className="mt-2" aria-label="Weather map controls">
             <WeatherMapControls
               activeLayer={activeLayer}
               latestRadarFrame={latestRadarFrame}
@@ -361,10 +348,6 @@ export function WeatherMap({
             />
           </div>
         </details>
-        <div className="mt-2 flex flex-col gap-1 px-1 text-[10px] leading-4 text-[#4c625e] md:hidden">
-          <span>Drag · pinch or scroll to zoom · tap a live pin · radar shows observed rain</span>
-          <span>Radar: <a className="font-semibold underline" href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · Forecast: <a className="font-semibold underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
-        </div>
       </div>
     </section>
   );

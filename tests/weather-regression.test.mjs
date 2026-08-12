@@ -86,7 +86,10 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /getWeatherPinIcon\(activeLayer\)/);
   assert.match(map, /Weather pin risk legend/);
   assert.match(map, /aria-label="Weather map controls"/);
-  assert.match(map, /md:grid-cols-\[minmax\(0,1fr\)_minmax\(240px,280px\)\]/);
+  assert.match(map, /md:h-\[520px\]/);
+  assert.match(map, /xl:h-\[620px\]/);
+  assert.match(map, /sm:flex-row sm:items-center sm:justify-between/);
+  assert.doesNotMatch(map, /md:grid-cols-\[minmax\(0,1fr\)_minmax\(240px,280px\)\]/);
   assert.doesNotMatch(map, /absolute left-3 top-3 z-10 hidden md:block/);
   assert.match(map, /tilecache|radar\.host/);
   assert.match(map, /RainViewer/);
@@ -94,7 +97,5 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /aria-pressed/);
   assert.match(map, /h-auto/);
   assert.match(map, /Map controls/);
-  assert.match(map, /md:hidden/);
-  assert.match(map, /md:h-\[620px\]/);
-  assert.match(map, /xl:h-\[680px\]/);
+  assert.match(map, /<details className="group mt-3">/);
 });

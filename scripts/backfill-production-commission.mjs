@@ -82,9 +82,10 @@ function masterIndex(masters) {
 
 /**
  * Resolve only direct Master codes or exact, company-scoped aliases.  Names
- * are supporting evidence for an already-coded alias; no fuzzy matching is
- * allowed.  The returned identity is used only for transaction matching and
- * reconciliation, not as a silent identity merge.
+ * are supporting evidence for an already-coded alias; the one approved
+ * no-code legacy alias is accepted only when both source and row codes are
+ * empty.  No fuzzy matching is allowed.  The returned identity is used only
+ * for transaction matching and reconciliation, not as a silent identity merge.
  */
 export function canonicalIdentity(row, masters, aliases) {
   const index = masterIndex(masters);
@@ -96,8 +97,12 @@ export function canonicalIdentity(row, masters, aliases) {
   const exactAliases = aliases.filter((alias) => {
     const sourceEmployee = usableCode(alias.sourceEmployeeCode);
     const sourceSalesperson = usableCode(alias.sourceSalespersonCode);
-    const codeMatches = (sourceEmployee && sourceEmployee === employeeCode)
-      || (sourceSalesperson && sourceSalesperson === salespersonCode);
+    const rowHasCode = Boolean(employeeCode || salespersonCode);
+    const aliasHasCode = Boolean(sourceEmployee || sourceSalesperson);
+    const codeMatches = aliasHasCode
+      ? (sourceEmployee && sourceEmployee === employeeCode)
+        || (sourceSalesperson && sourceSalesperson === salespersonCode)
+      : !rowHasCode;
     return codeMatches
       && stable(alias.sourceBranch) === stable(row.branch)
       && nameKey(alias.sourceSalespersonName) === nameKey(row.salespersonName);

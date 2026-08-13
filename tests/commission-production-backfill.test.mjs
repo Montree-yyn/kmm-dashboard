@@ -7,6 +7,7 @@ const masters = [
   { employeeCode: "MM220407", salespersonCode: "MM220407", salespersonName: "Kaung Si Thu", status: "inactive" },
 ];
 const aliases = [
+  { sourceEmployeeCode: null, sourceSalespersonCode: null, sourceSalespersonName: "01-Ye Htet", sourceBranch: "KMM01", canonicalEmployeeCode: "MM240503", canonicalSalespersonCode: "MM240503" },
   { sourceEmployeeCode: "MM230406", sourceSalespersonCode: null, sourceSalespersonName: "03-Lin Aung", sourceBranch: "KMM03", canonicalEmployeeCode: "MM220406", canonicalSalespersonCode: "MM220406" },
   { sourceEmployeeCode: "MM230407", sourceSalespersonCode: null, sourceSalespersonName: "03-Kaung Si Thu (Out)", sourceBranch: "KMM03", canonicalEmployeeCode: "MM220407", canonicalSalespersonCode: "MM220407" },
 ];
@@ -22,6 +23,15 @@ test("C3.2D canonical aliases match legacy production codes without fuzzy names"
   assert.equal(preview.rows[0].productionEmployeeCode, "MM230406");
   const mismatch = buildProductionCommissionPreview([row({ salespersonName: "03-Htet Lin Aung" })], [db({ employeeCode: "MM230406", salespersonName: "03-Other Person" })], masters, aliases);
   assert.equal(mismatch.summary.unmatched, 1);
+});
+
+test("C3.2D accepts only the approved exact no-code legacy alias", () => {
+  const source = row({ employeeCode: "", salespersonCode: "", salespersonName: "01-Ye Htet", branch: "KMM01" });
+  const production = db({ employeeCode: "", salespersonName: "01-Ye Htet", branch: "KMM01" });
+  const preview = buildProductionCommissionPreview([source], [production], masters.concat({ employeeCode: "MM240503", salespersonCode: "MM240503", salespersonName: "U Ye Htet", status: "active" }), aliases);
+  assert.equal(preview.rows[0].canonicalEmployeeCode, "MM240503");
+  const wrongBranch = buildProductionCommissionPreview([source], [db({ employeeCode: "", salespersonName: "01-Ye Htet", branch: "KMM03" })], masters, aliases);
+  assert.equal(wrongBranch.summary.unmatched, 1);
 });
 
 test("C3.2D leaves zero-only ambiguity visible and blocks positive ambiguity", () => {

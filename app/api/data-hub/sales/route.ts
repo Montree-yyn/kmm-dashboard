@@ -182,7 +182,7 @@ export async function POST(request: Request) {
       if (!preview.canCommit) return json({ error: "Incremental Sales import failed its safety gate.", mode: "append", preview }, 409);
       const newRowIndexes = new Set(preview.classifications.filter((item) => item.status === "NEW").map((item) => item.rowIndex));
       const rowsToInsert = rows.filter((_, index) => newRowIndexes.has(index));
-      const history = { id: importId, tenantId: context.tenantId, companyId, module: "sales", importYear: year, importMonth: month, filename: payload.filename || "sales-incremental-import.xlsx", status: "success", totalRows: rowsToInsert.length, validRows: rowsToInsert.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: Math.max(1, Date.now() - startedAt), importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
+      const history = { id: importId, tenantId: context.tenantId, companyId, module: "sales", importYear: rowsToInsert[0]?.importYear ?? year, importMonth: rowsToInsert[0]?.importMonth ?? month, filename: payload.filename || "sales-incremental-import.xlsx", status: "success", totalRows: rowsToInsert.length, validRows: rowsToInsert.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: Math.max(1, Date.now() - startedAt), importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
       const boundParametersPerRow = countBoundParameters(db.insert(salesTransactions).values(rowsToInsert[0]!));
       const { chunks } = chunkRowsForD1(rowsToInsert, boundParametersPerRow);
       const statements: Array<Parameters<typeof db.batch>[0][number]> = [];

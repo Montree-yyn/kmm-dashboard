@@ -12,6 +12,7 @@ const MAX_BODY_BYTES = 16_384;
 const MAX_QUESTION_LENGTH = 1_000;
 
 type RuntimeEnvironment = {
+  COMPANY_DB?: RuntimeQueryDatabase;
   OPERATIONS_DB?: RuntimeQueryDatabase;
 };
 
@@ -23,7 +24,10 @@ export async function POST(request: Request) {
       permission: "view",
       allowLegacyKmmRead: true,
     });
-    const database = await getOperationsDatabase();
+    const [database, companyDatabase] = await Promise.all([
+      getOperationsDatabase(),
+      getCompanyDatabase(),
+    ]);
     const result = await executeKaiRuntimeQuery(database, input.question, {
       companyId: context.id,
       timeZone: context.timeZone,
@@ -34,6 +38,10 @@ export async function POST(request: Request) {
         code: branch.code,
         name: branch.name,
       })),
+      // Company DB is a distinct, permission-checked binding.  The runtime
+      // only uses it for explicit Company Master plans; operational data
+      // remains isolated in OPERATIONS_DB.
+      companyDatabase,
     });
     return Response.json(
       {
@@ -78,6 +86,14 @@ async function getOperationsDatabase() {
     );
   }
   return database;
+}
+
+async function getCompanyDatabase() {
+  const { env } = await import("cloudflare:workers");
+  // A non-Company-Master query remains available if a legacy local fixture
+  // lacks this binding. Company Master plans return a clear 503 rather than
+  // falling back to copied Operations tables.
+  return (env as unknown as RuntimeEnvironment).COMPANY_DB;
 }
 
 async function parseInput(request: Request) {

@@ -8,6 +8,7 @@ import { tsImport } from "tsx/esm/api";
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFileSync(path.join(repoRoot, file), "utf8");
 const runtime = await tsImport("../lib/kai/runtime-query.ts", import.meta.url);
+const stockSelectors = await tsImport("../lib/dashboard/stock-selectors.ts", import.meta.url);
 const queryRoute = read("app/api/kai/query/route.ts");
 const kaiClient = read("lib/kai/client.ts");
 const queryPlanMigration = read("drizzle/operations/0015_seed_kai_phase2a_query_plans.sql");
@@ -77,6 +78,14 @@ class LocalSqliteDatabase {
   prepare(query) {
     return new SqlitePreparedStatement(this.database, query, this.history);
   }
+}
+
+function currentDashboardStock(database) {
+  const snapshotDate = JSON.parse(execFileSync("sqlite3", ["-json", database,
+    "SELECT MAX(as_of_date) AS snapshotDate FROM stock_transactions WHERE company_id = 'kmm-company'"], { encoding: "utf8" }))[0]?.snapshotDate;
+  const rows = JSON.parse(execFileSync("sqlite3", ["-json", database,
+    `SELECT company_id AS companyId, kmm_flag AS kmm, stock_status AS currentStatus, product_type AS productType, product_group AS productGroup, product_model AS model, stock_number AS stockId, serial_number AS serialNumber, engine_number AS engineNumber, chassis_number AS chassisNumber, branch, CAST(NULLIF(TRIM(msrp), '') AS REAL) AS msrp, stock_age_days AS ageDays FROM stock_transactions WHERE company_id = 'kmm-company' AND as_of_date = ${sqlLiteral(snapshotDate)}`], { encoding: "utf8" }));
+  return { snapshotDate, rows };
 }
 
 const databasePath = findLocalOperationsDatabase();
@@ -167,10 +176,14 @@ test("Phase 2B runtime executes richer business questions with verified scoped p
   assert.equal(sales.data.salesUnit, 7);
   const booking = await runtime.executeKaiRuntimeQuery(database, "KMM02 มี Booking เท่าไร", context);
   assert.equal(booking.intent, "BOOKING_CURRENT_MONTH");
-  assert.equal(booking.data.bookingUnit, 3);
+  const expectedBooking = JSON.parse(execFileSync("sqlite3", ["-json", databasePath,
+    "SELECT COUNT(*) AS count FROM booking_transactions WHERE company_id = 'kmm-company' AND branch = 'KMM02' AND booking_date BETWEEN '2026-08-01' AND '2026-08-31'"], { encoding: "utf8" }))[0].count;
+  assert.equal(booking.data.bookingUnit, expectedBooking);
   const stock = await runtime.executeKaiRuntimeQuery(database, "Stock CH อายุเกิน 90 วันใน KMM01 มีกี่คัน", context);
   assert.equal(stock.intent, "STOCK_AGING_QUERY");
-  assert.equal(stock.data.total, 10);
+  const expectedStock = stockSelectors.getStockUnitRows(currentDashboardStock(databasePath).rows)
+    .filter((row) => row.branch === "KMM01" && stockSelectors.normalizeProductType(row) === "CH" && Number(row.ageDays) > 90).length;
+  assert.equal(stock.data.total, expectedStock);
   assert.ok(database.history.some((query) => /"branch" = 'KMM03'/i.test(query)));
 });
 
@@ -202,10 +215,12 @@ test("Runtime Stock Aging matches the latest Dashboard Unit snapshot", { skip: !
     timeZone: "Asia/Yangon",
     now: new Date("2026-08-12T12:00:00.000Z"),
   });
-  assert.equal(result.data.snapshotDate, "2026-08-08");
-  assert.equal(result.data.total, 35);
-  assert.match(result.response.text, /Snapshot: 2026-08-08/);
-  assert.match(result.response.text, /Total: 35/);
+  const dashboard = currentDashboardStock(databasePath);
+  const expectedTotal = stockSelectors.getStockUnitRows(dashboard.rows).filter((row) => Number(row.ageDays) > 90).length;
+  assert.equal(result.data.snapshotDate, dashboard.snapshotDate);
+  assert.equal(result.data.total, expectedTotal);
+  assert.match(result.response.text, new RegExp(`Snapshot: ${dashboard.snapshotDate}`));
+  assert.match(result.response.text, new RegExp(`Total: ${expectedTotal}`));
 });
 
 test("runtime query rejects an unsupported question without executing user SQL", { skip: !databasePath }, async () => {

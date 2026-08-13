@@ -6,6 +6,14 @@
  * object and becomes bound values only.
  */
 
+import { canonicalModelName } from "../dashboard/model-normalization";
+import {
+  getCurrentStockRows,
+  getStockUnitRows,
+  getStockValueRows,
+  normalizeProductType as normalizeDashboardStockProduct,
+} from "../dashboard/stock-selectors";
+
 export type RuntimePreparedStatement = {
   bind(...values: unknown[]): RuntimePreparedStatement;
   all<T extends Record<string, unknown> = Record<string, unknown>>(): Promise<{ results?: T[] }>;
@@ -18,6 +26,12 @@ export type RuntimeQueryContext = {
   timeZone: string;
   now?: Date;
   branches?: Array<{ code: string; name: string }>;
+  /**
+   * A separately bound Company D1 database. It is used only by explicit
+   * Company-master plans after the route has resolved the caller's company
+   * membership and read permission.
+   */
+  companyDatabase?: RuntimeQueryDatabase;
 };
 
 type RuntimeMetric = { code: string; name: string; unitType: string; formula: string };
@@ -51,21 +65,29 @@ type PlanRow = { intent: string; query_logic: string };
 type ResponseRow = { intent: string; response_structure: string };
 type Plan = {
   version: 2;
-  source: "sales_transactions" | "booking_transactions" | "stock_transactions" | "business_targets";
+  source: "sales_transactions" | "booking_transactions" | "stock_transactions" | "business_targets" | "salesperson_master" | "company_branches" | "company_master";
   operation: string;
   group_by?: string;
   threshold?: number;
   mode?: string;
+  target_metric?: TargetMetric;
+  company_entity?: CompanyMasterEntity;
   list?: boolean;
 };
 type Period = { start: string; end: string; label: string };
+type TargetMetric = "SALES_UNITS" | "SALES_REVENUE" | "GP1";
+type CompanyMasterEntity = "profile" | "currency" | "localization" | "fiscal_year" | "working_calendar" | "department" | "holiday";
+type AgeRange = { min: number; max?: number; label: string };
 type Constraints = {
   branches?: string[];
   product?: ProductGroup;
   model?: string;
   salesperson?: string;
+  salespersonCode?: string;
   customer?: string;
-  paymentStatus?: string;
+  purchaseStatus?: string;
+  bookingLifecycleStatus?: "Open" | "Delivered" | "Cancelled";
+  ageRange?: AgeRange;
   sort: "units" | "value";
   limit: number;
   period: Period;
@@ -80,7 +102,10 @@ const PRODUCT_CODES: Record<"sales" | "booking" | "stock", Partial<Record<Produc
   stock: { TT: ["01-TT"], CH: ["02-CH"], EX: ["03-EX"], TP: ["04-TP"], IM: ["06-IM"], IMO: ["07-IMO"] },
 };
 const SALES_UNIT_CODES = ["01-TT", "02-CH", "03-TP", "04-EX"];
-const STOCK_UNIT_CODES = ["01-TT", "02-CH", "03-EX", "04-TP", "08-TX"];
+// The Sales business service keeps Expense on its existing verified legacy
+// value scope. Unknown raw codes (notably 05-TX and MITSU) are intentionally
+// excluded until a source-backed product definition exists.
+const SALES_EXPENSE_CODES = ["01-TT", "02-CH", "03-TP", "04-EX", "06-IM", "07-IMO", "08-OT"];
 const CLOSED_BOOKING_STATUSES = ["Delivered", "Cancelled", "Canceled", "Closed"];
 const MONTHS: Array<[number, string[]]> = [
   [1, ["มกราคม", "ม.ค.", "january", "jan"]],
@@ -107,6 +132,11 @@ export async function executeKaiRuntimeQuery(
     throw new KaiRuntimeQueryError("Only read-only business questions are supported.", "unsupported_question");
   }
   const knowledge = await loadKnowledge(database);
+  const unresolvedCode = unresolvedProductCode(clean);
+  if (unresolvedCode) {
+    return unavailableResult(knowledge, "SALES_CURRENT_MONTH", "PRODUCT_MAPPING_UNAVAILABLE",
+      `พบ raw product code “${unresolvedCode}” ใน source แต่ยังไม่มี canonical product mapping ที่ยืนยันได้ จึงไม่สามารถตีความเป็น Product Group หรือ Sales Unit ได้`);
+  }
   const intent = resolveIntent(clean, context);
   if (intent === "BOOKING_PAYMENT_UNAVAILABLE") {
     return unavailableResult(knowledge, "BOOKING_CURRENT_MONTH", intent,
@@ -190,8 +220,10 @@ function parsePlan(raw: string, intent: string): Plan {
     const plan = JSON.parse(raw) as Partial<Plan>;
     if (
       plan.version !== 2 ||
-      !["sales_transactions", "booking_transactions", "stock_transactions", "business_targets"].includes(String(plan.source)) ||
-      typeof plan.operation !== "string"
+      !["sales_transactions", "booking_transactions", "stock_transactions", "business_targets", "salesperson_master", "company_branches", "company_master"].includes(String(plan.source)) ||
+      typeof plan.operation !== "string" ||
+      (plan.target_metric !== undefined && !["SALES_UNITS", "SALES_REVENUE", "GP1"].includes(String(plan.target_metric))) ||
+      (plan.company_entity !== undefined && !["profile", "currency", "localization", "fiscal_year", "working_calendar", "department", "holiday"].includes(String(plan.company_entity)))
     ) throw new Error();
     return plan as Plan;
   } catch {
@@ -222,18 +254,26 @@ function resolveIntent(question: string, context: RuntimeQueryContext): string |
   const explicitDateToken = has(/mtd|ytd|today|yesterday|this month|current month|this week|current week|last month|previous month|this quarter|current quarter|last quarter|previous quarter|เดือนนี้|ปีนี้|ปี\s*20\d{2}|เดือน\s*\d{1,2}|20\d{2}-\d{2}-\d{2}|(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)|(?:january|february|march|april|may|june|july|august|september|october|november|december)/iu);
   const shortSales = Boolean(namedBranches.length && product && explicitDateToken && !booking && !stock);
 
-  if (booking && has(/cash|payment\s*type|ชำระเงิน/iu)) return "BOOKING_PAYMENT_UNAVAILABLE";
+  if (has(/cash|payment\s*type|ชำระเงิน/iu)) return "BOOKING_PAYMENT_UNAVAILABLE";
   if (booking && has(/outstanding/iu)) return "BOOKING_OUTSTANDING_UNAVAILABLE";
-  if (customer && has(/ซื้อ|purchase|bought|buy/iu)) return "CUSTOMER_PURCHASE_UNAVAILABLE";
+  // Customer is verified only as an aggregate Booking attribute.  Sales has
+  // no customer relationship, so a customer-sales question must never fall
+  // through to an unfiltered Sales aggregate.
+  if (customer && has(/ซื้อ|purchase|bought|buy|\bsales?\b|ขาย|revenue|รายได้/iu)) return "CUSTOMER_PURCHASE_UNAVAILABLE";
   if (customer && booking) return "CUSTOMER_BOOKING_QUERY";
+  const companyMaster = companyMasterIntent(question, sales, booking, stock, target);
+  if (companyMaster) return companyMaster;
+  if (isBranchDirectoryQuestion(question, sales, booking, stock, target)) return "BRANCH_DIRECTORY_QUERY";
+  if (isSalespersonMasterQuestion(question, salesperson, sales, booking)) return "SALESPERSON_MASTER_QUERY";
   if (target) {
-    if (has(/ขาดเป้า|\bgap\b/iu)) return "SALES_GAP_QUERY";
-    if (has(/ได้กี่เปอร์เซ็นต์|achievement/iu)) return "SALES_ACHIEVEMENT_QUERY";
-    return "TARGET_CURRENT_QUERY";
+    return targetIntent(targetMetricForQuestion(question), has(/ขาดเป้า|\bgap\b/iu) ? "gap" : has(/ได้กี่เปอร์เซ็นต์|achievement/iu) ? "achievement" : "target");
   }
-  if (salesperson && (sales || shortSales || has(/ranking|อันดับ|top|มากที่สุด|สูงสุด/iu) || explicitDateToken)) return "SALES_PERSON_RANKING";
   if (booking) {
-    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน|(?:over|older than|aged?).*\d+\s*days|>\s*\d+\s*(?:วัน|days)/iu)) return has(/รายการ|อะไรบ้าง|รายชื่อ|list/iu) ? "BOOKING_AGING_LIST" : "BOOKING_AGING";
+    if (isAgingQuestion(question)) return has(/รายการ|อะไรบ้าง|รายชื่อ|list/iu) ? "BOOKING_AGING_LIST" : "BOOKING_AGING";
+    if (has(/deposit|down\s*payment|มัดจำ/iu)) return "BOOKING_DEPOSIT_QUERY";
+    if (salesperson && has(/ranking|อันดับ|top|มากที่สุด|สูงสุด|highest|most/iu)) return "BOOKING_SALESPERSON_RANKING";
+    if (isPurchaseStatusBreakdown(question)) return "BOOKING_PURCHASE_STATUS_RANKING";
+    if (isBookingStatusBreakdown(question)) return "BOOKING_STATUS_RANKING";
     if (has(/conversion|เปลี่ยน.*ส่งมอบ/iu)) return "BOOKING_CONVERSION_QUERY";
     if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "BOOKING_BRANCH_RANKING";
     if (has(/รุ่น|model|product/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "BOOKING_MODEL_RANKING";
@@ -244,15 +284,19 @@ function resolveIntent(question: string, context: RuntimeQueryContext): string |
     return "BOOKING_CURRENT_MONTH";
   }
   if (stock) {
-    if (has(/เกิน\s*180\s*วัน|slow\s*moving|(?:over|older than|aged?).*180\s*days|>\s*180\s*(?:วัน|days)/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_SLOW_MOVING_MODEL_RANKING" : "STOCK_SLOW_MOVING_QUERY";
-    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน|รถค้าง|aging|(?:over|older than|aged?).*\d+\s*days|>\s*\d+\s*(?:วัน|days)/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_AGING_MODEL" : "STOCK_AGING_QUERY";
+    if (isAgingQuestion(question)) {
+      if (isSlowMovingQuestion(question)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_SLOW_MOVING_MODEL_RANKING" : "STOCK_SLOW_MOVING_QUERY";
+      return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_AGING_MODEL" : "STOCK_AGING_QUERY";
+    }
     if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "STOCK_BRANCH_RANKING";
     if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "STOCK_MODEL_RANKING";
     if (has(/มูลค่า|value|msrp/iu)) return "STOCK_VALUE_CURRENT";
     if (has(/รุ่น|model/iu) || parseModel(question, context)) return "STOCK_MODEL_QUERY";
     return "STOCK_CURRENT";
   }
+  if (salesperson && (sales || shortSales || has(/ranking|อันดับ|top|มากที่สุด|สูงสุด/iu) || explicitDateToken)) return "SALES_PERSON_RANKING";
   if (sales || shortSales || has(/\bgp\b|gross profit|กำไรขั้นต้น/iu)) {
+    if (has(/expense|ค่าใช้จ่าย/iu)) return "SALES_EXPENSE_QUERY";
     if (has(/\bgp\b|gross profit|กำไรขั้นต้น/iu)) return "SALES_GP_QUERY";
     if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "SALES_BRANCH_RANKING";
     if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "SALES_MODEL_RANKING";
@@ -267,12 +311,79 @@ function resolveIntent(question: string, context: RuntimeQueryContext): string |
   return looksAmbiguous(question, namedBranches) ? "AMBIGUOUS_METRIC" : null;
 }
 
+function companyMasterIntent(question: string, sales: boolean, booking: boolean, stock: boolean, target: boolean) {
+  if (sales || booking || stock || target) return null;
+  if (/\b(?:company|organization)\s*(?:profile|info|information|details?)\b|ข้อมูลบริษัท|ข้อมูลองค์กร/iu.test(question)) return "COMPANY_PROFILE_QUERY";
+  if (/\b(?:company\s*)?currency\b|สกุลเงิน|เงินหลัก/iu.test(question)) return "COMPANY_CURRENCY_QUERY";
+  if (/\b(?:company\s*)?(?:timezone|time zone|localization|language)\b|เขตเวลา|ภาษาหลัก/iu.test(question)) return "COMPANY_LOCALIZATION_QUERY";
+  if (/\bfiscal\s*year\b|ปีบัญชี/iu.test(question)) return "FISCAL_YEAR_QUERY";
+  if (/\bworking\s*calendar\b|วันทำการ|เวลาทำงาน/iu.test(question)) return "WORKING_CALENDAR_QUERY";
+  if (/\bdepartments?\b|แผนก/iu.test(question)) return "DEPARTMENT_DIRECTORY_QUERY";
+  if (/\bholidays?\b|วันหยุด/iu.test(question)) return "HOLIDAY_DIRECTORY_QUERY";
+  return null;
+}
+
+function targetMetricForQuestion(question: string): TargetMetric {
+  if (/\bgp\b|gross\s*profit|กำไรขั้นต้น/iu.test(question)) return "GP1";
+  if (/sales\s*value|sales\s*revenue|\brevenue\b|มูลค่ายอดขาย|รายได้/iu.test(question)) return "SALES_REVENUE";
+  return "SALES_UNITS";
+}
+
+function targetIntent(metric: TargetMetric, mode: "target" | "achievement" | "gap") {
+  if (metric === "SALES_REVENUE") {
+    if (mode === "achievement") return "SALES_REVENUE_ACHIEVEMENT_QUERY";
+    if (mode === "gap") return "SALES_REVENUE_GAP_QUERY";
+    return "SALES_REVENUE_TARGET_QUERY";
+  }
+  if (metric === "GP1") {
+    if (mode === "achievement") return "SALES_GP_ACHIEVEMENT_QUERY";
+    if (mode === "gap") return "SALES_GP_GAP_QUERY";
+    return "SALES_GP_TARGET_QUERY";
+  }
+  if (mode === "achievement") return "SALES_ACHIEVEMENT_QUERY";
+  if (mode === "gap") return "SALES_GAP_QUERY";
+  return "TARGET_CURRENT_QUERY";
+}
+
+function isAgingQuestion(question: string) {
+  return Boolean(parseAgeRange(question)) || /aging|slow\s*moving|อายุ.*วัน|รถค้าง|age\s*(?:stock|booking)?|(?:over|older than|aged?).*\d+\s*days|>\s*\d+\s*(?:วัน|days)|เกิน\s*\d+\s*วัน/iu.test(question);
+}
+
+function isSlowMovingQuestion(question: string) {
+  const range = parseAgeRange(question);
+  return /slow\s*moving|เกิน\s*180\s*วัน|(?:over|older than|aged?).*180\s*days|>\s*180\s*(?:วัน|days)/iu.test(question)
+    || Boolean(range && range.min >= 181 && (!range.max || range.max <= 365));
+}
+
+function isPurchaseStatusBreakdown(question: string) {
+  return /purchase\s*status|hot\s*status|สถานะการซื้อ/iu.test(question)
+    && /breakdown|distribution|summary|แยก|สรุป|อันดับ|ranking/iu.test(question);
+}
+
+function isBookingStatusBreakdown(question: string) {
+  return /booking\s*status|lifecycle|สถานะ.*(?:booking|จอง)|(?:booking|จอง).*สถานะ/iu.test(question)
+    && /breakdown|distribution|summary|แยก|สรุป|อันดับ|ranking/iu.test(question);
+}
+
+function isSalespersonMasterQuestion(question: string, salesperson: boolean, _sales: boolean, _booking: boolean) {
+  // "พนักงานขาย" naturally contains the Thai verb "ขาย".  Treat it as a
+  // master request when no actual Sales/Booking metric is named.
+  const metricRequest = /ยอดขาย|sales\s*(?:value|revenue|target|gp|expense|ranking)|booking|ยอดจอง|จอง/iu.test(question);
+  return salesperson && !metricRequest && /master|directory|รายชื่อ|list|กี่คน|ทั้งหมด|active|สถานะ|team|ทีม/iu.test(question);
+}
+
+function isBranchDirectoryQuestion(question: string, sales: boolean, booking: boolean, stock: boolean, target: boolean) {
+  return !sales && !booking && !stock && !target
+    && /\bbranch(?:es)?\b|สาขา|showroom/iu.test(question)
+    && /directory|list|รายชื่อ|details?|ข้อมูล|กี่สาขา|ทั้งหมด|location|อยู่ที่ไหน|region|township|ที่ตั้ง/iu.test(question);
+}
+
 function parseConstraints(question: string, context: RuntimeQueryContext): Constraints {
   const now = context.now ?? new Date();
   const date = dateParts(now, context.timeZone);
   const periodResult = parsePeriod(question, date.year, date.month, date.day);
   const branches = resolveBranches(question, context);
-  const paymentStatus = ["A HOT", "B HOT", "FAIL", "S"]
+  const purchaseStatus = ["A HOT", "B HOT", "FAIL", "S"]
     .find((value) => new RegExp(`\\b${value.replace(" ", "\\s+")}\\b`, "i").test(question));
   return {
     period: periodResult.period,
@@ -281,8 +392,11 @@ function parseConstraints(question: string, context: RuntimeQueryContext): Const
     product: parseProduct(question),
     model: parseModel(question, context),
     salesperson: parseSalesperson(question),
+    salespersonCode: parseSalespersonCode(question),
     customer: parseCustomer(question),
-    paymentStatus,
+    purchaseStatus,
+    bookingLifecycleStatus: parseBookingLifecycleStatus(question),
+    ageRange: parseAgeRange(question),
     sort: /\b(?:value|มูลค่า|ราคา)\b/i.test(question) ? "value" : "units",
     limit: parseLimit(question),
   };
@@ -390,17 +504,23 @@ function parseProduct(question: string): ProductGroup | undefined {
 }
 
 function parseModel(question: string, context?: RuntimeQueryContext) {
+  if (/\bDC\s*[- ]?\s*70G\s*PRO\b/iu.test(question)) return "DC70G PRO";
   const match = question.match(/(?:รุ่น|model)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{1,50}?)(?=\s*(?:มี|เหลือ|ขาย|จอง|stock|สต็อก|เดือน|ปี|เท่าไร|กี่|มากที่สุด|$))/iu);
-  if (match?.[1]?.trim()) return match[1].trim();
+  if (match?.[1]?.trim()) return canonicalModelName(match[1]);
   const trailingStock = question.match(/^\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{2,50}?)\s+(?:stock|สต็อก)\s*$/iu)?.[1]?.trim();
   const isKnownBranch = context?.branches?.some((branch) => branch.code.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0 || branch.name.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0);
-  if (trailingStock && !isKnownBranch && !/^(?:TT|CH|EX|TP|IM|IMO|OT|tractor|combine|excavator|transplanter|other|current|now|value|aging|slow\s*moving)$/iu.test(trailingStock)) return trailingStock;
+  const containsFilterVocabulary = /\bKMM0[1-3]\b|\b(?:TT|CH|EX|TP|IM|IMO|OT|tractor|combine|excavator|transplanter|other|current|now|value|aging|slow\s*moving)\b/iu.test(trailingStock ?? "");
+  if (trailingStock && !isKnownBranch && !containsFilterVocabulary) return canonicalModelName(trailingStock);
   return undefined;
 }
 
 function parseSalesperson(question: string) {
-  const match = question.match(/(?:salesperson|พนักงานขาย|เซลส์)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9 .()\-]{2,60}?)(?=\s*(?:ขาย|เดือน|ปี|เท่าไร|กี่|$))/iu);
+  const match = question.match(/(?:salesperson|พนักงานขาย|เซลส์)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9 .()\-]{2,60}?)(?=\s*(?:ขาย|sales|booking|เดือน|ปี|january|february|march|april|may|june|july|august|september|october|november|december|เท่าไร|กี่|$))/iu);
   return match?.[1]?.trim() || undefined;
+}
+
+function parseSalespersonCode(question: string) {
+  return question.match(/\bMM\d{6}\b/i)?.[0]?.toUpperCase();
 }
 
 function parseCustomer(question: string) {
@@ -412,6 +532,37 @@ function parseLimit(question: string) {
   const match = question.match(/(?:top|อันดับ|สูงสุด|มากที่สุด)\s*(\d{1,2})/iu)
     ?? question.match(/(\d{1,2})\s*(?:อันดับ|รายการ|รายการแรก)/iu);
   return Math.max(1, Math.min(50, Number(match?.[1] ?? 50)));
+}
+
+function parseBookingLifecycleStatus(question: string): Constraints["bookingLifecycleStatus"] {
+  if (/cancelled|canceled|cancel|ยกเลิก/iu.test(question)) return "Cancelled";
+  if (/delivered|delivery|ส่งมอบ/iu.test(question)) return "Delivered";
+  if (/\bopen\b|เปิด/iu.test(question)) return "Open";
+  return undefined;
+}
+
+function parseAgeRange(question: string): AgeRange | undefined {
+  const range = question.match(/(?:aging|age|อายุ)?\s*(\d{1,3})\s*(?:-|–|ถึง|to)\s*(\d{1,3})\s*(?:วัน|days)/iu);
+  if (range) {
+    const min = Number(range[1]);
+    const max = Number(range[2]);
+    if (Number.isInteger(min) && Number.isInteger(max) && min >= 0 && min <= max) return { min, max, label: `${min}–${max}` };
+  }
+  const over = question.match(/(?:เกิน|มากกว่า|over|older than|aged?\s*over|>)\s*(\d{1,3})\s*(?:วัน|days)/iu);
+  if (over) {
+    const threshold = Number(over[1]);
+    if (Number.isInteger(threshold) && threshold >= 0) return { min: threshold + 1, label: `>${threshold}` };
+  }
+  return undefined;
+}
+
+function ageRangeFor(constraints: Constraints, defaultThreshold: number): AgeRange {
+  return constraints.ageRange ?? { min: defaultThreshold + 1, label: `>${defaultThreshold}` };
+}
+
+function unresolvedProductCode(question: string) {
+  const code = question.match(/\b(?:05\s*-?\s*TX|08\s*-?\s*TX|MITSU)\b/iu)?.[0];
+  return code?.replace(/\s+/g, "").toUpperCase();
 }
 
 function resolveBranches(question: string, context: RuntimeQueryContext) {
@@ -445,12 +596,17 @@ async function executePlan(
   constraints: Constraints,
   context: RuntimeQueryContext,
 ) {
-  if (plan.operation === "sales_summary") return salesSummary(database, constraints, context.companyId);
-  if (plan.operation === "sales_gp") return salesGp(database, constraints, context.companyId);
-  if (plan.operation === "sales_ranking") return salesRanking(database, constraints, plan.group_by ?? "model", context.companyId);
-  if (plan.operation === "sales_compare") return salesComparison(database, constraints, context, question);
-  if (plan.operation === "sales_target") return salesTarget(database, constraints, plan.mode ?? "target", context.companyId);
+  const salesConstraints = ["sales_summary", "sales_gp", "sales_expense", "sales_ranking", "sales_compare", "sales_target"].includes(plan.operation)
+    ? await resolveSalespersonForSales(database, constraints, context.companyId)
+    : constraints;
+  if (plan.operation === "sales_summary") return salesSummary(database, salesConstraints, context.companyId);
+  if (plan.operation === "sales_gp") return salesGp(database, salesConstraints, context.companyId);
+  if (plan.operation === "sales_expense") return salesExpense(database, salesConstraints, context.companyId);
+  if (plan.operation === "sales_ranking") return salesRanking(database, salesConstraints, plan.group_by ?? "model", context.companyId);
+  if (plan.operation === "sales_compare") return salesComparison(database, salesConstraints, context, question);
+  if (plan.operation === "sales_target") return salesTarget(database, salesConstraints, plan.mode ?? "target", plan.target_metric ?? "SALES_UNITS", context.companyId);
   if (plan.operation === "booking_summary") return bookingSummary(database, constraints, context.companyId);
+  if (plan.operation === "booking_deposit") return bookingDeposit(database, constraints, context.companyId);
   if (plan.operation === "booking_ranking") return bookingRanking(database, constraints, plan.group_by ?? "product_model", context.companyId);
   if (plan.operation === "booking_compare") return bookingComparison(database, constraints, context, question);
   if (plan.operation === "booking_aging") return bookingAging(database, constraints, context, Boolean(plan.list));
@@ -459,7 +615,34 @@ async function executePlan(
   if (plan.operation === "stock_summary") return stockSummary(database, constraints, context.companyId);
   if (plan.operation === "stock_ranking") return stockRanking(database, constraints, plan.group_by ?? "product_model", plan.threshold, context.companyId);
   if (plan.operation === "stock_aging") return stockAging(database, constraints, plan.threshold ?? 90, context.companyId);
+  if (plan.operation === "salesperson_master") return salespersonMaster(database, constraints, context.companyId);
+  if (plan.operation === "branch_directory") return branchDirectory(context.companyDatabase, constraints, context.companyId);
+  if (plan.operation === "company_master") return companyMaster(context.companyDatabase, plan.company_entity, context.companyId);
   throw new KaiRuntimeQueryError(`Unsupported executable operation for ${intent}.`, "knowledge_error");
+}
+
+/**
+ * Sales imports are normalized through salesperson_master.  Historic prompts
+ * sometimes omit a title or use an ordinal prefix ("02-Aung Bo Bo").  We
+ * resolve that format only when it has one, and only one, current master
+ * identity; otherwise the original exact source text remains the filter.
+ */
+async function resolveSalespersonForSales(database: RuntimeQueryDatabase, constraints: Constraints, companyId: string) {
+  if (!constraints.salesperson || constraints.salespersonCode) return constraints;
+  const masters = await rows<Record<string, unknown>>(database,
+    'SELECT "salesperson_name" FROM "salesperson_master" WHERE "company_id" = ?', [companyId]);
+  const key = salespersonIdentityKey(constraints.salesperson);
+  const matches = masters
+    .map((row) => String(row.salesperson_name ?? "").trim())
+    .filter((name) => salespersonIdentityKey(name) === key);
+  return matches.length === 1 ? { ...constraints, salesperson: matches[0] } : constraints;
+}
+
+function salespersonIdentityKey(value: string) {
+  return value.trim().toUpperCase()
+    .replace(/^\d{1,2}\s*[-.)]?\s*/, "")
+    .replace(/^(?:U|DAW|MR\.?|MRS\.?|MG\.?)\s+/u, "")
+    .replace(/[^A-Z0-9]+/g, "");
 }
 
 function salesWhere(constraints: Constraints) {
@@ -486,7 +669,11 @@ function scopedWhere(table: "sales_transactions" | "booking_transactions", dateF
   const modelField = domain === "sales" ? "model" : "product_model";
   if (constraints.model) { parts.push(`UPPER("${modelField}") = UPPER(?)`); values.push(constraints.model); }
   if (domain === "sales" && constraints.salesperson) { parts.push('UPPER("salesperson_name") = UPPER(?)'); values.push(constraints.salesperson); }
-  if (domain === "booking" && constraints.paymentStatus) { parts.push('UPPER("purchase_status") = UPPER(?)'); values.push(constraints.paymentStatus); }
+  if (domain === "sales" && constraints.salespersonCode) { parts.push('UPPER("salesperson_code") = UPPER(?)'); values.push(constraints.salespersonCode); }
+  if (domain === "booking" && constraints.salesperson) { parts.push('UPPER("salesperson_name") = UPPER(?)'); values.push(constraints.salesperson); }
+  if (domain === "booking" && constraints.salespersonCode) { parts.push('UPPER("salesperson_code") = UPPER(?)'); values.push(constraints.salespersonCode); }
+  if (domain === "booking" && constraints.purchaseStatus) { parts.push('UPPER("purchase_status") = UPPER(?)'); values.push(constraints.purchaseStatus); }
+  if (domain === "booking" && constraints.bookingLifecycleStatus) { parts.push('UPPER("status") = UPPER(?)'); values.push(constraints.bookingLifecycleStatus); }
   return { sql: parts.join(" AND "), values };
 }
 
@@ -514,6 +701,18 @@ async function salesGp(database: RuntimeQueryDatabase, constraints: Constraints,
   return { period: constraints.period, gpValue: missing ? null : nullableNumber(row.gp_value), rows: rowCount, gpComplete: rowCount === 0 || missing === 0 };
 }
 
+async function salesExpense(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
+  const where = salesWhere(constraints);
+  const row = (await rows<Record<string, unknown>>(database,
+    `SELECT COUNT(*) AS rows_count, SUM(CASE WHEN "expense" IS NULL OR TRIM("expense") = '' THEN 1 ELSE 0 END) AS missing_expense, SUM(CAST("expense" AS REAL)) AS expense_value FROM "sales_transactions" WHERE ${where.sql} AND "product_type" IN (${SALES_EXPENSE_CODES.map(() => "?").join(", ")})`,
+    [...bindCompany(where.values, companyId), ...SALES_EXPENSE_CODES]))[0] ?? {};
+  const rowCount = number(row.rows_count);
+  const missing = number(row.missing_expense);
+  if (rowCount === 0) return unavailableData("No Sales Expense rows are available for the requested scope.");
+  if (missing) return unavailableData("Sales Expense is incomplete for the requested scope, so KAI will not total partial values.");
+  return { period: constraints.period, expenseValue: nullableNumber(row.expense_value), rows: rowCount, expenseComplete: true, scope: "verified legacy value products" };
+}
+
 async function salesRanking(database: RuntimeQueryDatabase, constraints: Constraints, groupBy: string, companyId = "") {
   const allowed: Record<string, string> = { branch: "branch", model: "model", product_type: "product_type", salesperson_name: "salesperson_name" };
   const field = allowed[groupBy];
@@ -532,19 +731,94 @@ async function salesComparison(database: RuntimeQueryDatabase, constraints: Cons
   return compare("sales", previous, current, periods);
 }
 
-async function salesTarget(database: RuntimeQueryDatabase, constraints: Constraints, mode: string, companyId = "") {
-  const month = constraints.period.start.slice(5, 7);
-  const year = Number(constraints.period.start.slice(0, 4));
-  const isYear = constraints.period.start.endsWith("-01-01") && constraints.period.end.endsWith("-12-31");
-  const productGroup = constraints.product === "EX" || constraints.product === "TP" ? "EX_TP" : constraints.product ?? "";
-  const targetSql = isYear
-    ? `SELECT SUM(CAST("target_value" AS REAL)) AS target_value FROM "business_targets" WHERE "company_id" = ? AND "target_year" = ? AND "metric" = 'SALES_UNITS' AND "approval_status" = 'approved' AND "product_group" = ?`
-    : `SELECT SUM(CAST("target_value" AS REAL)) AS target_value FROM "business_targets" WHERE "company_id" = ? AND "target_year" = ? AND "target_month" = ? AND "metric" = 'SALES_UNITS' AND "approval_status" = 'approved' AND "product_group" = ?`;
-  const targetRow = (await rows<Record<string, unknown>>(database, targetSql, isYear ? [companyId, year, productGroup] : [companyId, year, Number(month), productGroup]))[0] ?? {};
-  const target = nullableNumber(targetRow.target_value);
-  const actual = await salesSummary(database, constraints, companyId);
-  const achievement = target === null || target === 0 ? null : (actual.salesUnit / target) * 100;
-  return { period: constraints.period, target, actual: actual.salesUnit, achievement, gap: target === null ? null : target - actual.salesUnit, mode };
+async function salesTarget(
+  database: RuntimeQueryDatabase,
+  constraints: Constraints,
+  mode: string,
+  targetMetric: TargetMetric,
+  companyId = "",
+) {
+  if (constraints.branches?.length || constraints.salesperson || constraints.salespersonCode) {
+    return unavailableData("Approved Target in the verified source is company-wide only; branch and salesperson target scopes are not available.");
+  }
+  if (targetMetric !== "SALES_UNITS" && constraints.product) {
+    return unavailableData("Approved Revenue and GP targets are company-wide only; product-group target scope is not available.");
+  }
+  const months = targetMonthsForPeriod(constraints.period);
+  if (!months.length) {
+    return unavailableData("Approved Target is monthly. This partial date scope cannot be compared with a verified target.");
+  }
+  const productGroup = targetMetric === "SALES_UNITS"
+    ? constraints.product === "EX" || constraints.product === "TP" ? "EX_TP" : constraints.product ?? ""
+    : "";
+  const periodKeys = months.map(({ year, month }) => year * 100 + month);
+  const targetRows = await rows<Record<string, unknown>>(database,
+    `SELECT "target_year", "target_month", "target_value", "source_version", "effective_from", "updated_at" FROM "business_targets" WHERE "company_id" = ? AND "metric" = ? AND "approval_status" = 'approved' AND "product_group" = ? AND "branch_id" = '' AND "salesperson_id" = '' AND ("target_year" * 100 + "target_month") IN (${periodKeys.map(() => "?").join(", ")}) ORDER BY "target_year", "target_month", "effective_from" DESC, "updated_at" DESC, "source_version" DESC`,
+    [companyId, targetMetric, productGroup, ...periodKeys]);
+  const latestByMonth = new Map<string, Record<string, unknown>>();
+  for (const row of targetRows) {
+    const key = `${row.target_year}-${row.target_month}`;
+    if (!latestByMonth.has(key)) latestByMonth.set(key, row);
+  }
+  if (latestByMonth.size !== months.length) {
+    return unavailableData("No approved Target is available for every month in the requested scope.");
+  }
+  const target = [...latestByMonth.values()].reduce((total, row) => total + (nullableNumber(row.target_value) ?? 0), 0);
+  let actual: number | null;
+  if (targetMetric === "SALES_UNITS") {
+    actual = number((await salesSummary(database, constraints, companyId)).salesUnit);
+  } else if (targetMetric === "SALES_REVENUE") {
+    actual = nullableNumber((await salesSummary(database, constraints, companyId)).salesValue);
+  } else {
+    const gp = await salesGp(database, constraints, companyId);
+    actual = gp.gpComplete ? nullableNumber(gp.gpValue) : null;
+  }
+  if (actual === null) {
+    return unavailableData(targetMetric === "GP1"
+      ? "GP actual is incomplete for the requested scope, so it cannot be compared with Target."
+      : "Actual Revenue is unavailable for the requested scope, so it cannot be compared with Target.");
+  }
+  const sourceVersions = [...new Set([...latestByMonth.values()].map((row) => String(row.source_version ?? "")).filter(Boolean))];
+  return {
+    period: constraints.period,
+    target,
+    actual,
+    achievement: target === 0 ? null : (actual / target) * 100,
+    gap: target - actual,
+    mode,
+    targetMetric,
+    sourceVersions,
+  };
+}
+
+/**
+ * Target rows are approved as calendar-month values.  A partial month (for
+ * example MTD, a day, or an arbitrary date range) must not be compared to a
+ * full-month target because that would fabricate an achievement percentage.
+ */
+function targetMonthsForPeriod(period: Period) {
+  const start = parseIsoDate(period.start);
+  const end = parseIsoDate(period.end);
+  if (!start || !end || start.day !== 1 || end.day !== daysInMonth(end.year, end.month)) return [];
+  const result: Array<{ year: number; month: number }> = [];
+  for (let year = start.year, month = start.month; year < end.year || (year === end.year && month <= end.month);) {
+    result.push({ year, month });
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return result;
+}
+
+function parseIsoDate(value: string) {
+  const match = /^(20\d{2})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null;
+  return { year, month, day };
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 async function bookingSummary(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
@@ -556,8 +830,31 @@ async function bookingSummary(database: RuntimeQueryDatabase, constraints: Const
   return { period: constraints.period, bookingUnit: number(row.booking_unit), bookingValue: nullableNumber(row.booking_value) };
 }
 
+async function bookingDeposit(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
+  const where = bookingWhere(constraints);
+  const row = (await rows<Record<string, unknown>>(database,
+    `SELECT COUNT(*) AS booking_unit, SUM(CASE WHEN "deposit_amount" IS NULL OR TRIM("deposit_amount") = '' THEN 1 ELSE 0 END) AS missing_deposit_count, SUM(CAST("deposit_amount" AS REAL)) AS recorded_deposit_value FROM "booking_transactions" WHERE ${where.sql}`,
+    bindCompany(where.values, companyId)))[0] ?? {};
+  return {
+    period: constraints.period,
+    bookingUnit: number(row.booking_unit),
+    recordedDepositValue: nullableNumber(row.recorded_deposit_value),
+    missingDepositCount: number(row.missing_deposit_count),
+    // Blank source values are not silently treated as zero.  The aggregate is
+    // deliberately labelled "recorded" so it cannot be mistaken for a fully
+    // reconciled deposit total.
+    depositComplete: number(row.missing_deposit_count) === 0,
+  };
+}
+
 async function bookingRanking(database: RuntimeQueryDatabase, constraints: Constraints, groupBy: string, companyId = "") {
-  const allowed: Record<string, string> = { branch: "branch", product_model: "product_model" };
+  const allowed: Record<string, string> = {
+    branch: "branch",
+    product_model: "product_model",
+    salesperson_name: "salesperson_name",
+    status: "status",
+    purchase_status: "purchase_status",
+  };
   const field = allowed[groupBy];
   if (!field) throw new KaiRuntimeQueryError("Invalid Booking ranking group.", "knowledge_error");
   const where = bookingWhere(constraints);
@@ -577,12 +874,17 @@ async function bookingComparison(database: RuntimeQueryDatabase, constraints: Co
 async function bookingAging(database: RuntimeQueryDatabase, constraints: Constraints, context: RuntimeQueryContext, list: boolean) {
   const where = bookingWhere(constraints, constraints.explicitPeriod);
   const reference = localDate(context.now ?? new Date(), context.timeZone);
-  const sql = `SELECT "booking_no", "product_model", "branch", "booking_date", "booking_price" FROM "booking_transactions" WHERE ${where.sql} AND julianday(?) - julianday("booking_date") > 90 AND "status" NOT IN (${CLOSED_BOOKING_STATUSES.map(() => "?").join(", ")}) LIMIT ${MAX_ROWS}`;
-  const output = await rows<Record<string, unknown>>(database, sql, [...bindCompany(where.values, context.companyId), reference, ...CLOSED_BOOKING_STATUSES]);
+  const range = ageRangeFor(constraints, 90);
+  const ageSql = range.max === undefined
+    ? 'julianday(?) - julianday("booking_date") >= ?'
+    : 'julianday(?) - julianday("booking_date") BETWEEN ? AND ?';
+  const ageValues = range.max === undefined ? [reference, range.min] : [reference, range.min, range.max];
+  const sql = `SELECT "booking_no", "product_model", "branch", "booking_date", "booking_price" FROM "booking_transactions" WHERE ${where.sql} AND ${ageSql} AND "status" NOT IN (${CLOSED_BOOKING_STATUSES.map(() => "?").join(", ")}) LIMIT ${MAX_ROWS}`;
+  const output = await rows<Record<string, unknown>>(database, sql, [...bindCompany(where.values, context.companyId), ...ageValues, ...CLOSED_BOOKING_STATUSES]);
   const records = output.map((row) => ({ bookingNo: String(row.booking_no ?? ""), model: String(row.product_model ?? "ไม่ระบุ"), branch: String(row.branch ?? "ไม่ระบุ"), bookingDate: String(row.booking_date ?? ""), ageDays: ageDays(String(row.booking_date ?? ""), reference), value: nullableNumber(row.booking_price) }));
   const models = grouped(records, "model").map((row) => ({ model: row.label, quantity: row.quantity, agingDays: row.maxAgeDays }));
   const branches = grouped(records, "branch").map((row) => ({ model: row.label, quantity: row.quantity, agingDays: row.maxAgeDays }));
-  return { referenceDate: reference, thresholdDays: 90, total: records.length, models, branches, records: list ? records : undefined };
+  return { referenceDate: reference, thresholdDays: range.min - 1, ageRange: range, total: records.length, models, branches, records: list ? records : undefined };
 }
 
 async function bookingConversion(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
@@ -602,54 +904,213 @@ async function customerSummary(database: RuntimeQueryDatabase, constraints: Cons
   return { period: constraints.period, customerCount: number(row.customer_count), bookingUnit: number(row.booking_unit), customerNamesExposed: false };
 }
 
-async function stockRows(database: RuntimeQueryDatabase, constraints: Constraints, companyId: string) {
+async function salespersonMaster(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
+  const parts = ['"company_id" = ?'];
   const values: unknown[] = [companyId];
-  const parts = ['"company_id" = ?', 'UPPER("stock_status") = UPPER(\'Free Stock\')', '"kmm_flag" = 1'];
-  if (constraints.explicitPeriod) {
-    parts.push('"as_of_date" >= ?', '"as_of_date" <= ?');
-    values.push(constraints.period.start, constraints.period.end);
+  if (constraints.salespersonCode) {
+    parts.push('UPPER("salesperson_code") = UPPER(?)');
+    values.push(constraints.salespersonCode);
   }
+  if (constraints.salesperson) {
+    parts.push('UPPER("salesperson_name") = UPPER(?)');
+    values.push(constraints.salesperson);
+  }
+  const entries = await rows<Record<string, unknown>>(database,
+    `SELECT "salesperson_code", "salesperson_name", "status" FROM "salesperson_master" WHERE ${parts.join(" AND ")} ORDER BY CASE WHEN LOWER("status") = 'active' THEN 0 ELSE 1 END, "salesperson_name" LIMIT ${MAX_ROWS}`,
+    values);
+  return {
+    salespersonCount: entries.length,
+    salespeople: entries.map((row) => ({
+      code: String(row.salesperson_code ?? ""),
+      name: String(row.salesperson_name ?? "ไม่ระบุ"),
+      status: String(row.status ?? "ไม่ระบุ"),
+    })),
+  };
+}
+
+async function branchDirectory(database: RuntimeQueryDatabase | undefined, constraints: Constraints, companyId = "") {
+  if (!database) {
+    throw new KaiRuntimeQueryError("The Company D1 binding is unavailable.", "database_unavailable", 503);
+  }
+  const parts = ['"company_id" = ?', 'LOWER("status") = \'active\''];
+  const values: unknown[] = [companyId];
   if (constraints.branches?.length) {
-    parts.push(constraints.branches.length === 1 ? '"branch" = ?' : '"branch" IN (' + constraints.branches.map(() => "?").join(", ") + ")");
+    parts.push(constraints.branches.length === 1 ? '"branch_code" = ?' : '"branch_code" IN (' + constraints.branches.map(() => "?").join(", ") + ")");
     values.push(...constraints.branches);
   }
-  if (constraints.product) {
-    const codes = PRODUCT_CODES.stock[constraints.product];
-    if (!codes?.length) parts.push("1 = 0");
-    else { parts.push(`"product_type" IN (${codes.map(() => "?").join(", ")})`); values.push(...codes); }
-  } else {
-    parts.push(`"product_type" IN (${STOCK_UNIT_CODES.map(() => "?").join(", ")})`);
-    values.push(...STOCK_UNIT_CODES);
+  const entries = await rows<Record<string, unknown>>(database,
+    `SELECT "branch_code", "branch_name", "region", "township" FROM "branches" WHERE ${parts.join(" AND ")} ORDER BY "branch_code" LIMIT ${MAX_ROWS}`,
+    values);
+  return {
+    branchCount: entries.length,
+    branches: entries.map((row) => ({
+      code: String(row.branch_code ?? ""),
+      name: String(row.branch_name ?? "ไม่ระบุ"),
+      region: String(row.region ?? "").trim() || null,
+      township: String(row.township ?? "").trim() || null,
+    })),
+  };
+}
+
+/**
+ * One fixed, read-only Company-master executor serves small configuration
+ * directories.  It deliberately selects only operationally useful fields and
+ * never returns membership, contact, tax, draft, or audit attributes.
+ */
+async function companyMaster(database: RuntimeQueryDatabase | undefined, entity: CompanyMasterEntity | undefined, companyId = "") {
+  if (!database) {
+    throw new KaiRuntimeQueryError("The Company D1 binding is unavailable.", "database_unavailable", 503);
   }
-  if (constraints.model) { parts.push('UPPER("product_model") = UPPER(?)'); values.push(constraints.model); }
+  if (!entity || !["profile", "currency", "localization", "fiscal_year", "working_calendar", "department", "holiday"].includes(entity)) {
+    throw new KaiRuntimeQueryError("Company master plan has an invalid entity.", "knowledge_error");
+  }
+  if (entity === "profile") {
+    const row = (await rows<Record<string, unknown>>(database,
+      'SELECT "company_name", "company_code", "business_type", "industry", "established_year", "status" FROM "companies" WHERE "company_id" = ? AND LOWER("status") = \'active\' LIMIT 1', [companyId]))[0];
+    return row ? { companyProfile: {
+      name: String(row.company_name ?? "ไม่ระบุ"), code: String(row.company_code ?? ""), businessType: String(row.business_type ?? "").trim() || null,
+      industry: String(row.industry ?? "").trim() || null, establishedYear: nullableNumber(row.established_year), status: String(row.status ?? ""),
+    } } : unavailableData("No active Company Profile is available for the authorized company.");
+  }
+  if (entity === "currency") {
+    const row = (await rows<Record<string, unknown>>(database,
+      'SELECT "primary_currency", "display_currency", "currency_symbol", "decimal_places", "number_format" FROM "company_currencies" WHERE "company_id" = ? AND LOWER("status") = \'active\' LIMIT 1', [companyId]))[0];
+    return row ? { currency: {
+      primary: String(row.primary_currency ?? ""), display: String(row.display_currency ?? ""), symbol: String(row.currency_symbol ?? ""),
+      decimalPlaces: number(row.decimal_places), numberFormat: String(row.number_format ?? ""),
+    } } : unavailableData("No active Company Currency configuration is available for the authorized company.");
+  }
+  if (entity === "localization") {
+    const row = (await rows<Record<string, unknown>>(database,
+      'SELECT "default_language", "fallback_language", "default_time_zone", "date_format", "time_format", "first_day_of_week" FROM "company_localizations" WHERE "company_id" = ? AND LOWER("status") = \'active\' LIMIT 1', [companyId]))[0];
+    return row ? { localization: {
+      defaultLanguage: String(row.default_language ?? ""), fallbackLanguage: String(row.fallback_language ?? ""), timeZone: String(row.default_time_zone ?? ""),
+      dateFormat: String(row.date_format ?? ""), timeFormat: String(row.time_format ?? ""), firstDayOfWeek: String(row.first_day_of_week ?? ""),
+    } } : unavailableData("No active Company Localization configuration is available for the authorized company.");
+  }
+  if (entity === "fiscal_year") {
+    const entries = await rows<Record<string, unknown>>(database,
+      'SELECT "fiscal_year_name", "start_month", "start_day", "end_month", "end_day", "current_fiscal_year", "status" FROM "fiscal_years" WHERE "company_id" = ? AND LOWER("status") = \'active\' ORDER BY "current_fiscal_year" DESC, "fiscal_year_name" LIMIT 100', [companyId]);
+    return entries.length ? { fiscalYears: entries.map((row) => ({
+      name: String(row.fiscal_year_name ?? "ไม่ระบุ"), startMonth: number(row.start_month), startDay: number(row.start_day), endMonth: number(row.end_month), endDay: number(row.end_day), current: number(row.current_fiscal_year) === 1,
+    })) } : unavailableData("No active Fiscal Year is available for the authorized company.");
+  }
+  if (entity === "working_calendar") {
+    const row = (await rows<Record<string, unknown>>(database,
+      'SELECT "working_days", "weekend_days", "working_start_time", "working_end_time" FROM "working_calendars" WHERE "company_id" = ? AND LOWER("status") = \'active\' LIMIT 1', [companyId]))[0];
+    return row ? { workingCalendar: {
+      workingDays: stringArray(row.working_days), weekendDays: stringArray(row.weekend_days), startTime: String(row.working_start_time ?? ""), endTime: String(row.working_end_time ?? ""),
+    } } : unavailableData("No active Working Calendar is available for the authorized company.");
+  }
+  if (entity === "department") {
+    const entries = await rows<Record<string, unknown>>(database,
+      'SELECT "department_code", "department_name", "branch_id", "users", "status" FROM "departments" WHERE "company_id" = ? AND LOWER("status") = \'active\' ORDER BY "department_code" LIMIT 100', [companyId]);
+    return entries.length ? { departments: entries.map((row) => ({
+      code: String(row.department_code ?? ""), name: String(row.department_name ?? "ไม่ระบุ"), branchId: String(row.branch_id ?? "") || null, users: number(row.users), status: String(row.status ?? ""),
+    })) } : unavailableData("No active Department is available for the authorized company.");
+  }
+  const entries = await rows<Record<string, unknown>>(database,
+    'SELECT "holiday_name", "holiday_date", "repeat_annually", "holiday_type", "branch_id" FROM "holidays" WHERE "company_id" = ? AND LOWER("status") = \'active\' ORDER BY "holiday_date" LIMIT 100', [companyId]);
+  return entries.length ? { holidays: entries.map((row) => ({
+    name: String(row.holiday_name ?? "ไม่ระบุ"), date: String(row.holiday_date ?? ""), repeatsAnnually: number(row.repeat_annually) === 1,
+    type: String(row.holiday_type ?? ""), branchId: String(row.branch_id ?? "") || null,
+  })) } : unavailableData("No active Holiday is available for the authorized company.");
+}
+
+function stringArray(value: unknown) {
+  try {
+    const parsed = JSON.parse(String(value ?? "[]"));
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch { return []; }
+}
+
+type RuntimeStockRow = {
+  companyId: string | null;
+  kmm: unknown;
+  currentStatus: string | null;
+  productType: string | null;
+  productGroup: string | null;
+  model: string | null;
+  stockId: string | null;
+  serialNumber: string | null;
+  engineNumber: string | null;
+  chassisNumber: string | null;
+  branch: string | null;
+  msrp: number | null;
+  ageDays: number | null;
+  asOfDate: string | null;
+};
+
+type StockSnapshot = { snapshotDate: string | null; rows: RuntimeStockRow[] };
+
+/**
+ * KAI intentionally uses the same current-stock selector as the dashboard:
+ * the latest snapshot, Free Stock, company ownership, and physical-ID de-dupe
+ * are decided before applying question filters.  This prevents a filtered
+ * query from reintroducing a duplicate that the dashboard has excluded.
+ */
+async function stockRows(database: RuntimeQueryDatabase, constraints: Constraints, companyId: string): Promise<StockSnapshot> {
   const latestWhere = ['"company_id" = ?'];
   const latestValues: unknown[] = [companyId];
-  if (constraints.explicitPeriod) { latestWhere.push('"as_of_date" >= ?', '"as_of_date" <= ?'); latestValues.push(constraints.period.start, constraints.period.end); }
-  const sql = `SELECT "product_model", "branch", "product_type", "msrp", "stock_age_days", "as_of_date", "stock_number", "serial_number", "engine_number", "chassis_number" FROM "stock_transactions" WHERE ${parts.join(" AND ")} AND "as_of_date" = (SELECT MAX("as_of_date") FROM "stock_transactions" WHERE ${latestWhere.join(" AND ")}) LIMIT ${MAX_ROWS}`;
-  return deduplicate(await rows<Record<string, unknown>>(database, sql, [...values, ...latestValues]));
+  if (constraints.explicitPeriod) {
+    latestWhere.push('"as_of_date" >= ?', '"as_of_date" <= ?');
+    latestValues.push(constraints.period.start, constraints.period.end);
+  }
+  const sourceRows = await rows<RuntimeStockRow>(database,
+    `SELECT "company_id" AS "companyId", "kmm_flag" AS "kmm", "stock_status" AS "currentStatus", "product_type" AS "productType", "product_group" AS "productGroup", "product_model" AS "model", "stock_number" AS "stockId", "serial_number" AS "serialNumber", "engine_number" AS "engineNumber", "chassis_number" AS "chassisNumber", "branch" AS "branch", CAST(NULLIF(TRIM("msrp"), '') AS REAL) AS "msrp", "stock_age_days" AS "ageDays", "as_of_date" AS "asOfDate" FROM "stock_transactions" WHERE "company_id" = ? AND "as_of_date" = (SELECT MAX("as_of_date") FROM "stock_transactions" WHERE ${latestWhere.join(" AND ")}) LIMIT ${MAX_ROWS}`,
+    [companyId, ...latestValues]);
+  const snapshotDate = sourceRows[0]?.asOfDate ?? null;
+  const currentRows = getCurrentStockRows(sourceRows);
+  return {
+    snapshotDate,
+    rows: currentRows.filter((row) => {
+      if (constraints.branches?.length && !constraints.branches.includes(String(row.branch ?? ""))) return false;
+      if (constraints.product && normalizeDashboardStockProduct(row) !== constraints.product) return false;
+      if (constraints.model && canonicalModelName(row.model).toUpperCase() !== constraints.model.toUpperCase()) return false;
+      return true;
+    }),
+  };
 }
 
 async function stockSummary(database: RuntimeQueryDatabase, constraints: Constraints, companyId = "") {
-  const data = await stockRows(database, constraints, companyId);
-  return { snapshotDate: data[0]?.as_of_date ?? null, stockUnit: data.length, stockValue: sum(data.map((row) => nullableNumber(row.msrp))) };
+  const snapshot = await stockRows(database, constraints, companyId);
+  return {
+    snapshotDate: snapshot.snapshotDate,
+    stockUnit: getStockUnitRows(snapshot.rows).length,
+    stockValue: sum(getStockValueRows(snapshot.rows).map((row) => nullableNumber(row.msrp))),
+  };
 }
 
 async function stockAging(database: RuntimeQueryDatabase, constraints: Constraints, threshold: number, companyId = "") {
-  const data = (await stockRows(database, constraints, companyId)).filter((row) => number(row.stock_age_days) > threshold);
-  const models = grouped(data.map((row) => ({ model: String(row.product_model ?? "ไม่ระบุ"), ageDays: number(row.stock_age_days) })), "model")
+  const snapshot = await stockRows(database, constraints, companyId);
+  const range = ageRangeFor(constraints, threshold);
+  const selected = getStockUnitRows(snapshot.rows).filter((row) => matchesAgeRange(row.ageDays, range));
+  const models = grouped(selected.map((row) => ({ model: String(row.model ?? "ไม่ระบุ"), ageDays: number(row.ageDays) })), "model")
     .map((row) => ({ model: row.label, quantity: row.quantity, agingDays: row.maxAgeDays }));
-  return { snapshotDate: data[0]?.as_of_date ?? null, thresholdDays: threshold, total: data.length, models };
+  return { snapshotDate: snapshot.snapshotDate, thresholdDays: range.min - 1, ageRange: range, total: selected.length, models };
 }
 
 async function stockRanking(database: RuntimeQueryDatabase, constraints: Constraints, groupBy: string, threshold: number | undefined, companyId = "") {
-  const field = groupBy === "branch" ? "branch" : "product_model";
-  const selected = threshold === undefined ? await stockRows(database, constraints, companyId) : (await stockRows(database, constraints, companyId)).filter((row) => number(row.stock_age_days) > threshold);
-  const ranking = grouped(selected.map((row) => ({ label: String(row[field] ?? "ไม่ระบุ"), value: nullableNumber(row.msrp), ageDays: number(row.stock_age_days) })), "label")
+  const snapshot = await stockRows(database, constraints, companyId);
+  const field = groupBy === "branch" ? "branch" : "model";
+  const range = threshold === undefined && !constraints.ageRange ? undefined : ageRangeFor(constraints, threshold ?? 0);
+  const selected = getStockUnitRows(snapshot.rows).filter((row) => !range || matchesAgeRange(row.ageDays, range));
+  const valueRows = new Set(getStockValueRows(selected));
+  const ranking = grouped(selected.map((row) => ({
+    label: String(row[field] ?? "ไม่ระบุ"),
+    value: valueRows.has(row) ? nullableNumber(row.msrp) : null,
+    ageDays: number(row.ageDays),
+  })), "label")
     .sort((left, right) => constraints.sort === "value"
       ? (right.value ?? 0) - (left.value ?? 0) || right.quantity - left.quantity
       : right.quantity - left.quantity || (right.value ?? 0) - (left.value ?? 0))
     .slice(0, constraints.limit);
-  return { snapshotDate: selected[0]?.as_of_date ?? null, thresholdDays: threshold ?? null, ranking };
+  return { snapshotDate: snapshot.snapshotDate, thresholdDays: range ? range.min - 1 : null, ageRange: range, ranking };
+}
+
+function matchesAgeRange(value: unknown, range: AgeRange) {
+  const age = nullableNumber(value);
+  return age !== null && age >= range.min && (range.max === undefined || age <= range.max);
 }
 
 function compare(kind: "sales" | "booking", previous: Record<string, unknown>, current: Record<string, unknown>, periods: { previous: Period; current: Period }) {
@@ -702,44 +1163,78 @@ function grouped(rows: Array<Record<string, unknown>>, key: string) {
   return [...map.values()].sort((a, b) => b.quantity - a.quantity || a.label.localeCompare(b.label));
 }
 
-function deduplicate(rows: Array<Record<string, unknown>>) {
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    const keys = ["stock_number", "serial_number", "engine_number", "chassis_number"]
-      .map((field) => cleanPhysical(row[field]))
-      .filter(Boolean);
-    if (!keys.length) return true;
-    if (keys.some((key) => seen.has(key))) return false;
-    keys.forEach((key) => seen.add(key));
-    return true;
-  });
-}
-function cleanPhysical(value: unknown) {
-  const clean = String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return /^(?:|0|NA|N\/A|NONE|NULL|UNKNOWN)$/.test(clean) ? "" : clean;
-}
-
 function unavailableResult(knowledge: Awaited<ReturnType<typeof loadKnowledge>>, metricIntent: string, intent: string, text: string): RuntimeQueryResult {
   const metrics = metricsForIntent(metricIntent, knowledge.questions, knowledge.metrics);
   const metric = metrics[0] ?? { code: "UNAVAILABLE", name: "Unavailable", unitType: "N/A", formula: "N/A" };
   return { intent, metric, metrics, data: { available: false, reason: text }, response: { template: "verified data unavailable", text } };
 }
 
+function unavailableData(reason: string): Record<string, unknown> {
+  return { available: false, reason };
+}
+
 function formatResponse(intent: string, data: Record<string, unknown>) {
   if (data.available === false) return String(data.reason);
+  if ("expenseValue" in data) return data.expenseComplete
+    ? `Period: ${periodLabel(data.period)}; Sales Expense: ${formatNumber(data.expenseValue)}`
+    : `Period: ${periodLabel(data.period)}; Sales Expense: ไม่มีข้อมูล Expense ครบถ้วนสำหรับขอบเขตนี้`;
+  if ("recordedDepositValue" in data) {
+    const completeness = number(data.missingDepositCount) === 0
+      ? "ครบถ้วน"
+      : `ยังไม่มีค่า Deposit ใน ${formatNumber(data.missingDepositCount)} Booking`;
+    return `Period: ${periodLabel(data.period)}; Recorded Deposit: ${formatNumber(data.recordedDepositValue)}; Data status: ${completeness}`;
+  }
+  if ("salespersonCount" in data) {
+    const people = Array.isArray(data.salespeople) ? data.salespeople.map((item) => {
+      const row = item as Record<string, unknown>;
+      return `${String(row.code ?? "")}: ${String(row.name ?? "ไม่ระบุ")} (${String(row.status ?? "ไม่ระบุ")})`;
+    }).join("; ") : "ไม่มีข้อมูล";
+    return `Salespeople: ${formatNumber(data.salespersonCount)}; ${people}`;
+  }
+  if ("branchCount" in data) {
+    const branches = Array.isArray(data.branches) ? data.branches.map((item) => {
+      const row = item as Record<string, unknown>;
+      const location = [row.region, row.township].filter((value) => typeof value === "string" && value.trim()).join(", ");
+      return `${String(row.code ?? "")}: ${String(row.name ?? "ไม่ระบุ")} (${location || "ยังไม่ได้ลงทะเบียน location"})`;
+    }).join("; ") : "ไม่มีข้อมูล";
+    return `Active Branches: ${formatNumber(data.branchCount)}; ${branches}`;
+  }
+  if ("companyProfile" in data) {
+    const profile = data.companyProfile as Record<string, unknown>;
+    return `Company: ${String(profile.name ?? "ไม่ระบุ")} (${String(profile.code ?? "")}); Business Type: ${String(profile.businessType ?? "ไม่ระบุ")}; Industry: ${String(profile.industry ?? "ไม่ระบุ")}`;
+  }
+  if ("currency" in data) {
+    const currency = data.currency as Record<string, unknown>;
+    return `Company Currency: ${String(currency.display ?? "ไม่ระบุ")} (${String(currency.symbol ?? "")}); Decimal Places: ${formatNumber(currency.decimalPlaces)}`;
+  }
+  if ("localization" in data) {
+    const localization = data.localization as Record<string, unknown>;
+    return `Company Time Zone: ${String(localization.timeZone ?? "ไม่ระบุ")}; Default Language: ${String(localization.defaultLanguage ?? "ไม่ระบุ")}; First Day: ${String(localization.firstDayOfWeek ?? "ไม่ระบุ")}`;
+  }
+  if ("fiscalYears" in data) return `Fiscal Years: ${formatMasterRows(data.fiscalYears, (row) => `${String(row.name ?? "ไม่ระบุ")}: ${formatNumber(row.startMonth)}/${formatNumber(row.startDay)}–${formatNumber(row.endMonth)}/${formatNumber(row.endDay)}${row.current ? " (current)" : ""}`)}`;
+  if ("workingCalendar" in data) {
+    const calendar = data.workingCalendar as Record<string, unknown>;
+    const workingDays = Array.isArray(calendar.workingDays) ? calendar.workingDays.join(", ") : "";
+    return `Working Calendar: ${workingDays || "ไม่ระบุ"}; Hours: ${String(calendar.startTime ?? "")}–${String(calendar.endTime ?? "")}`;
+  }
+  if ("departments" in data) return `Departments: ${formatMasterRows(data.departments, (row) => `${String(row.code ?? "")}: ${String(row.name ?? "ไม่ระบุ")} (${formatNumber(row.users)} users)`)}`;
+  if ("holidays" in data) return `Holidays: ${formatMasterRows(data.holidays, (row) => `${String(row.date ?? "")}: ${String(row.name ?? "ไม่ระบุ")}`)}`;
+  if ("target" in data) {
+    const metricName = data.targetMetric === "SALES_REVENUE" ? "Sales Revenue" : data.targetMetric === "GP1" ? "GP" : "Sales Unit";
+    return `Period: ${periodLabel(data.period)}; ${metricName} Approved Target: ${formatNumber(data.target)}; Actual: ${formatNumber(data.actual)}; Achievement: ${formatPercent(data.achievement)}; Gap: ${formatNumber(data.gap)}`;
+  }
   if ("salesUnit" in data) return `Period: ${periodLabel(data.period)}; Sales Unit: ${formatNumber(data.salesUnit)}; Sales Value: ${formatNumber(data.salesValue)}`;
   if ("gpValue" in data) return data.gpComplete ? `Period: ${periodLabel(data.period)}; GP: ${formatNumber(data.gpValue)}` : `Period: ${periodLabel(data.period)}; GP: ไม่มีข้อมูล GP1 ครบถ้วนสำหรับขอบเขตนี้`;
   if ("customerCount" in data) return `Period: ${periodLabel(data.period)}; Customers: ${formatNumber(data.customerCount)}; Booking Unit: ${formatNumber(data.bookingUnit)}`;
   if ("bookingUnit" in data) return `Period: ${periodLabel(data.period)}; Booking Unit: ${formatNumber(data.bookingUnit)}; Booking Value: ${formatNumber(data.bookingValue)}`;
   if ("conversionPercent" in data) return `Period: ${periodLabel(data.period)}; Delivered: ${formatNumber(data.delivered)}; Conversion: ${formatPercent(data.conversionPercent)}`;
-  if ("target" in data) return `Period: ${periodLabel(data.period)}; Approved Target: ${formatNumber(data.target)}; Actual: ${formatNumber(data.actual)}; Achievement: ${formatPercent(data.achievement)}; Gap: ${formatNumber(data.gap)}`;
   if ("previous" in data && "current" in data) {
     const previous = data.previous as Record<string, unknown>; const current = data.current as Record<string, unknown>;
     return `Previous ${periodLabel(previous.period)}: ${formatNumber(previous.units)} units; Current ${periodLabel(current.period)}: ${formatNumber(current.units)} units; Growth: ${formatPercent(data.growthPercent)}`;
   }
   if ("ranking" in data) return `Snapshot/Period: ${String(data.snapshotDate ?? periodLabel(data.period))}; Ranking: ${formatGroups(data.ranking)}`;
   if ("stockUnit" in data) return `Snapshot: ${String(data.snapshotDate ?? "N/A")}; Stock Unit: ${formatNumber(data.stockUnit)}; Stock Value: ${formatNumber(data.stockValue)}`;
-  if ("total" in data && "thresholdDays" in data) return `${intent.startsWith("BOOKING") ? "Booking" : "Stock"} Aging > ${formatNumber(data.thresholdDays)} days; Snapshot: ${String(data.snapshotDate ?? data.referenceDate ?? "N/A")}; Total: ${formatNumber(data.total)}; Models: ${formatGroups(data.models)}`;
+  if ("total" in data && "thresholdDays" in data) return `${intent.startsWith("BOOKING") ? "Booking" : "Stock"} Aging ${formatAgeRange(data.ageRange, data.thresholdDays)} days; Snapshot: ${String(data.snapshotDate ?? data.referenceDate ?? "N/A")}; Total: ${formatNumber(data.total)}; Models: ${formatGroups(data.models)}`;
   return "ไม่มีข้อมูลสำหรับขอบเขตที่ระบุ";
 }
 
@@ -753,6 +1248,17 @@ function formatGroups(value: unknown) {
     return `${String(row.label ?? row.model ?? "ไม่ระบุ")}: ${formatNumber(row.quantity ?? row.units)}`;
   }).join("; ");
 }
+function formatAgeRange(value: unknown, threshold: unknown) {
+  if (value && typeof value === "object") {
+    const label = (value as Record<string, unknown>).label;
+    if (typeof label === "string" && label) return label;
+  }
+  return `>${formatNumber(threshold)}`;
+}
+function formatMasterRows(value: unknown, render: (row: Record<string, unknown>) => string) {
+  if (!Array.isArray(value) || !value.length) return "ไม่มีข้อมูล";
+  return value.map((item) => render(item as Record<string, unknown>)).join("; ");
+}
 function formatNumber(value: unknown) { const parsed = nullableNumber(value); return parsed === null ? "N/A" : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(parsed); }
 function formatPercent(value: unknown) { const parsed = nullableNumber(value); return parsed === null ? "N/A" : `${formatNumber(parsed)}%`; }
 function number(value: unknown) { return nullableNumber(value) ?? 0; }
@@ -762,4 +1268,11 @@ function ageDays(start: string, end: string) { const a = new Date(`${start}T00:0
 function localDate(value: Date, timeZone: string) { const parts = dateParts(value, timeZone); return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`; }
 function dateParts(value: Date, timeZone: string) { const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value); const get = (type: string) => Number(parts.find((part) => part.type === type)?.value); return { year: get("year"), month: get("month"), day: get("day") }; }
 function escapeRegex(value: string) { return value.replace(/[.*+?^$()|[\]\\]/g, "\\$&"); }
-function isUnsafeRuntimeQuestion(question: string) { return /\b(?:select|insert|update|delete|alter|drop|create)\b[\s\S]{0,160}\b(?:sql|database|table|ข้อมูล|ยอดขาย|booking|stock)\b|(?:ลบ|แก้ไข|อัปเดต|เปลี่ยน|เพิ่ม)\s*(?:ข้อมูล|ยอดขาย|booking|stock|สต็อก|target|เป้า)?/iu.test(question); }
+function isUnsafeRuntimeQuestion(question: string) {
+  const sqlAttempt = /\b(?:select|insert|update|delete|alter|drop|create)\b[\s\S]{0,160}\b(?:sql|database|table|ข้อมูล|ยอดขาย|booking|stock)\b/iu;
+  // Thai words do not have a reliable RegExp word boundary. Require a real
+  // command position so the final ล of "ข้อมูล" plus the first บ of
+  // "บริษัท" is never misread as the destructive verb "ลบ".
+  const destructiveCommand = /(?:^|[\s:;,.]|(?:ช่วย|กรุณา|ต้องการ|please)\s+)(?:ลบ|แก้ไข|อัปเดต|เปลี่ยน|เพิ่ม)\s*(?:ข้อมูล|ยอดขาย|booking|stock|สต็อก|target|เป้า)?/iu;
+  return sqlAttempt.test(question) || destructiveCommand.test(question);
+}

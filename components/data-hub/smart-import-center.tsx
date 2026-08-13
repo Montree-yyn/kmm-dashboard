@@ -37,7 +37,7 @@ import { parseSpreadsheetFile } from "../../lib/data-hub/parse-spreadsheet";
 import { getImportSourceDefinition } from "../../lib/data-hub/source-definitions";
 import { completeUnifiedModuleImport } from "../../lib/data-hub/unified-import-service";
 import { previewSessionSalesImport } from "../../lib/data-hub/import-service";
-import { APPROVED_SALES_INCREMENTAL_GUARD, type SalesIncrementalPreview } from "../../lib/data-hub/sales-incremental";
+import { APPROVED_SALES_INCREMENTAL_GUARD, normalizeSalesDate, type SalesIncrementalPreview } from "../../lib/data-hub/sales-incremental";
 import type {
   ImportHistoryRecord,
   ImportModule,
@@ -324,14 +324,15 @@ export function SmartImportCenter() {
       : validation.missingColumns.length
         ? `Missing required columns: ${validation.missingColumns.join(", ")}`
         : `Resolve ${validation.invalidRows.toLocaleString()} validation error(s) before import.`;
+    const detectedSaleDate = module === "sales" && salesImportMode === "append" ? normalizeSalesDate(mappedFile.rows[0]?.sale_date) : null;
     setState({
       sourceFile: file,
       parsedFile: finalParsed,
       mappedFile,
       mappings,
       validation,
-      year: finalParsed.detection?.year.value ?? null,
-      month: finalParsed.detection?.month.value ?? null,
+      year: detectedSaleDate ? Number(detectedSaleDate.slice(0, 4)) : finalParsed.detection?.year.value ?? null,
+      month: detectedSaleDate ? Number(detectedSaleDate.slice(5, 7)) : finalParsed.detection?.month.value ?? null,
       status: validation.canImport ? (warningTotal ? "warning" : "ready") : "blocked",
       error,
       approved: false,
@@ -431,7 +432,10 @@ export function SmartImportCenter() {
 
   const changeSalesImportMode = (mode: "replace" | "append") => {
     setSalesImportMode(mode);
-    setState((current) => ({ ...current, approved: false, appendPreview: null, error: null, status: current.validation?.canImport ? "ready" : current.status }));
+    setState((current) => {
+      const detectedSaleDate = selectedModule === "sales" && mode === "append" ? normalizeSalesDate(current.mappedFile?.rows[0]?.sale_date) : null;
+      return { ...current, year: detectedSaleDate ? Number(detectedSaleDate.slice(0, 4)) : current.year, month: detectedSaleDate ? Number(detectedSaleDate.slice(5, 7)) : current.month, approved: false, appendPreview: null, error: null, status: current.validation?.canImport ? "ready" : current.status };
+    });
   };
 
   const previewIncrementalImport = async () => {

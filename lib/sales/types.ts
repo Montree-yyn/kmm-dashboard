@@ -24,6 +24,7 @@ export type CanonicalSalesRow = {
   netReceived: number | null;
   gp1: number | null;
   expense: number | null;
+  commission: number | null;
 };
 
 /**

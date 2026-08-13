@@ -40,6 +40,7 @@ type SalesRow = {
   net_received?: unknown;
   gp1?: unknown;
   expense?: unknown;
+  commission?: unknown;
   salesperson_code?: unknown;
   salesperson_name?: unknown;
 };
@@ -117,17 +118,19 @@ export async function POST(request: Request) {
       const quantity = Number(String(row.quantity ?? "").replaceAll(",", ""));
       const saleAmount = Number(String(row.sale_amount ?? "").replaceAll(",", ""));
       if (!row.sale_date || !row.invoice_no || !row.branch || !row.model_code || !Number.isFinite(quantity) || !Number.isFinite(saleAmount)) throw new Error(`Row ${index + 2} is not valid for import.`);
-      const numberOrNull = (value: unknown) => {
+      const numberOrNull = (value: unknown, field?: string) => {
         if (value === null || value === undefined || String(value).trim() === "") return null;
         const parsed = Number(String(value).replaceAll(",", ""));
-        return Number.isFinite(parsed) ? String(parsed) : null;
+        if (Number.isFinite(parsed)) return String(parsed);
+        if (field) throw new Error(`Row ${index + 2}: ${field} must be numeric when provided.`);
+        return null;
       };
       const employeeCode = String(row.employee_code ?? "").trim();
       const salespersonCode = String(row.salesperson_code ?? "").trim();
       const salespersonName = String(row.salesperson_name ?? "").trim();
       const master = (employeeCode ? masterByEmployee.get(employeeCode.toUpperCase()) : undefined) || (salespersonCode ? masterByCode.get(salespersonCode.toUpperCase()) : undefined);
       if ((employeeCode || salespersonCode) && !master) unmappedEmployeeRows += 1;
-      return { id: crypto.randomUUID(), tenantId: context.tenantId, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
+      return { id: crypto.randomUUID(), tenantId: context.tenantId, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), commission: numberOrNull(row.commission, "Commission"), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
     });
     const history = { id: importId, tenantId: context.tenantId, companyId, module: "sales", importYear: year, importMonth: month, filename: payload.filename || "sales-import.xlsx", status: "success", totalRows: rows.length, validRows: rows.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: 0, importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
     // Sales CPI is a full current-state dataset. Each approved import replaces

@@ -99,6 +99,7 @@ function salesRow(index) {
     netReceived: null,
     gp1: null,
     expense: null,
+    commission: null,
     salespersonCode: null,
     salespersonName: null,
     createdBy: common.createdBy,
@@ -136,8 +137,8 @@ test("wide Stock rows adapt to the measured D1 parameter ceiling", () => {
 
 test("wide Sales rows reuse adaptive D1 batching without a module-specific size", () => {
   const rows = Array.from({ length: 3376 }, (_, index) => salesRow(index));
-  const chunks = assertWideChunks(salesTransactions, rows, 22, 844, 4);
-  assert.equal(chunks[0].length, 4);
+  const chunks = assertWideChunks(salesTransactions, rows, 23, 1126, 3);
+  assert.equal(chunks[0].length, 3);
 });
 
 test("the route derives row width from generated SQL and keeps one atomic D1 batch", () => {

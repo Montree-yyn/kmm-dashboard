@@ -34,6 +34,7 @@ const headerProfiles: Record<StructureModule, HeaderProfile> = {
       net_received: ["net received", "net amount"],
       final_received: ["final received", "final amount", "received amount"],
       expense: ["expense", "expenses", "total expense"],
+      commission: ["total", "commission", "commission total"],
       gp1: ["gp1", "gross profit", "gross profit 1"],
       gp_percent: ["percent gp", "gp percent", "percent gross profit"],
     },

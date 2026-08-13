@@ -245,6 +245,9 @@ export const salesTransactions = sqliteTable(
     netReceived: text("net_received"),
     gp1: text("gp1"),
     expense: text("expense"),
+    // Imported CPI column "Total". Nullable so historic Sales imports remain
+    // valid until Commission is present in an approved source workbook.
+    commission: text("commission"),
     salespersonCode: text("salesperson_code"),
     salespersonName: text("salesperson_name"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

@@ -34,6 +34,7 @@ const salesCanonicalTransactionFields = [
   "gp1",
   "gp_percent",
   "expense",
+  "commission",
 ];
 
 export const dataSourceDefinitions: DataSourceDefinition[] = [
@@ -68,6 +69,7 @@ export const dataSourceDefinitions: DataSourceDefinition[] = [
       field("gp1", "Gross Profit", "number", false),
       field("gp_percent", "GP Percent", "number", false),
       field("expense", "Expense", "number", false),
+      field("commission", "Commission", "number", false),
     ],
     duplicateKey: salesCanonicalTransactionFields,
   },

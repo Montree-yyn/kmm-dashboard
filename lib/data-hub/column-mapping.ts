@@ -71,6 +71,9 @@ const aliases: Record<string, string[]> = {
   net_received: ["net received", "net amount"],
   gp1: ["gp1", "gross profit", "gross profit 1", "gp"],
   expense: ["expense", "expenses", "total expense"],
+  // CPI's standalone "Total" is the Commission amount. Do not broaden this
+  // to Expense or Total Expense, which are a different verified field.
+  commission: ["total", "commission", "commission total"],
   gp_percent: ["percent gp", "gp percent", "percent gross profit"],
   sales_value: ["price", "sales amount", "sale amount", "sales value", "amount"],
   sale_amount: ["price", "sales amount", "sale amount", "sales value", "amount"],
@@ -213,7 +216,7 @@ export function applyColumnMappings(
 }
 
 function normalizeCanonicalValue(fieldKey: string, value: unknown) {
-  const numericFields = ["quantity", "sale_amount", "sales_value", "msrp", "net_received", "final_received", "expense", "gp1", "gp_percent", "amount", "booking_price", "deposit_amount", "price", "deposit", "kmm_flag", "stock_age_days"];
+  const numericFields = ["quantity", "sale_amount", "sales_value", "msrp", "net_received", "final_received", "expense", "commission", "gp1", "gp_percent", "amount", "booking_price", "deposit_amount", "price", "deposit", "kmm_flag", "stock_age_days"];
   if (numericFields.includes(fieldKey) && /^(?:-|—|n\/?a)$/i.test(String(value ?? "").trim())) return null;
   if (fieldKey === "branch") {
     const branch = String(value ?? "").trim();

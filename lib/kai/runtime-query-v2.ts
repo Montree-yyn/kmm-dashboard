@@ -60,11 +60,14 @@ type Plan = {
 };
 type Period = { start: string; end: string; label: string };
 type Constraints = {
-  branch?: string;
+  branches?: string[];
   product?: ProductGroup;
   model?: string;
   salesperson?: string;
+  customer?: string;
   paymentStatus?: string;
+  sort: "units" | "value";
+  limit: number;
   period: Period;
   explicitPeriod: boolean;
 };
@@ -104,7 +107,7 @@ export async function executeKaiRuntimeQuery(
     throw new KaiRuntimeQueryError("Only read-only business questions are supported.", "unsupported_question");
   }
   const knowledge = await loadKnowledge(database);
-  const intent = resolveIntent(clean);
+  const intent = resolveIntent(clean, context);
   if (intent === "BOOKING_PAYMENT_UNAVAILABLE") {
     return unavailableResult(knowledge, "BOOKING_CURRENT_MONTH", intent,
       "ไม่มีข้อมูล Payment Type “Cash” ที่ยืนยันได้ในฐานข้อมูลปัจจุบัน จึงไม่สามารถตอบคำถามนี้ได้");
@@ -112,6 +115,14 @@ export async function executeKaiRuntimeQuery(
   if (intent === "BOOKING_OUTSTANDING_UNAVAILABLE") {
     return unavailableResult(knowledge, "BOOKING_CURRENT_MONTH", intent,
       "ยังไม่มี business definition ที่ยืนยันได้สำหรับ Outstanding Booking จึงไม่สามารถคำนวณได้");
+  }
+  if (intent === "CUSTOMER_PURCHASE_UNAVAILABLE") {
+    return unavailableResult(knowledge, "CUSTOMER_BOOKING_QUERY", intent,
+      "ฐานข้อมูลที่ยืนยันได้มีข้อมูลลูกค้าเฉพาะ Booking และไม่มีข้อมูลการซื้อหรือส่งมอบรายลูกค้าสำหรับคำถามนี้");
+  }
+  if (intent === "AMBIGUOUS_METRIC") {
+    return ambiguousResult(knowledge,
+      "คำถามยังไม่ระบุ metric ที่ต้องการ กรุณาระบุ Sales, Booking, Stock, GP, Target หรือ Value ให้ชัดเจน");
   }
   if (!intent) {
     throw new KaiRuntimeQueryError("This question is not covered by the current KAI Knowledge Layer.", "unsupported_question");
@@ -196,7 +207,7 @@ function metricsForIntent(intent: string, questionRows: QuestionRow[], metrics: 
     .map((metric) => ({ code: metric.metric_code, name: metric.metric_name, unitType: metric.unit_type, formula: metric.formula }));
 }
 
-function resolveIntent(question: string): string | null {
+function resolveIntent(question: string, context: RuntimeQueryContext): string | null {
   const q = question.toLowerCase();
   const has = (pattern: RegExp) => pattern.test(question);
   const booking = has(/booking|ยอดจอง|รับจอง|ใบจอง|จอง/iu);
@@ -205,73 +216,122 @@ function resolveIntent(question: string): string | null {
   const target = has(/\btarget\b|เป้า|achievement|\bgap\b/iu);
   const customer = has(/ลูกค้า|\bcustomer\b/iu);
   const salesperson = has(/salesperson|salesman|พนักงานขาย|เซลส์|ใครขาย/iu);
+  const comparison = has(/เทียบ|compare|\bvs\.?\b|versus/iu);
+  const namedBranches = resolveBranches(question, context);
+  const product = parseProduct(question);
+  const explicitDateToken = has(/mtd|ytd|today|yesterday|this month|current month|this week|current week|last month|previous month|this quarter|current quarter|last quarter|previous quarter|เดือนนี้|ปีนี้|ปี\s*20\d{2}|เดือน\s*\d{1,2}|20\d{2}-\d{2}-\d{2}|(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)|(?:january|february|march|april|may|june|july|august|september|october|november|december)/iu);
+  const shortSales = Boolean(namedBranches.length && product && explicitDateToken && !booking && !stock);
 
   if (booking && has(/cash|payment\s*type|ชำระเงิน/iu)) return "BOOKING_PAYMENT_UNAVAILABLE";
   if (booking && has(/outstanding/iu)) return "BOOKING_OUTSTANDING_UNAVAILABLE";
+  if (customer && has(/ซื้อ|purchase|bought|buy/iu)) return "CUSTOMER_PURCHASE_UNAVAILABLE";
   if (customer && booking) return "CUSTOMER_BOOKING_QUERY";
   if (target) {
     if (has(/ขาดเป้า|\bgap\b/iu)) return "SALES_GAP_QUERY";
     if (has(/ได้กี่เปอร์เซ็นต์|achievement/iu)) return "SALES_ACHIEVEMENT_QUERY";
     return "TARGET_CURRENT_QUERY";
   }
-  if (salesperson && sales) return "SALES_PERSON_RANKING";
+  if (salesperson && (sales || shortSales || has(/ranking|อันดับ|top|มากที่สุด|สูงสุด/iu) || explicitDateToken)) return "SALES_PERSON_RANKING";
   if (booking) {
-    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน/iu)) return has(/รายการ|อะไรบ้าง|รายชื่อ/iu) ? "BOOKING_AGING_LIST" : "BOOKING_AGING";
+    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน|(?:over|older than|aged?).*\d+\s*days|>\s*\d+\s*(?:วัน|days)/iu)) return has(/รายการ|อะไรบ้าง|รายชื่อ|list/iu) ? "BOOKING_AGING_LIST" : "BOOKING_AGING";
     if (has(/conversion|เปลี่ยน.*ส่งมอบ/iu)) return "BOOKING_CONVERSION_QUERY";
-    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ)|(?:มากที่สุด|สูงสุด|อันดับ).*สาขา/iu)) return "BOOKING_BRANCH_RANKING";
-    if (has(/รุ่น|model|product/iu) && has(/มากที่สุด|สูงสุด|อันดับ/iu)) return "BOOKING_MODEL_RANKING";
-    if (has(/เทียบ.*ปี|ปี.*เทียบ/iu)) return "BOOKING_YOY_COMPARE";
-    if (has(/เทียบ.*เดือน|เดือน.*เทียบ/iu)) return "BOOKING_MONTH_COMPARE";
+    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "BOOKING_BRANCH_RANKING";
+    if (has(/รุ่น|model|product/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "BOOKING_MODEL_RANKING";
+    if (has(/เทียบ.*ปี|ปี.*เทียบ|compare.*year|year.*compare|previous year|yoy/iu)) return "BOOKING_YOY_COMPARE";
+    if (has(/เทียบ.*เดือน|เดือน.*เทียบ|compare.*month|month.*compare/iu)) return "BOOKING_MONTH_COMPARE";
     if (has(/มูลค่า|value|ราคา/iu)) return "BOOKING_VALUE_CURRENT";
-    if (has(/ปี\s*20\d{2}|เดือน\s*\d|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|january|february|march|april|may|june|july|august|september|october|november|december/iu)) return "BOOKING_HISTORY_QUERY";
+    if (has(/ปี\s*20\d{2}|เดือน\s*\d|20\d{2}-\d{2}-\d{2}|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|january|february|march|april|may|june|july|august|september|october|november|december/iu)) return "BOOKING_HISTORY_QUERY";
     return "BOOKING_CURRENT_MONTH";
   }
   if (stock) {
-    if (has(/เกิน\s*180\s*วัน|slow\s*moving/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_SLOW_MOVING_MODEL_RANKING" : "STOCK_SLOW_MOVING_QUERY";
-    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน|รถค้าง/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_AGING_MODEL" : "STOCK_AGING_QUERY";
-    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ)|(?:มากที่สุด|สูงสุด|อันดับ).*สาขา/iu)) return "STOCK_BRANCH_RANKING";
-    if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ/iu)) return "STOCK_MODEL_RANKING";
+    if (has(/เกิน\s*180\s*วัน|slow\s*moving|(?:over|older than|aged?).*180\s*days|>\s*180\s*(?:วัน|days)/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_SLOW_MOVING_MODEL_RANKING" : "STOCK_SLOW_MOVING_QUERY";
+    if (has(/เกิน\s*\d+\s*วัน|อายุ.*วัน|รถค้าง|aging|(?:over|older than|aged?).*\d+\s*days|>\s*\d+\s*(?:วัน|days)/iu)) return has(/รุ่น|model|อะไรบ้าง/iu) ? "STOCK_AGING_MODEL" : "STOCK_AGING_QUERY";
+    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "STOCK_BRANCH_RANKING";
+    if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "STOCK_MODEL_RANKING";
     if (has(/มูลค่า|value|msrp/iu)) return "STOCK_VALUE_CURRENT";
-    if (has(/รุ่น|model/iu)) return "STOCK_MODEL_QUERY";
+    if (has(/รุ่น|model/iu) || parseModel(question, context)) return "STOCK_MODEL_QUERY";
     return "STOCK_CURRENT";
   }
-  if (sales || has(/\bgp\b|gross profit|กำไรขั้นต้น/iu)) {
+  if (sales || shortSales || has(/\bgp\b|gross profit|กำไรขั้นต้น/iu)) {
     if (has(/\bgp\b|gross profit|กำไรขั้นต้น/iu)) return "SALES_GP_QUERY";
-    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|ดีที่สุด).*สาขา/iu)) return "SALES_BRANCH_RANKING";
-    if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ|ดีที่สุด/iu)) return "SALES_MODEL_RANKING";
-    if (has(/product type|product.*(?:มากที่สุด|สูงสุด|อันดับ|ดีที่สุด)/iu)) return "SALES_PRODUCT_RANKING";
-    if (has(/โต.*ปีที่แล้ว|growth/iu)) return "SALES_GROWTH_QUERY";
-    if (has(/เทียบ.*ปี|ปี.*เทียบ/iu)) return "SALES_YOY_COMPARE";
-    if (has(/เทียบ.*เดือน|เดือน.*เทียบ/iu)) return "SALES_MONTH_COMPARE";
+    if (has(/สาขา.*(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด)|(?:มากที่สุด|สูงสุด|อันดับ|top|ดีที่สุด).*สาขา|branch.*(?:ranking|top|highest|most)|(?:ranking|top|highest|most).*branch/iu) || (comparison && namedBranches.length >= 2)) return "SALES_BRANCH_RANKING";
+    if (has(/รุ่น|model/iu) && has(/มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most/iu)) return "SALES_MODEL_RANKING";
+    if (has(/product type|product.*(?:มากที่สุด|สูงสุด|อันดับ|top|ranking|ดีที่สุด|highest|most)/iu)) return "SALES_PRODUCT_RANKING";
+    if (has(/โต.*ปีที่แล้ว|จากปีที่แล้ว|growth/iu)) return "SALES_GROWTH_QUERY";
+    if (has(/เทียบ.*ปี|ปี.*เทียบ|compare.*year|year.*compare|previous year|yoy/iu)) return "SALES_YOY_COMPARE";
+    if (has(/เทียบ.*เดือน|เดือน.*เทียบ|compare.*month|month.*compare/iu)) return "SALES_MONTH_COMPARE";
     if (has(/มูลค่า|value|เท่าไร/iu) && /\bvalue\b|มูลค่า/iu.test(q)) return "SALES_VALUE_CURRENT";
-    if (has(/ปีนี้|this year|ปี\s*20\d{2}|เดือน\s*\d|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|january|february|march|april|may|june|july|august|september|october|november|december/iu)) return "SALES_HISTORY_QUERY";
+    if (has(/ปีนี้|this year|ปี\s*20\d{2}|เดือน\s*\d|20\d{2}-\d{2}-\d{2}|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|january|february|march|april|may|june|july|august|september|october|november|december/iu)) return "SALES_HISTORY_QUERY";
     return "SALES_CURRENT_MONTH";
   }
-  return null;
+  return looksAmbiguous(question, namedBranches) ? "AMBIGUOUS_METRIC" : null;
 }
 
 function parseConstraints(question: string, context: RuntimeQueryContext): Constraints {
   const now = context.now ?? new Date();
   const date = dateParts(now, context.timeZone);
-  const periodResult = parsePeriod(question, date.year, date.month);
-  const branchMatch = question.match(/\bKMM0[1-3]\b/i)?.[0]?.toUpperCase();
-  const branch = branchMatch && (!context.branches?.length || context.branches.some((row) => row.code.toUpperCase() === branchMatch))
-    ? branchMatch
-    : undefined;
+  const periodResult = parsePeriod(question, date.year, date.month, date.day);
+  const branches = resolveBranches(question, context);
   const paymentStatus = ["A HOT", "B HOT", "FAIL", "S"]
     .find((value) => new RegExp(`\\b${value.replace(" ", "\\s+")}\\b`, "i").test(question));
   return {
     period: periodResult.period,
     explicitPeriod: periodResult.explicit,
-    branch,
+    branches,
     product: parseProduct(question),
-    model: parseModel(question),
+    model: parseModel(question, context),
     salesperson: parseSalesperson(question),
+    customer: parseCustomer(question),
     paymentStatus,
+    sort: /\b(?:value|มูลค่า|ราคา)\b/i.test(question) ? "value" : "units",
+    limit: parseLimit(question),
   };
 }
 
-function parsePeriod(question: string, currentYear: number, currentMonth: number) {
+function parsePeriod(question: string, currentYear: number, currentMonth: number, currentDay = 1) {
+  const dateRange = question.match(/\b(20\d{2}-\d{2}-\d{2})\b\s*(?:ถึง|to|through|จนถึง|-)\s*\b(20\d{2}-\d{2}-\d{2})\b/i);
+  if (dateRange && dateRange[1] <= dateRange[2]) {
+    return { period: { start: dateRange[1], end: dateRange[2], label: dateRange[1] + " – " + dateRange[2] }, explicit: true };
+  }
+  const today = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay));
+  if (/เมื่อวาน|yesterday/i.test(question)) {
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - 1);
+    const value = isoDate(day);
+    return { period: { start: value, end: value, label: value }, explicit: true };
+  }
+  if (/วันนี้|today/i.test(question)) {
+    const value = isoDate(today);
+    return { period: { start: value, end: value, label: value }, explicit: true };
+  }
+  if (/สัปดาห์นี้|this week|current week/i.test(question)) {
+    const start = new Date(today);
+    const day = start.getUTCDay();
+    start.setUTCDate(start.getUTCDate() - ((day + 6) % 7));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    return { period: { start: isoDate(start), end: isoDate(end), label: "current week" }, explicit: true };
+  }
+  if (/เดือนก่อน|เดือนที่แล้ว|last month|previous month/i.test(question) && !/เทียบ|compare|vs/i.test(question)) {
+    return { period: makeMonth(currentYear, currentMonth - 1), explicit: true };
+  }
+  if (/ไตรมาสนี้|this quarter|current quarter/i.test(question)) {
+    return { period: makeQuarter(currentYear, Math.floor((currentMonth - 1) / 3)), explicit: true };
+  }
+  if (/ไตรมาสที่แล้ว|ไตรมาสก่อน|last quarter|previous quarter/i.test(question)) {
+    return { period: makeQuarter(currentYear, Math.floor((currentMonth - 1) / 3) - 1), explicit: true };
+  }
+  if (/ปีที่แล้ว|last year|previous year/i.test(question)) {
+    return { period: { start: (currentYear - 1) + "-01-01", end: (currentYear - 1) + "-12-31", label: String(currentYear - 1) }, explicit: true };
+  }
+  if (/mtd|month.to.date|เดือนนี้ถึงวันนี้/i.test(question)) {
+    const value = isoDate(today);
+    return { period: { start: currentYear + "-" + String(currentMonth).padStart(2, "0") + "-01", end: value, label: currentYear + "-" + String(currentMonth).padStart(2, "0") + " MTD" }, explicit: true };
+  }
+  if (/ytd|year.to.date|ปีนี้ถึงวันนี้/i.test(question)) {
+    const value = isoDate(today);
+    return { period: { start: currentYear + "-01-01", end: value, label: currentYear + " YTD" }, explicit: true };
+  }
   const numeric = question.match(/เดือน\s*(\d{1,2})\s*(?:ปี\s*)?(20\d{2})?/iu);
   if (numeric) {
     const month = Number(numeric[1]);
@@ -299,8 +359,23 @@ function namesMatch(question: string, names: string[]) {
 }
 
 function makeMonth(year: number, month: number): Period {
-  const end = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return { start: `${year}-${String(month).padStart(2, "0")}-01`, end: `${year}-${String(month).padStart(2, "0")}-${String(end).padStart(2, "0")}`, label: `${year}-${String(month).padStart(2, "0")}` };
+  const normalized = new Date(Date.UTC(year, month - 1, 1));
+  const normalizedYear = normalized.getUTCFullYear();
+  const normalizedMonth = normalized.getUTCMonth() + 1;
+  const end = new Date(Date.UTC(normalizedYear, normalizedMonth, 0)).getUTCDate();
+  const monthText = String(normalizedMonth).padStart(2, "0");
+  return { start: `${normalizedYear}-${monthText}-01`, end: `${normalizedYear}-${monthText}-${String(end).padStart(2, "0")}`, label: `${normalizedYear}-${monthText}` };
+}
+
+function makeQuarter(year: number, quarter: number): Period {
+  const normalizedYear = year + Math.floor(quarter / 4);
+  const normalizedQuarter = ((quarter % 4) + 4) % 4;
+  const startMonth = normalizedQuarter * 3 + 1;
+  return { start: makeMonth(normalizedYear, startMonth).start, end: makeMonth(normalizedYear, startMonth + 2).end, label: normalizedYear + " Q" + (normalizedQuarter + 1) };
+}
+
+function isoDate(value: Date) {
+  return value.getUTCFullYear() + "-" + String(value.getUTCMonth() + 1).padStart(2, "0") + "-" + String(value.getUTCDate()).padStart(2, "0");
 }
 
 function parseProduct(question: string): ProductGroup | undefined {
@@ -314,14 +389,52 @@ function parseProduct(question: string): ProductGroup | undefined {
   return undefined;
 }
 
-function parseModel(question: string) {
+function parseModel(question: string, context?: RuntimeQueryContext) {
   const match = question.match(/(?:รุ่น|model)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{1,50}?)(?=\s*(?:มี|เหลือ|ขาย|จอง|stock|สต็อก|เดือน|ปี|เท่าไร|กี่|มากที่สุด|$))/iu);
-  return match?.[1]?.trim() || undefined;
+  if (match?.[1]?.trim()) return match[1].trim();
+  const trailingStock = question.match(/^\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{2,50}?)\s+(?:stock|สต็อก)\s*$/iu)?.[1]?.trim();
+  const isKnownBranch = context?.branches?.some((branch) => branch.code.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0 || branch.name.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0);
+  if (trailingStock && !isKnownBranch && !/^(?:TT|CH|EX|TP|IM|IMO|OT|tractor|combine|excavator|transplanter|other|current|now|value|aging|slow\s*moving)$/iu.test(trailingStock)) return trailingStock;
+  return undefined;
 }
 
 function parseSalesperson(question: string) {
   const match = question.match(/(?:salesperson|พนักงานขาย|เซลส์)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9 .()\-]{2,60}?)(?=\s*(?:ขาย|เดือน|ปี|เท่าไร|กี่|$))/iu);
   return match?.[1]?.trim() || undefined;
+}
+
+function parseCustomer(question: string) {
+  const match = question.match(/(?:ลูกค้า|customer)\s*[:：]?\s*([A-Za-z][A-Za-z .()\-]{2,60}?)(?=\s*(?:จอง|booking|เดือน|ปี|เท่าไร|กี่|$))/iu);
+  return match?.[1]?.trim() || undefined;
+}
+
+function parseLimit(question: string) {
+  const match = question.match(/(?:top|อันดับ|สูงสุด|มากที่สุด)\s*(\d{1,2})/iu)
+    ?? question.match(/(\d{1,2})\s*(?:อันดับ|รายการ|รายการแรก)/iu);
+  return Math.max(1, Math.min(50, Number(match?.[1] ?? 50)));
+}
+
+function resolveBranches(question: string, context: RuntimeQueryContext) {
+  const available = context.branches ?? [];
+  const normalized = question.toLocaleLowerCase();
+  const named = available
+    .filter((branch) => normalized.includes(branch.code.toLocaleLowerCase()) || (branch.name && normalized.includes(branch.name.toLocaleLowerCase())))
+    .map((branch) => branch.code.toUpperCase());
+  const shorthand = [...question.matchAll(/(?:^|\s)0([123])(?:\s|$)/g)].map((match) => "KMM0" + match[1]);
+  return [...new Set([...named, ...shorthand].filter((code) => !available.length || available.some((branch) => branch.code.toUpperCase() === code)))];
+}
+
+function looksAmbiguous(question: string, branches: string[]) {
+  const trimmed = question.trim();
+  const hasBareModel = /^[A-Za-z0-9+()\- .]{3,60}\s*(?:เท่าไร|เท่าไหร่|กี่คัน|how many|how much)?[?؟!]*$/iu.test(trimmed);
+  const hasBareBranch = branches.length > 0 && !/\b(?:sales|booking|stock|gp|target|value|ยอดขาย|ยอดจอง|สต็อก|คงเหลือ|กำไร|เป้า)\b/iu.test(trimmed);
+  return hasBareModel || hasBareBranch || /^(?:ยอด|amount|total)\s+(?:KMM0[1-3])$/iu.test(trimmed);
+}
+
+function ambiguousResult(knowledge: Awaited<ReturnType<typeof loadKnowledge>>, text: string): RuntimeQueryResult {
+  const metrics = metricsForIntent("SALES_CURRENT_MONTH", knowledge.questions, knowledge.metrics);
+  const metric = metrics[0] ?? { code: "AMBIGUOUS", name: "Ambiguous", unitType: "N/A", formula: "N/A" };
+  return { intent: "AMBIGUOUS_METRIC", metric, metrics, data: { available: false, ambiguous: true, reason: text }, response: { template: "ambiguous question", text } };
 }
 
 async function executePlan(
@@ -363,7 +476,10 @@ function scopedWhere(table: "sales_transactions" | "booking_transactions", dateF
     parts.push(`"${dateField}" >= ?`, `"${dateField}" <= ?`);
     values.push(constraints.period.start, constraints.period.end);
   }
-  if (constraints.branch) { parts.push('"branch" = ?'); values.push(constraints.branch); }
+  if (constraints.branches?.length) {
+    parts.push(constraints.branches.length === 1 ? '"branch" = ?' : '"branch" IN (' + constraints.branches.map(() => "?").join(", ") + ")");
+    values.push(...constraints.branches);
+  }
   const codes = constraints.product ? PRODUCT_CODES[domain][constraints.product] : undefined;
   if (codes?.length) { parts.push(`"product_type" IN (${codes.map(() => "?").join(", ")})`); values.push(...codes); }
   if (constraints.product && !codes?.length) parts.push("1 = 0");
@@ -404,7 +520,7 @@ async function salesRanking(database: RuntimeQueryDatabase, constraints: Constra
   if (!field) throw new KaiRuntimeQueryError("Invalid Sales ranking group.", "knowledge_error");
   const where = salesWhere(constraints);
   const output = await rows<Record<string, unknown>>(database,
-    `SELECT "${field}" AS label, COALESCE(SUM(CASE WHEN "product_type" IN (${SALES_UNIT_CODES.map(() => "?").join(", ")}) THEN "quantity" ELSE 0 END), 0) AS units, SUM(CAST("final_received" AS REAL)) AS value FROM "sales_transactions" WHERE ${where.sql} GROUP BY "${field}" ORDER BY units DESC, value DESC LIMIT 50`,
+    `SELECT "${field}" AS label, COALESCE(SUM(CASE WHEN "product_type" IN (${SALES_UNIT_CODES.map(() => "?").join(", ")}) THEN "quantity" ELSE 0 END), 0) AS units, SUM(CAST("final_received" AS REAL)) AS value FROM "sales_transactions" WHERE ${where.sql} GROUP BY "${field}" ORDER BY ${constraints.sort === "value" ? "value DESC, units DESC" : "units DESC, value DESC"} LIMIT ${constraints.limit}`,
     [...SALES_UNIT_CODES, ...bindCompany(where.values, companyId)]);
   return { period: constraints.period, ranking: output.map((row) => ({ label: String(row.label ?? "ไม่ระบุ"), units: number(row.units), value: nullableNumber(row.value) })) };
 }
@@ -446,7 +562,7 @@ async function bookingRanking(database: RuntimeQueryDatabase, constraints: Const
   if (!field) throw new KaiRuntimeQueryError("Invalid Booking ranking group.", "knowledge_error");
   const where = bookingWhere(constraints);
   const output = await rows<Record<string, unknown>>(database,
-    `SELECT "${field}" AS label, COUNT(*) AS units, SUM(CAST("booking_price" AS REAL)) AS value FROM "booking_transactions" WHERE ${where.sql} GROUP BY "${field}" ORDER BY units DESC, value DESC LIMIT 50`,
+    `SELECT "${field}" AS label, COUNT(*) AS units, SUM(CAST("booking_price" AS REAL)) AS value FROM "booking_transactions" WHERE ${where.sql} GROUP BY "${field}" ORDER BY ${constraints.sort === "value" ? "value DESC, units DESC" : "units DESC, value DESC"} LIMIT ${constraints.limit}`,
     bindCompany(where.values, companyId));
   return { period: constraints.period, ranking: output.map((row) => ({ label: String(row.label ?? "ไม่ระบุ"), units: number(row.units), value: nullableNumber(row.value) })) };
 }
@@ -493,7 +609,10 @@ async function stockRows(database: RuntimeQueryDatabase, constraints: Constraint
     parts.push('"as_of_date" >= ?', '"as_of_date" <= ?');
     values.push(constraints.period.start, constraints.period.end);
   }
-  if (constraints.branch) { parts.push('"branch" = ?'); values.push(constraints.branch); }
+  if (constraints.branches?.length) {
+    parts.push(constraints.branches.length === 1 ? '"branch" = ?' : '"branch" IN (' + constraints.branches.map(() => "?").join(", ") + ")");
+    values.push(...constraints.branches);
+  }
   if (constraints.product) {
     const codes = PRODUCT_CODES.stock[constraints.product];
     if (!codes?.length) parts.push("1 = 0");
@@ -525,7 +644,11 @@ async function stockAging(database: RuntimeQueryDatabase, constraints: Constrain
 async function stockRanking(database: RuntimeQueryDatabase, constraints: Constraints, groupBy: string, threshold: number | undefined, companyId = "") {
   const field = groupBy === "branch" ? "branch" : "product_model";
   const selected = threshold === undefined ? await stockRows(database, constraints, companyId) : (await stockRows(database, constraints, companyId)).filter((row) => number(row.stock_age_days) > threshold);
-  const ranking = grouped(selected.map((row) => ({ label: String(row[field] ?? "ไม่ระบุ"), value: nullableNumber(row.msrp), ageDays: number(row.stock_age_days) })), "label");
+  const ranking = grouped(selected.map((row) => ({ label: String(row[field] ?? "ไม่ระบุ"), value: nullableNumber(row.msrp), ageDays: number(row.stock_age_days) })), "label")
+    .sort((left, right) => constraints.sort === "value"
+      ? (right.value ?? 0) - (left.value ?? 0) || right.quantity - left.quantity
+      : right.quantity - left.quantity || (right.value ?? 0) - (left.value ?? 0))
+    .slice(0, constraints.limit);
   return { snapshotDate: selected[0]?.as_of_date ?? null, thresholdDays: threshold ?? null, ranking };
 }
 

@@ -150,29 +150,28 @@ test("Phase 2A stores executable plans in the Knowledge Layer", () => {
   assert.match(stockMappingMigration, /classifyStockModelFallback/);
 });
 
-test("Runtime yields richer business questions to the legacy deterministic tool", { skip: !databasePath }, async () => {
+test("Phase 2B runtime executes richer business questions with verified scoped plans", { skip: !databasePath }, async () => {
   const database = new LocalSqliteDatabase(databasePath);
-  for (const question of [
-    "เดือนนี้สาขาไหนขายสูงสุด",
-    "เดือนนี้สาขาไหนมี Booking มากที่สุด",
-    "เดือนนี้สาขาไหนมี Stock มากที่สุด",
-    "สินค้าไหนมี Stock สูงแต่ยอดขายต่ำ",
-    "ยอดขายเดือนนี้เทียบเดือนที่แล้ว",
-  ]) {
-    await assert.rejects(
-      runtime.executeKaiRuntimeQuery(database, question, {
-        companyId: "kmm-company",
-        timeZone: "Asia/Yangon",
-        now: new Date("2026-08-12T12:00:00.000Z"),
-      }),
-      (error) => error?.code === "unsupported_question",
-      question,
-    );
-  }
-  assert.equal(
-    database.history.filter((query) => /FROM (?:sales|booking|stock)_transactions/i.test(query)).length,
-    0,
-  );
+  const context = {
+    companyId: "kmm-company",
+    timeZone: "Asia/Yangon",
+    now: new Date("2026-08-12T12:00:00.000Z"),
+    branches: [
+      { code: "KMM01", name: "Hpa-an" },
+      { code: "KMM02", name: "Mawlamyine" },
+      { code: "KMM03", name: "Tharyarwaddy" },
+    ],
+  };
+  const sales = await runtime.executeKaiRuntimeQuery(database, "KMM03 ขาย Combine เดือนกรกฎาคม 2026 กี่คัน", context);
+  assert.equal(sales.intent, "SALES_HISTORY_QUERY");
+  assert.equal(sales.data.salesUnit, 7);
+  const booking = await runtime.executeKaiRuntimeQuery(database, "KMM02 มี Booking เท่าไร", context);
+  assert.equal(booking.intent, "BOOKING_CURRENT_MONTH");
+  assert.equal(booking.data.bookingUnit, 3);
+  const stock = await runtime.executeKaiRuntimeQuery(database, "Stock CH อายุเกิน 90 วันใน KMM01 มีกี่คัน", context);
+  assert.equal(stock.intent, "STOCK_AGING_QUERY");
+  assert.equal(stock.data.total, 10);
+  assert.ok(database.history.some((query) => /"branch" = 'KMM03'/i.test(query)));
 });
 
 test("five supported questions execute through local Operations D1", { skip: !databasePath }, async () => {

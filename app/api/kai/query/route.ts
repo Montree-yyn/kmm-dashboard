@@ -27,6 +27,13 @@ export async function POST(request: Request) {
     const result = await executeKaiRuntimeQuery(database, input.question, {
       companyId: context.id,
       timeZone: context.timeZone,
+      // Branch Master is loaded by the permission-checked Company context.
+      // It is passed as read-only vocabulary; no Branch data is copied into
+      // Operations D1 and a client-provided branch can never grant access.
+      branches: context.branches.map((branch) => ({
+        code: branch.code,
+        name: branch.name,
+      })),
     });
     return Response.json(
       {

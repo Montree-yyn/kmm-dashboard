@@ -23,6 +23,12 @@ import {
   assertImportBranches,
   ImportScopeError,
 } from "../../../../lib/server/import-branch-validation";
+import {
+  APPROVED_SALES_INCREMENTAL_GUARD,
+  buildSalesIncrementalPreview,
+  type ApprovedSalesIncrementalGuard,
+  type SalesIncrementalRow,
+} from "../../../../lib/data-hub/sales-incremental";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +82,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const payload = await request.json() as {
-      action?: "replace" | "save_mapping";
+      action?: "replace" | "append" | "preview" | "save_mapping";
+      mode?: "replace" | "append";
       companyId?: string;
       year?: number;
       month?: number;
@@ -84,6 +91,7 @@ export async function POST(request: Request) {
       rows?: SalesRow[];
       mapping?: Record<string, string | null>;
       validation?: { totalRows: number; validRows: number; warningCells: number; invalidRows: number; issues?: unknown[] };
+      guard?: ApprovedSalesIncrementalGuard;
     };
     const context = await requireCompanyContext(request, {
       companyId: payload.companyId,
@@ -101,13 +109,22 @@ export async function POST(request: Request) {
       }).onConflictDoUpdate({ target: [dataColumnMappings.companyId, dataColumnMappings.module], set: { mapping: JSON.stringify(payload.mapping), updatedAt: new Date().toISOString(), updatedBy: context.user.id } });
       return json({ ok: true });
     }
-    if (payload.action !== "replace" || !Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return json({ error: "Company, year and month are required." }, 400);
+    const mode = payload.mode ?? "replace";
+    if (mode !== "replace" && mode !== "append") return json({ error: "Sales import mode must be replace or append." }, 400);
+    if (payload.action === "preview" && mode !== "append") return json({ error: "Only append imports support a pre-commit preview." }, 400);
+    if (payload.action === "append" && mode !== "append") return json({ error: "Append action requires mode=append." }, 400);
+    if (mode === "append" && payload.action !== "append" && payload.action !== "preview") return json({ error: "Append mode requires action=preview or action=append." }, 400);
+    if (mode === "replace" && payload.action !== "replace") return json({ error: "Replace mode requires action=replace." }, 400);
+    if (payload.action !== "replace" && payload.action !== "append" && payload.action !== "preview") return json({ error: "Company, year and month are required." }, 400);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return json({ error: "Company, year and month are required." }, 400);
     if (!payload.rows?.length || payload.rows.length > 50_000) return json({ error: "The import must contain between 1 and 50,000 rows." }, 400);
     await assertImportBranches(
       context.companyDb,
       companyId,
       payload.rows.map((row) => row.branch),
     );
+    const appendGuardValid = mode === "append" && hasApprovedIncrementalGuard(payload.guard);
+    if (mode === "append" && !appendGuardValid) return json({ error: "The approved 11-row incremental safety gate is required." }, 400);
     const importId = crypto.randomUUID();
     const startedAt = Date.now();
     const masterRows = await db.select().from(salespersonMaster).where(and(eq(salespersonMaster.companyId, companyId), eq(salespersonMaster.status, "active")));
@@ -132,6 +149,50 @@ export async function POST(request: Request) {
       if ((employeeCode || salespersonCode) && !master) unmappedEmployeeRows += 1;
       return { id: crypto.randomUUID(), tenantId: context.tenantId, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), commission: numberOrNull(row.commission, "Commission"), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
     });
+    if (mode === "append") {
+      const existingRows = await db.select({
+        id: salesTransactions.id,
+        saleDate: salesTransactions.saleDate,
+        invoiceNo: salesTransactions.invoiceNo,
+        branch: salesTransactions.branch,
+        modelCode: salesTransactions.modelCode,
+        productType: salesTransactions.productType,
+        employeeCode: salesTransactions.employeeCode,
+        salespersonCode: salesTransactions.salespersonCode,
+        quantity: salesTransactions.quantity,
+        saleAmount: salesTransactions.saleAmount,
+        finalReceived: salesTransactions.finalReceived,
+        gp1: salesTransactions.gp1,
+        commission: salesTransactions.commission,
+      }).from(salesTransactions).where(eq(salesTransactions.companyId, companyId));
+      const scopeViolations = rows.flatMap((row, index) => {
+        const date = String(row.saleDate);
+        const branch = String(row.branch).trim().toUpperCase();
+        const violations: string[] = [];
+        if (date < "2026-08-05" || date > "2026-08-10") violations.push(`row ${index + 2}: sale date must be 2026-08-05 through 2026-08-10`);
+        if (!["KMM01", "KMM02", "KMM03"].includes(branch)) violations.push(`row ${index + 2}: branch is outside the approved KMM01/KMM02/KMM03 scope`);
+        return violations;
+      });
+      const preview = buildSalesIncrementalPreview(rows as SalesIncrementalRow[], existingRows as SalesIncrementalRow[], APPROVED_SALES_INCREMENTAL_GUARD, scopeViolations);
+      if (payload.action === "preview") return json({ ok: true, mode: "append", preview });
+      if (!preview.canCommit) return json({ error: "Incremental Sales import failed its safety gate.", mode: "append", preview }, 409);
+      const newRowIndexes = new Set(preview.classifications.filter((item) => item.status === "NEW").map((item) => item.rowIndex));
+      const rowsToInsert = rows.filter((_, index) => newRowIndexes.has(index));
+      const history = { id: importId, tenantId: context.tenantId, companyId, module: "sales", importYear: year, importMonth: month, filename: payload.filename || "sales-incremental-import.xlsx", status: "success", totalRows: rowsToInsert.length, validRows: rowsToInsert.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: Math.max(1, Date.now() - startedAt), importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
+      const boundParametersPerRow = countBoundParameters(db.insert(salesTransactions).values(rowsToInsert[0]!));
+      const { chunks } = chunkRowsForD1(rowsToInsert, boundParametersPerRow);
+      const statements: Array<Parameters<typeof db.batch>[0][number]> = [];
+      chunks.forEach((chunk) => {
+        const insertStatement = db.insert(salesTransactions).values(chunk);
+        assertStatementWithinD1Budget(insertStatement);
+        statements.push(insertStatement);
+      });
+      const historyStatement = db.insert(dataImportHistory).values(history);
+      assertStatementWithinD1Budget(historyStatement);
+      statements.push(historyStatement);
+      await executeAtomicD1Batch(statements, (batch) => db.batch(batch));
+      return json({ ok: true, mode: "append", importId, importedRows: rowsToInsert.length, dashboardRefresh: true, salesRefresh: true, preview, history: toHistory(history) });
+    }
     const history = { id: importId, tenantId: context.tenantId, companyId, module: "sales", importYear: year, importMonth: month, filename: payload.filename || "sales-import.xlsx", status: "success", totalRows: rows.length, validRows: rows.length, warningRows: (payload.validation?.warningCells ?? 0) + unmappedEmployeeRows, errorRows: 0, durationMs: 0, importedBy: context.user.email || context.user.id, importedAt: new Date().toISOString() };
     // Sales CPI is a full current-state dataset. Each approved import replaces
     // every current Sales transaction for its company; import history remains
@@ -156,6 +217,11 @@ export async function POST(request: Request) {
   } catch (error) {
     return handleError(error);
   }
+}
+
+function hasApprovedIncrementalGuard(value: ApprovedSalesIncrementalGuard | undefined) {
+  if (!value) return false;
+  return (Object.keys(APPROVED_SALES_INCREMENTAL_GUARD) as Array<keyof ApprovedSalesIncrementalGuard>).every((key) => value[key] === APPROVED_SALES_INCREMENTAL_GUARD[key]);
 }
 
 function toHistory(row: Pick<typeof dataImportHistory.$inferSelect, "id" | "filename" | "importedAt" | "importedBy" | "totalRows" | "validRows" | "warningRows" | "errorRows" | "durationMs" | "status">) {

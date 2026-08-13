@@ -36,6 +36,8 @@ import {
 import { parseSpreadsheetFile } from "../../lib/data-hub/parse-spreadsheet";
 import { getImportSourceDefinition } from "../../lib/data-hub/source-definitions";
 import { completeUnifiedModuleImport } from "../../lib/data-hub/unified-import-service";
+import { previewSessionSalesImport } from "../../lib/data-hub/import-service";
+import { APPROVED_SALES_INCREMENTAL_GUARD, type SalesIncrementalPreview } from "../../lib/data-hub/sales-incremental";
 import type {
   ImportHistoryRecord,
   ImportModule,
@@ -71,6 +73,8 @@ type SmartImportState = {
   month: number | null;
   status: "idle" | "reading" | "ready" | "warning" | "blocked" | "importing" | "success";
   error: string | null;
+  approved: boolean;
+  appendPreview: SalesIncrementalPreview | null;
 };
 
 const emptyImportState = (): SmartImportState => ({
@@ -83,6 +87,8 @@ const emptyImportState = (): SmartImportState => ({
   month: null,
   status: "idle",
   error: null,
+  approved: false,
+  appendPreview: null,
 });
 
 function isImportModule(value: unknown): value is ImportModule {
@@ -244,6 +250,7 @@ export function SmartImportCenter() {
   const { selectedCompany } = useCompany();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedModule, setSelectedModule] = useState<ImportModule | "">("");
+  const [salesImportMode, setSalesImportMode] = useState<"replace" | "append">("replace");
   const [autoDetected, setAutoDetected] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(selectedCompany?.code === "KM");
   const [state, setState] = useState<SmartImportState>(emptyImportState);
@@ -327,6 +334,8 @@ export function SmartImportCenter() {
       month: finalParsed.detection?.month.value ?? null,
       status: validation.canImport ? (warningTotal ? "warning" : "ready") : "blocked",
       error,
+      approved: false,
+      appendPreview: null,
     });
   };
 
@@ -370,6 +379,7 @@ export function SmartImportCenter() {
       return;
     }
     setSelectedModule(value);
+    if (value !== "sales") setSalesImportMode("replace");
     setAutoDetected(false);
     if (file) await processFile(file, value);
   };
@@ -389,6 +399,7 @@ export function SmartImportCenter() {
 
   const reset = () => {
     setSelectedModule("");
+    setSalesImportMode("replace");
     setAutoDetected(false);
     setState(emptyImportState());
     if (inputRef.current) inputRef.current.value = "";
@@ -418,8 +429,36 @@ export function SmartImportCenter() {
     URL.revokeObjectURL(url);
   };
 
+  const changeSalesImportMode = (mode: "replace" | "append") => {
+    setSalesImportMode(mode);
+    setState((current) => ({ ...current, approved: false, appendPreview: null, error: null, status: current.validation?.canImport ? "ready" : current.status }));
+  };
+
+  const previewIncrementalImport = async () => {
+    if (selectedModule !== "sales" || !selectedCompanyId || !state.mappedFile || !state.validation?.canImport || !state.year || !state.month) return;
+    setState((current) => ({ ...current, approved: false, appendPreview: null, error: null, status: "importing" }));
+    try {
+      const preview = await previewSessionSalesImport({
+        file: state.mappedFile,
+        validation: state.validation,
+        year: state.year,
+        month: state.month,
+        companyId: selectedCompanyId,
+      });
+      setState((current) => ({ ...current, appendPreview: preview, status: preview.canCommit ? "ready" : "blocked", error: preview.canCommit ? null : preview.violations.join("; ") }));
+    } catch (error) {
+      setState((current) => ({ ...current, status: "blocked", error: error instanceof Error ? error.message : "Incremental preview failed." }));
+    }
+  };
+
+  const approveIncrementalImport = () => {
+    if (!state.appendPreview?.canCommit) return;
+    setState((current) => ({ ...current, approved: true, error: null }));
+  };
+
   const importFile = async () => {
     if (!selectedCompanyId || !selectedModule || !state.mappedFile || !state.validation?.canImport || !state.year || !state.month) return;
+    if (selectedModule === "sales" && salesImportMode === "append" && (!state.appendPreview?.canCommit || !state.approved)) return;
     setState((current) => ({ ...current, status: "importing", error: null }));
     try {
       const record = await completeUnifiedModuleImport({
@@ -431,6 +470,8 @@ export function SmartImportCenter() {
         businessWeek: state.mappedFile.detection?.businessWeek.value ?? null,
         companyId: selectedCompanyId,
         emitRefresh: true,
+        mode: selectedModule === "sales" ? salesImportMode : "replace",
+        appendGuard: selectedModule === "sales" && salesImportMode === "append" ? APPROVED_SALES_INCREMENTAL_GUARD : undefined,
       });
       setHistory((current) => [record, ...current]);
       setState((current) => ({ ...current, status: "success" }));
@@ -515,7 +556,15 @@ export function SmartImportCenter() {
               <div className="text-xs font-semibold text-[var(--text-secondary)]">Active company
                 <div className="mt-1 flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 text-sm font-medium text-[var(--text-primary)]" title={selectedCompany?.name}>{selectedCompany?.code} · <span className="ml-1 min-w-0 truncate">{selectedCompany?.name}</span></div>
               </div>
-              <FileTypeSelect value={selectedModule} disabled={state.status === "reading" || state.status === "importing"} onChange={(value) => void handleTypeChange(value)} />
+              <div className="space-y-2">
+                <FileTypeSelect value={selectedModule} disabled={state.status === "reading" || state.status === "importing"} onChange={(value) => void handleTypeChange(value)} />
+                {selectedModule === "sales" && <label className="block text-xs font-semibold text-[var(--text-secondary)]">Sales import mode
+                  <select aria-label="Sales import mode" value={salesImportMode} disabled={state.status === "reading" || state.status === "importing"} onChange={(event) => changeSalesImportMode(event.target.value as "replace" | "append")} className="mt-1 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-sm font-medium text-[var(--text-primary)]">
+                    <option value="replace">Replace full dataset (existing)</option>
+                    <option value="append">Incremental / Append (approved subset)</option>
+                  </select>
+                </label>}
+              </div>
             </div>
 
             <div className="p-4 sm:p-5">
@@ -565,6 +614,13 @@ export function SmartImportCenter() {
 
                   {state.mappedFile && <PreviewTable file={state.mappedFile} />}
 
+                  {selectedModule === "sales" && salesImportMode === "append" && state.appendPreview && <div className={cn("rounded-[var(--radius-control-lg)] border p-4 text-sm", state.appendPreview.canCommit ? "border-[var(--status-success)]/40 bg-[var(--status-success-bg)]" : "border-[var(--status-danger)]/40 bg-[var(--status-danger-bg)]")} role="status" aria-label="Incremental Sales preview">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Incremental / Append preview</p><span className="rounded-full bg-white/70 px-2 py-1 text-xs font-semibold">No deletion · no overwrite</span></div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><span>Current Sales <strong className="kmm-tabular">{state.appendPreview.currentRows.toLocaleString()}</strong></span><span>NEW <strong className="kmm-tabular">{state.appendPreview.newRows.toLocaleString()}</strong></span><span>Already exists <strong className="kmm-tabular">{state.appendPreview.alreadyExists.toLocaleString()}</strong></span><span>After import <strong className="kmm-tabular">{state.appendPreview.expectedRowsAfter.toLocaleString()}</strong></span></div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><span>Units <strong className="kmm-tabular">+{state.appendPreview.quantityDelta.toLocaleString()}</strong></span><span>Sales Value <strong className="kmm-tabular">+{state.appendPreview.salesValueDelta.toLocaleString()} MMK</strong></span><span>GP <strong className="kmm-tabular">+{state.appendPreview.gpDelta.toLocaleString()} MMK</strong></span><span>Commission <strong className="kmm-tabular">+{state.appendPreview.commissionDelta.toLocaleString()} MMK</strong></span></div>
+                    {!state.appendPreview.canCommit && <p className="mt-3 text-xs font-semibold">Safety gate: {state.appendPreview.violations.join("; ")}</p>}
+                  </div>}
+
                   {state.validation && state.validation.issues.length > 0 && (
                     <details className="group rounded-[var(--radius-control-lg)] border border-[var(--divider)]">
                       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-inset">
@@ -598,8 +654,12 @@ export function SmartImportCenter() {
                     <p className="text-xs text-[var(--text-tertiary)]">{selectedLabel && state.year && state.month ? `${selectedLabel} · ${new Intl.DateTimeFormat("en", { month: "long" }).format(new Date(2020, state.month - 1, 1))} ${state.year}` : "Confirm the detected file type and period before import."}</p>
                     {state.status === "success" ? (
                       <Button type="button" variant="outline" onClick={reset}>Import another file <ArrowRight size={15} aria-hidden="true" /></Button>
+                    ) : selectedModule === "sales" && salesImportMode === "append" && !state.appendPreview ? (
+                      <Button type="button" disabled={!canImport} onClick={() => void previewIncrementalImport()}><ShieldCheck size={16} aria-hidden="true" />Preview incremental append</Button>
+                    ) : selectedModule === "sales" && salesImportMode === "append" && !state.approved ? (
+                      <Button type="button" disabled={!state.appendPreview?.canCommit} onClick={approveIncrementalImport}><CheckCircle2 size={16} aria-hidden="true" />Approve incremental append</Button>
                     ) : (
-                      <Button type="button" disabled={!canImport} onClick={() => void importFile()}>{state.status === "importing" ? <RefreshCw className="animate-spin" size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}Approve &amp; import {selectedLabel ?? "data"}</Button>
+                      <Button type="button" disabled={selectedModule === "sales" && salesImportMode === "append" ? !state.approved : !canImport} onClick={() => void importFile()}>{state.status === "importing" ? <RefreshCw className="animate-spin" size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}{selectedModule === "sales" && salesImportMode === "append" ? "Import approved incremental rows" : <>Approve &amp; import {selectedLabel ?? "data"}</>}</Button>
                     )}
                   </div>
                 </div>

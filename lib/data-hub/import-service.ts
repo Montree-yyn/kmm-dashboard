@@ -5,6 +5,9 @@ import type {
   ValidationSummary,
 } from "./types";
 import { resolveActiveCompanyId } from "../company-context/client-store";
+import { APPROVED_SALES_INCREMENTAL_GUARD, type ApprovedSalesIncrementalGuard, type SalesIncrementalPreview } from "./sales-incremental";
+
+export type SalesImportMode = "replace" | "append";
 
 export type ImportRequest = {
   source: DataSourceDefinition;
@@ -15,7 +18,11 @@ export type ImportRequest = {
   month?: number;
   companyId?: string;
   emitRefresh?: boolean;
+  mode?: SalesImportMode;
+  appendGuard?: ApprovedSalesIncrementalGuard;
 };
+
+export type SalesIncrementalPreviewRequest = Pick<ImportRequest, "file" | "validation" | "year" | "month" | "companyId">;
 
 export type ImportFailureRequest = {
   source: DataSourceDefinition;
@@ -27,14 +34,14 @@ export type ImportFailureRequest = {
 
 // This boundary becomes the Data Hub API client.
 export async function completeSessionImport({
-  source,
   file,
   validation,
-  user,
   year,
   month,
   companyId,
   emitRefresh = true,
+  mode = "replace",
+  appendGuard,
 }: ImportRequest): Promise<ImportHistoryRecord> {
   const startedAt = performance.now();
   if (!validation.canImport) {
@@ -46,19 +53,44 @@ export async function completeSessionImport({
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      action: "replace",
+      action: mode === "append" ? "append" : "replace",
+      mode,
       companyId: resolveActiveCompanyId(companyId),
       year: year ?? new Date(String(file.rows[0]?.sale_date)).getFullYear(),
       month: month ?? new Date(String(file.rows[0]?.sale_date)).getMonth() + 1,
       filename: file.filename,
       rows: file.rows,
       validation,
+      ...(mode === "append" ? { guard: appendGuard ?? APPROVED_SALES_INCREMENTAL_GUARD } : {}),
     }),
   });
   const payload = (await response.json()) as { error?: string; history?: ImportHistoryRecord };
   if (!response.ok || !payload.history) throw new Error(payload.error ?? "Unable to complete this import.");
   if (emitRefresh && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("kmm:sales-imported", { detail: { importId: payload.history.id } }));
   return { ...payload.history, durationMs: Math.max(payload.history.durationMs, Math.round(performance.now() - startedAt)) };
+}
+
+export async function previewSessionSalesImport({ file, validation, year, month, companyId }: SalesIncrementalPreviewRequest): Promise<SalesIncrementalPreview> {
+  if (!validation.canImport) throw new Error("Resolve validation issues before previewing this incremental import.");
+  const token = await getAuthToken();
+  const response = await globalThis["fetch"]("/api/data-hub/sales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      action: "preview",
+      mode: "append",
+      companyId: resolveActiveCompanyId(companyId),
+      year: year ?? new Date(String(file.rows[0]?.sale_date)).getFullYear(),
+      month: month ?? new Date(String(file.rows[0]?.sale_date)).getMonth() + 1,
+      filename: file.filename,
+      rows: file.rows,
+      validation,
+      guard: APPROVED_SALES_INCREMENTAL_GUARD,
+    }),
+  });
+  const payload = await response.json() as { error?: string; preview?: SalesIncrementalPreview };
+  if (!response.ok || !payload.preview) throw new Error(payload.error ?? "Unable to preview this incremental import.");
+  return payload.preview;
 }
 
 export async function persistSalesMapping(mapping: Record<string, string | null>, companyId?: string) {

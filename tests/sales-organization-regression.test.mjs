@@ -215,3 +215,48 @@ test("Sales Organization follows the Golden Reference shell and states", async (
   assert.match(page, /focus-visible:ring-2/);
   assert.match(shell, /motion-reduce:transition-none/);
 });
+
+test("Table and Cards share the filtered ranked dataset without a second data request", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /const rankedPeople = useMemo\(\(\) => rankPeople\(people, rankBy\)/);
+  assert.match(page, /<TopSalespeople\s+ranked=\{rankedPeople\}/);
+  assert.match(page, /view === "cards"/);
+  assert.match(page, /ranked\.map\(\(person\) => <SalespersonCard/);
+  assert.match(page, /ranked\.map\(\(person\) => \{ const commissionOfGp/);
+  assert.equal((page.match(/loadLiveSalesData\(\{ allowFallback: false, companyId \}\)/g) ?? []).length, 1);
+});
+
+test("Employee Detail is a local drawer over filtered rows with safe empty states", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /function EmployeeDetailDrawer/);
+  assert.match(page, /role="dialog" aria-modal="true"/);
+  assert.match(page, /selectedRows = selectedRankedPerson \? activeSales\.filter/);
+  assert.match(page, /Monthly Sales Trend/);
+  assert.match(page, /aria-label="Sales trend metric"/);
+  assert.match(page, /Commission % of Sales/);
+  assert.match(page, /Commission \/ GP/);
+  assert.match(page, /Recent Sales \(Top 5\)/);
+  assert.match(page, /Sales trend data is not available for this view/);
+  assert.match(page, /Recent sales data is not available for this view/);
+});
+
+test("Photo schema remains unmodified and the UI uses initials when unavailable", async () => {
+  const [schema, page] = await Promise.all([
+    read("db/schema.ts"),
+    read("components/team/sales-organization-page.tsx"),
+  ]);
+
+  assert.doesNotMatch(schema, /photo_url/);
+  assert.match(page, /function initials/);
+  assert.match(page, /photo placeholder/);
+});
+
+test("Salesperson target is not inferred from company target", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /target: null/);
+  assert.match(page, /achievement: null/);
+  assert.doesNotMatch(page, /perPersonTarget/);
+});

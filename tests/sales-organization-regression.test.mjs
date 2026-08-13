@@ -231,7 +231,7 @@ test("Employee Detail is a local drawer over filtered rows with safe empty state
   const page = await read("components/team/sales-organization-page.tsx");
 
   assert.match(page, /function EmployeeDetailDrawer/);
-  assert.match(page, /role="dialog" aria-modal="true"/);
+  assert.match(page, /role="dialog"[\s\S]*?aria-modal="true"/);
   assert.match(page, /selectedRows = selectedRankedPerson \? activeSales\.filter/);
   assert.match(page, /Monthly Sales Trend/);
   assert.match(page, /aria-label="Sales trend metric"/);
@@ -265,12 +265,40 @@ test("Team V3 cards follow the mockup hierarchy and open the drawer from the who
   const page = await read("components/team/sales-organization-page.tsx");
 
   assert.match(page, /function SalespersonCard/);
-  assert.match(page, /<Badge variant="outline">\{person\.status === "active" \? "Active"/);
-  assert.match(page, /Showroom · \{person\.branch\}/);
+  assert.match(page, /<Badge variant=\{person\.status === "active" \? "success" : "outline"\}/);
+  assert.match(page, /Showroom · \{person\.branch \|\| "—"\}/);
   assert.match(page, /<Avatar name=\{person\.name\} large \/>/);
   assert.match(page, /aria-label=\{`Open \$\{person\.name\} employee detail`\}/);
   assert.doesNotMatch(page, /View Detail/);
   assert.match(page, /sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
+});
+
+test("Team final polish keeps ranking cards dense, icon-led, and N/A-free", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /function CardMetric/);
+  assert.match(page, /displayValue = value === "N\/A" \? "—" : value/);
+  assert.match(page, /size-24 bg-\[var\(--brand-50\)\]/);
+  assert.match(page, /min-h-\[300px\].*cursor-pointer/);
+  assert.match(page, /BarChart3/);
+  assert.match(page, /BadgeDollarSign/);
+  assert.match(page, /CircleDollarSign/);
+  assert.match(page, /Percent/);
+  assert.match(page, /Current employees only · Select a row or card for detail/);
+  assert.match(page, /UsersRound/);
+  assert.match(page, /CalendarDays/);
+  assert.match(page, /\{person\.position && <p/);
+});
+
+test("Employee drawer uses the polished KPI grid and responsive width without changing its data source", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /function DrawerMetric/);
+  assert.match(page, /max-w-\[28rem\]/);
+  assert.match(page, /grid-cols-2 gap-2\.5 sm:grid-cols-3/);
+  assert.match(page, /selectedRows = selectedRankedPerson \? activeSales\.filter/);
+  assert.match(page, /flex h-32 items-end/);
+  assert.match(page, /min-w-\[380px\]/);
 });
 
 test("Photo upload surfaces are honest and write-disabled while PHOTO_SCHEMA_MISSING", async () => {
@@ -290,7 +318,7 @@ test("Employee drawer exposes only verified profile fields and safe target state
   for (const label of ["Employee ID", "Employee Code", "Salesperson Code", "Position", "Showroom", "Branch", "Territory", "Phone", "Email", "Joined Date", "Status", "Target Unit", "Achievement"]) {
     assert.match(page, new RegExp(label.replace(/[.*+?^${}()|[\\]\\]/g, "\\\\$&")));
   }
-  assert.match(page, /const profile = \[\["Employee ID", "N\/A"\]/);
+  assert.match(page, /\["Employee ID", "N\/A"\]/);
   assert.match(page, /label="Target Unit" value=\{person\.target === null \? "N\/A"/);
   assert.match(page, /label="Achievement" value=\{person\.achievement === null \? "N\/A"/);
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown, RefreshCw, RotateCcw, Search, X } from "lucide-react";
+import { BarChart3, BadgeDollarSign, CalendarDays, ChevronDown, CircleDollarSign, Percent, RefreshCw, RotateCcw, Search, UsersRound, X } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -107,6 +107,7 @@ function canonicalBranch(value: string) { return operationalShowroomForBranch(va
 function years(filters: FilterState) { return filters.year.map(Number).filter(Number.isFinite); }
 function months(filters: FilterState) { return filters.month.map((month) => MONTHS.indexOf(month) + 1).filter((month) => month > 0); }
 function matchesFilters(row: Pick<SourceRow, "year" | "month" | "branch" | "salesperson">, filters: FilterState) { const selectedYears = years(filters); const selectedMonths = months(filters); return (!selectedYears.length || (row.year !== null && selectedYears.includes(row.year))) && (!selectedMonths.length || (row.month !== null && selectedMonths.includes(row.month))) && (!filters.branch.length || filters.branch.includes(row.branch)) && (!filters.salesperson.length || filters.salesperson.includes(row.salesperson)); }
+function selectedPeriodLabel(filters: FilterState) { const year = filters.year.length === 1 ? filters.year[0] : filters.year.length ? `${filters.year.length} years` : "All years"; const month = filters.month.length === 1 ? filters.month[0] : filters.month.length ? `${filters.month.length} months` : "All months"; return `${month} · ${year}`; }
 function targetForScope(data: DashboardData, filters: FilterState) { const selectedYears = years(filters); if (selectedYears.length !== 1 || selectedYears[0] !== data.plan.year || filters.branch.length || filters.salesperson.length) return null; const selectedMonths = months(filters); const indexes = selectedMonths.length ? selectedMonths.map((month) => month - 1) : data.plan.months.map((_, index) => index); const target = sum(indexes, (index) => data.plan.units[index] ?? 0); return target || null; }
 function getShowroomTargetRows(data: DashboardData): ShowroomTargetRow[] {
   // The dashboard plan contains only company-wide monthly targets, not showroom targets.
@@ -125,8 +126,10 @@ function Avatar({ name, large = false }: { name: string; large?: boolean }) {
   return (
     <span
       className={cn(
-        "relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--surface-muted)] font-semibold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border-default)]",
-        large ? "size-20 text-base" : "size-11 text-[11px]",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-[var(--text-secondary)] ring-inset",
+        large
+          ? "size-24 bg-[var(--brand-50)] text-xl shadow-[0_8px_20px_rgba(28,25,23,0.08)] ring-2 ring-[var(--surface-default)] ring-offset-2 ring-offset-[var(--surface-default)]"
+          : "size-11 bg-[var(--surface-muted)] text-[11px] ring-1 ring-[var(--border-default)]",
       )}
       aria-label={`${name} photo placeholder`}
     >
@@ -349,10 +352,12 @@ function ShowroomRanking({ items }: { items: ShowroomAchievementRankingEntry[] }
 }
 
 function TeamSummary({ items, onSelect }: { items: BranchMetric[]; onSelect: (person: Person) => void }) {
-  return <section className="space-y-4"><SectionHeader title="Team Summary" description="Showroom view for current employees." /><div className="grid gap-4 lg:grid-cols-3">{items.map((item) => { const ordered = [...item.people].sort((a, b) => (b.achievement ?? -1) - (a.achievement ?? -1) || b.salesUnit - a.salesUnit); const top = ordered[0]; const bottom = ordered.at(-1); return <Card key={item.code} className="min-h-[290px] rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)]"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[var(--text-primary)]">{item.code}</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">{item.name}</p></div><Badge variant="outline">{item.people.length} active</Badge></div><div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 text-sm"><Metric label="Showroom Manager" value="N/A" /><Metric label="Achievement" value={item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`} /><Metric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><Metric label="Conversion" value={item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`} /><Metric label="Booking / Person" value={item.people.length ? (item.booking / item.people.length).toFixed(1) : "N/A"} /></div><div className="mt-5 space-y-1 border-t border-[var(--divider)] pt-3"><PersonLink label="Top Performer" person={top} onSelect={onSelect} /><PersonLink label="Bottom Performer" person={bottom} onSelect={onSelect} /></div></Card>; })}</div></section>;
+  return <section className="space-y-4"><SectionHeader title="Team Summary" description="Showroom view for current employees." /><div className="grid gap-4 lg:grid-cols-3">{items.map((item) => { const ordered = [...item.people].sort((a, b) => (b.achievement ?? -1) - (a.achievement ?? -1) || b.salesUnit - a.salesUnit); const top = ordered[0]; const bottom = ordered.at(-1); return <Card key={item.code} className="flex h-full min-h-[280px] flex-col rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] sm:p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[var(--text-primary)]">{item.code}</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">{item.name}</p></div><Badge variant="outline">{item.people.length} active</Badge></div><div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm"><CardMetric label="Showroom Manager" value="N/A" /><CardMetric label="Achievement" value={item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`} /><CardMetric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><CardMetric label="Conversion" value={item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`} /><CardMetric label="Booking / Person" value={item.people.length ? (item.booking / item.people.length).toFixed(1) : "N/A"} /></div><div className="mt-auto space-y-1 border-t border-[var(--divider)] pt-3"><PersonLink label="Top Performer" person={top} onSelect={onSelect} /><PersonLink label="Bottom Performer" person={bottom} onSelect={onSelect} /></div></Card>; })}</div></section>;
 }
 function Metric({ label, value }: { label: string; value: ReactNode }) { return <div className="min-w-0"><p className="text-xs text-[var(--text-tertiary)]">{label}</p><p className="kmm-tabular mt-1 break-words font-semibold leading-5 text-[var(--text-primary)]" title={typeof value === "string" ? value : undefined}>{value}</p></div>; }
-function PersonLink({ label, person, onSelect }: { label: string; person?: Person; onSelect: (person: Person) => void }) { return <div className="flex min-h-11 items-center justify-between gap-3 text-xs"><span className="shrink-0 text-[var(--text-tertiary)]">{label}</span>{person ? <button type="button" className="min-h-11 min-w-0 truncate rounded-[var(--radius-control)] px-1.5 text-right font-semibold text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)}>{person.name}</button> : <span className="font-semibold text-[var(--text-secondary)]">N/A</span>}</div>; }
+function CardMetric({ label, value, icon, full = false }: { label: string; value: ReactNode; icon?: ReactNode; full?: boolean }) { const displayValue = value === "N/A" ? "—" : value; return <div className={cn("min-w-0", full && "col-span-2")}><div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-[var(--text-tertiary)]">{icon && <span className="text-[var(--brand-600)]" aria-hidden="true">{icon}</span>}<span>{label}</span></div><p className="kmm-tabular mt-0.5 truncate text-[17px] font-bold leading-5 text-[var(--text-primary)]" title={typeof displayValue === "string" ? displayValue : undefined}>{displayValue}</p></div>; }
+function DrawerMetric({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) { return <div className="min-w-0 rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)] bg-[var(--surface-subtle)] p-3"><div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-[var(--text-tertiary)]">{icon && <span className="text-[var(--brand-600)]" aria-hidden="true">{icon}</span>}<span>{label}</span></div><p className="kmm-tabular mt-1 break-words text-base font-bold leading-5 text-[var(--text-primary)]">{value}</p></div>; }
+function PersonLink({ label, person, onSelect }: { label: string; person?: Person; onSelect: (person: Person) => void }) { return <div className="flex min-h-11 items-center justify-between gap-3 text-xs"><span className="shrink-0 text-[var(--text-tertiary)]">{label}</span>{person ? <button type="button" className="min-h-11 min-w-0 truncate rounded-[var(--radius-control)] px-1.5 text-right font-semibold text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)}>{person.name}</button> : <span className="font-semibold text-[var(--text-secondary)]">—</span>}</div>; }
 
 function metricValue(person: Person, rankBy: RankingMetric) { return rankBy === "salesUnit" ? person.salesUnit : rankBy === "salesValue" ? person.salesValue : rankBy === "gp" ? person.gp : rankBy === "gpPercent" ? ratio(person.gp, person.salesValue) : rankBy === "commission" ? person.commission : ratio(person.commission, person.gp); }
 function rankPeople(people: Person[], rankBy: RankingMetric) { return [...people].sort((left, right) => { const difference = (metricValue(right, rankBy) ?? Number.NEGATIVE_INFINITY) - (metricValue(left, rankBy) ?? Number.NEGATIVE_INFINITY); return difference || left.name.localeCompare(right.name); }).map((person, index) => ({ ...person, rank: index + 1 })); }
@@ -364,22 +369,202 @@ function BulkPhotoImportButton() {
   return <button type="button" disabled aria-describedby="photo-schema-missing" title="Photo import is unavailable until photo_url schema and storage/API approval" className="min-h-11 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 text-xs font-semibold text-[var(--text-disabled)] opacity-70">Bulk Import Photos</button>;
 }
 function SalespersonCard({ person, currency, onSelect }: { person: Person; currency: string; onSelect: (person: Person) => void }) {
-  return <article role="button" tabIndex={0} aria-label={`Open ${person.name} employee detail`} onClick={() => onSelect(person)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(person); } }} className="group rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:p-5"><div className="flex items-start justify-between gap-3"><span aria-label={`Rank ${person.rank}`} className="grid size-8 place-items-center rounded-full bg-[var(--brand-500)] text-sm font-bold text-[var(--text-primary)]">{person.rank}</span><Badge variant="outline">{person.status === "active" ? "Active" : "Inactive / Historical"}</Badge></div><div className="mt-2 flex flex-col items-center text-center"><Avatar name={person.name} large /><p className="mt-3 w-full truncate text-base font-semibold text-[var(--text-primary)]" title={person.name}>{person.name}</p><p className="mt-1 w-full truncate text-xs text-[var(--text-secondary)]">{person.position ?? "N/A"}</p><p className="mt-1 w-full truncate text-sm text-[var(--text-secondary)]">Showroom · {person.branch}</p></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--divider)] pt-4"><Metric label="Sales Unit" value={formatNumber(person.salesUnit)} /><Metric label="Sales Value" value={formatCurrency(person.salesValue, currency)} /><Metric label="GP Value" value={formatCurrency(person.gp, currency)} /><Metric label="GP %" value={<RankingMetricCell person={person} metric="gpPercent" />} /><Metric label="Commission" value={formatCurrency(person.commission, currency)} /></div></article>;
+  return <article role="button" tabIndex={0} aria-label={`Open ${person.name} employee detail`} onClick={() => onSelect(person)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(person); } }} className="group flex h-full min-h-[300px] cursor-pointer flex-col rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:p-5"><div className="flex items-start justify-between gap-3"><span aria-label={`Rank ${person.rank}`} className="grid size-8 place-items-center rounded-full bg-[var(--brand-500)] text-sm font-bold text-[var(--text-primary)]">{person.rank}</span><Badge variant={person.status === "active" ? "success" : "outline"} className="shrink-0">{person.status === "active" ? "Active" : "Inactive / Historical"}</Badge></div><div className="mt-2 flex flex-col items-center text-center"><Avatar name={person.name} large /><p className="mt-2 w-full truncate text-lg font-bold leading-6 text-[var(--text-primary)]" title={person.name}>{person.name}</p>{person.position && <p className="mt-0.5 w-full truncate text-xs font-medium text-[var(--text-secondary)]">{person.position}</p>}<p className="mt-1 w-full truncate text-xs text-[var(--text-secondary)]">Showroom · {person.branch || "—"}</p></div><div className="mt-auto grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[var(--divider)] pt-3"><CardMetric label="Sales Unit" value={formatNumber(person.salesUnit)} icon={<BarChart3 size={15} strokeWidth={1.8} />} /><CardMetric label="Sales Value" value={formatCurrency(person.salesValue, currency)} icon={<CircleDollarSign size={15} strokeWidth={1.8} />} /><CardMetric label="GP Value" value={formatCurrency(person.gp, currency)} icon={<BadgeDollarSign size={15} strokeWidth={1.8} />} /><CardMetric label="GP %" value={<RankingMetricCell person={person} metric="gpPercent" />} icon={<Percent size={14} strokeWidth={1.8} />} /><CardMetric label="Commission" value={formatCurrency(person.commission, currency)} icon={<CircleDollarSign size={15} strokeWidth={1.8} />} full /></div></article>;
 }
-function TopSalespeople({ ranked, onSelect, currency, rankBy, onRankByChange, view, onViewChange }: { ranked: Person[]; onSelect: (person: Person) => void; currency: string; rankBy: RankingMetric; onRankByChange: (value: RankingMetric) => void; view: RankingView; onViewChange: (value: RankingView) => void }) {
+function TopSalespeople({ ranked, onSelect, currency, periodLabel, rankBy, onRankByChange, view, onViewChange }: { ranked: Person[]; onSelect: (person: Person) => void; currency: string; periodLabel: string; rankBy: RankingMetric; onRankByChange: (value: RankingMetric) => void; view: RankingView; onViewChange: (value: RankingView) => void }) {
   const controls = <RankingControls rankBy={rankBy} onRankByChange={onRankByChange} view={view} onViewChange={onViewChange} />;
-  return <section className="space-y-4"><SectionHeader title="Top Salespeople" description="Current employees only. Select a row or card to open Employee Detail." action={<div className="flex flex-wrap items-center justify-end gap-2">{controls}<BulkPhotoImportButton /></div>} /><p id="photo-schema-missing" className="sr-only">PHOTO_SCHEMA_MISSING: photo upload and bulk import are unavailable until a canonical photo_url schema and storage/API boundary are approved.</p>{view === "cards" ? <div aria-label="Salespeople cards" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{ranked.map((person) => <SalespersonCard key={person.id} person={person} currency={currency} onSelect={onSelect} />)}</div> : <TableCard title="Salespeople Ranking" empty={!ranked.length}><div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]"><table className="kmm-tabular min-w-[1280px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th rowSpan={2} className="px-3 py-3 font-semibold">Rank</th><th rowSpan={2} className="px-3 py-3 font-semibold">Photo</th><th rowSpan={2} className="px-3 py-3 font-semibold">Name</th><th rowSpan={2} className="px-3 py-3 font-semibold">Showroom</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Sales</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">GP</th><th colSpan={3} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Commission</th></tr><tr><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Unit</th><th className="px-3 py-2 font-semibold">Value</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">GP %</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">% of Sales</th><th className="px-3 py-2 font-semibold">% of GP</th></tr></thead><tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">{ranked.map((person) => { const commissionOfGp = ratio(person.commission, person.gp); const commissionTone = commissionOfGp === null ? "text-[var(--text-secondary)]" : commissionOfGp <= 20 ? "text-[var(--status-success)]" : commissionOfGp <= 30 ? "text-[var(--brand-600)]" : "text-[var(--status-danger)]"; return <tr key={person.id} className="h-12 cursor-pointer transition-colors hover:bg-[var(--brand-50)] focus-visible:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(person); } }} tabIndex={0} aria-label={`View ${person.name} details`}><td className="px-3 py-2 font-semibold text-[var(--text-tertiary)]">{person.rank}</td><td className="px-3 py-2"><Avatar name={person.name} /></td><td className="px-3 py-2 font-semibold text-[var(--text-primary)]">{person.name}</td><td className="px-3 py-2">{person.branch}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatNumber(person.salesUnit)}</td><td className="px-3 py-2 text-right font-semibold">{formatCurrency(person.salesValue, currency)}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatCurrency(person.gp, currency)}</td><td className="px-3 py-2 text-right font-semibold"><RankingMetricCell person={person} metric="gpPercent" /></td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatCurrency(person.commission, currency)}</td><td className="px-3 py-2 text-right"><RankingMetricCell person={person} metric="commissionOfSales" /></td><td className={cn("px-3 py-2 text-right font-semibold", commissionTone)}><RankingMetricCell person={person} metric="commissionOfGp" /></td></tr>; })}</tbody></table></div></TableCard>}</section>;
+  const description = <div className="flex flex-wrap items-center gap-2"><span>Current employees only · Select a row or card for detail.</span><Badge variant="outline" className="gap-1.5"><UsersRound size={14} aria-hidden="true" />{ranked.length} employees</Badge></div>;
+  return <section className="space-y-4"><SectionHeader title="Top Salespeople" description={description} action={<div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto"><span aria-label="Selected period" className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--border-subtle)] bg-[var(--surface-subtle)] px-2.5 text-xs font-medium text-[var(--text-secondary)]"><CalendarDays size={14} aria-hidden="true" />{periodLabel}</span>{controls}<BulkPhotoImportButton /></div>} /><p id="photo-schema-missing" className="sr-only">PHOTO_SCHEMA_MISSING: photo upload and bulk import are unavailable until a canonical photo_url schema and storage/API boundary are approved.</p>{view === "cards" ? <div aria-label="Salespeople cards" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{ranked.map((person) => <SalespersonCard key={person.id} person={person} currency={currency} onSelect={onSelect} />)}</div> : <TableCard title="Salespeople Ranking" empty={!ranked.length}><div className="overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]"><table className="kmm-tabular min-w-[1280px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th rowSpan={2} className="px-3 py-3 font-semibold">Rank</th><th rowSpan={2} className="px-3 py-3 font-semibold">Photo</th><th rowSpan={2} className="px-3 py-3 font-semibold">Name</th><th rowSpan={2} className="px-3 py-3 font-semibold">Showroom</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Sales</th><th colSpan={2} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">GP</th><th colSpan={3} className="border-l border-[var(--divider)] px-3 py-2 text-center font-semibold">Commission</th></tr><tr><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Unit</th><th className="px-3 py-2 font-semibold">Value</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">GP %</th><th className="border-l border-[var(--divider)] px-3 py-2 font-semibold">Value</th><th className="px-3 py-2 font-semibold">% of Sales</th><th className="px-3 py-2 font-semibold">% of GP</th></tr></thead><tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">{ranked.map((person) => { const commissionOfGp = ratio(person.commission, person.gp); const commissionTone = commissionOfGp === null ? "text-[var(--text-secondary)]" : commissionOfGp <= 20 ? "text-[var(--status-success)]" : commissionOfGp <= 30 ? "text-[var(--brand-600)]" : "text-[var(--status-danger)]"; return <tr key={person.id} className="h-12 cursor-pointer transition-colors hover:bg-[var(--brand-50)] focus-visible:bg-[var(--brand-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(person); } }} tabIndex={0} aria-label={`View ${person.name} details`}><td className="px-3 py-2 font-semibold text-[var(--text-tertiary)]">{person.rank}</td><td className="px-3 py-2"><Avatar name={person.name} /></td><td className="px-3 py-2 font-semibold text-[var(--text-primary)]">{person.name}</td><td className="px-3 py-2">{person.branch}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatNumber(person.salesUnit)}</td><td className="px-3 py-2 text-right font-semibold">{formatCurrency(person.salesValue, currency)}</td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatCurrency(person.gp, currency)}</td><td className="px-3 py-2 text-right font-semibold"><RankingMetricCell person={person} metric="gpPercent" /></td><td className="border-l border-[var(--divider)] px-3 py-2 text-right font-semibold">{formatCurrency(person.commission, currency)}</td><td className="px-3 py-2 text-right"><RankingMetricCell person={person} metric="commissionOfSales" /></td><td className={cn("px-3 py-2 text-right font-semibold", commissionTone)}><RankingMetricCell person={person} metric="commissionOfGp" /></td></tr>; })}</tbody></table></div></TableCard>}</section>;
 }
 
 function EmployeeDetailDrawer({ person, rows, currency, onClose }: { person: Person | null; rows: SalesRow[]; currency: string; onClose: () => void }) {
   const [trendMode, setTrendMode] = useState<"unit" | "value">("unit");
-  useEffect(() => { if (!person) return; const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [person, onClose]);
+
+  useEffect(() => {
+    if (!person) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [person, onClose]);
+
   if (!person) return null;
-  const months = MONTHS.map((label, index) => { const monthRows = rows.filter((row) => row.month === index + 1); return { label, unit: getSalesKpis(monthRows).salesUnit, value: getSalesKpis(monthRows).salesValue ?? 0 }; });
-  const trendValues = months.map((item) => trendMode === "unit" ? item.unit : item.value); const peak = Math.max(...trendValues, 1);
+
+  const months = MONTHS.map((label, index) => {
+    const monthRows = rows.filter((row) => row.month === index + 1);
+    const kpis = getSalesKpis(monthRows);
+    return { label, unit: kpis.salesUnit, value: kpis.salesValue ?? 0 };
+  });
+  const trendValues = months.map((item) => trendMode === "unit" ? item.unit : item.value);
+  const peak = Math.max(...trendValues, 1);
   const recentSales = [...rows].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 5);
-  const profile = [["Employee ID", "N/A"], ["Employee Code", person.employeeCode ?? "N/A"], ["Salesperson Code", person.salespersonCode ?? "N/A"], ["Position", person.position ?? "N/A"], ["Showroom", person.branch], ["Branch", "N/A"], ["Territory", person.territory ?? "N/A"], ["Phone", person.phone ?? "N/A"], ["Email", person.email ?? "N/A"], ["Joined Date", formatDate(person.joinedDate)]].filter(([, value]) => value !== "");
-  return <div className="fixed inset-0 z-[80] bg-black/20" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside role="dialog" aria-modal="true" aria-labelledby="employee-detail-title" className="ml-auto flex h-full w-full max-w-[30rem] flex-col overflow-y-auto border-l border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-floating)]"><div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--divider)] bg-[var(--surface-default)] p-5 sm:p-6"><div className="flex min-w-0 items-center gap-4"><Avatar name={person.name} large /><div className="min-w-0"><p className="truncate text-lg font-semibold text-[var(--text-primary)]" id="employee-detail-title">{person.name}</p><p className="mt-1 truncate text-sm text-[var(--text-secondary)]">{person.branch}</p><Badge variant="outline" className="mt-2">{person.status === "active" ? "Active" : "Inactive / Historical"}</Badge></div></div><button type="button" aria-label="Close Employee Detail" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><X size={18} aria-hidden="true" /></button></div><div className="space-y-6 p-5 sm:p-6"><section aria-labelledby="employee-profile-heading"><div className="flex items-start justify-between gap-4"><div><h3 id="employee-profile-heading" className="text-sm font-semibold text-[var(--text-primary)]">Profile</h3><p className="mt-1 text-xs text-[var(--text-secondary)]">Verified identity fields only.</p></div><div className="text-right"><Avatar name={person.name} /><button type="button" disabled aria-describedby="photo-schema-missing" title="Photo upload is unavailable until photo_url schema and storage/API approval" className="mt-2 min-h-10 rounded-[var(--radius-control)] border border-[var(--border-default)] px-3 text-xs font-semibold text-[var(--text-disabled)] opacity-70">Upload Photo</button></div></div><div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">{profile.map(([label, value]) => <Metric key={label} label={label} value={value} />)}<Metric label="Status" value={person.status === "active" ? "Active" : "Inactive / Historical"} /></div></section><section aria-labelledby="employee-performance-heading"><h3 id="employee-performance-heading" className="text-sm font-semibold text-[var(--text-primary)]">Performance Summary</h3><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3"><Metric label="Rank" value={`#${person.rank}`} /><Metric label="Sales Unit" value={formatNumber(person.salesUnit)} /><Metric label="Sales Value" value={formatCurrency(person.salesValue, currency)} /><Metric label="GP Value" value={formatCurrency(person.gp, currency)} /><Metric label="GP %" value={ratio(person.gp, person.salesValue) === null ? "N/A" : `${ratio(person.gp, person.salesValue)?.toFixed(1)}%`} /><Metric label="Commission" value={formatCurrency(person.commission, currency)} /><Metric label="Commission % of Sales" value={ratio(person.commission, person.salesValue) === null ? "N/A" : `${ratio(person.commission, person.salesValue)?.toFixed(1)}%`} /><Metric label="Commission / GP" value={ratio(person.commission, person.gp) === null ? "N/A" : `${ratio(person.commission, person.gp)?.toFixed(1)}%`} /><Metric label="Target Unit" value={person.target === null ? "N/A" : formatNumber(person.target)} /><Metric label="Achievement" value={person.achievement === null ? "N/A" : `${person.achievement.toFixed(1)}%`} /></div></section><section aria-labelledby="employee-trend-heading"><div className="flex items-center justify-between gap-3"><h3 id="employee-trend-heading" className="text-sm font-semibold text-[var(--text-primary)]">Monthly Sales Trend</h3><div className="inline-flex rounded-[var(--radius-control)] border border-[var(--border-default)] p-1" role="group" aria-label="Sales trend metric"><button type="button" aria-pressed={trendMode === "unit"} onClick={() => setTrendMode("unit")} className={cn("min-h-9 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", trendMode === "unit" ? "bg-[var(--brand-500)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]")}>Unit</button><button type="button" aria-pressed={trendMode === "value"} onClick={() => setTrendMode("value")} className={cn("min-h-9 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", trendMode === "value" ? "bg-[var(--brand-500)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]")}>Value</button></div></div>{rows.length ? <div className="mt-4 flex h-40 items-end gap-1 border-b border-[var(--divider)] pb-1">{months.map((item, index) => <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"><span className="kmm-tabular text-[10px] text-[var(--text-secondary)]">{trendValues[index] ? formatCompact(trendValues[index]) : ""}</span><span className="w-full rounded-t bg-[var(--brand-500)]" style={{ height: `${trendValues[index] ? Math.max(10, (trendValues[index] / peak) * 104) : 2}px` }} /><span className="text-[10px] text-[var(--text-tertiary)]">{item.label}</span></div>)}</div> : <p className="mt-4 rounded-[var(--radius-control)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--text-secondary)]">Sales trend data is not available for this view.</p>}</section><section aria-labelledby="employee-recent-sales-heading"><h3 id="employee-recent-sales-heading" className="text-sm font-semibold text-[var(--text-primary)]">Recent Sales (Top 5)</h3>{recentSales.length ? <div className="mt-4 overflow-x-auto rounded-[var(--radius-control)] border border-[var(--border-subtle)]"><table className="kmm-tabular min-w-[420px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr><th className="px-3 py-3 font-semibold">Date</th><th className="px-3 py-3 font-semibold">Product</th><th className="px-3 py-3 font-semibold">Model</th><th className="px-3 py-3 text-right font-semibold">Unit</th><th className="px-3 py-3 text-right font-semibold">Value</th></tr></thead><tbody className="divide-y divide-[var(--divider)]">{recentSales.map((row, index) => <tr key={`${row.date}-${row.model}-${index}`}><td className="px-3 py-3 text-[var(--text-secondary)]">{formatDate(row.date)}</td><td className="px-3 py-3 text-[var(--text-secondary)]">{row.productType || "N/A"}</td><td className="max-w-[140px] truncate px-3 py-3 font-medium text-[var(--text-primary)]" title={row.model}>{row.model || "N/A"}</td><td className="px-3 py-3 text-right text-[var(--text-secondary)]">{formatNumber(row.quantity ?? 0)}</td><td className="px-3 py-3 text-right font-semibold text-[var(--text-primary)]">{formatCurrency(row.finalReceived, currency)}</td></tr>)}</tbody></table></div> : <p className="mt-4 rounded-[var(--radius-control)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--text-secondary)]">Recent sales data is not available for this view.</p>}</section></div></aside></div>;
+  const profile = [
+    ["Employee ID", "N/A"],
+    ["Employee Code", person.employeeCode ?? "N/A"],
+    ["Salesperson Code", person.salespersonCode ?? "N/A"],
+    ["Position", person.position ?? "N/A"],
+    ["Showroom", person.branch],
+    ["Branch", "N/A"],
+    ["Territory", person.territory ?? "N/A"],
+    ["Phone", person.phone ?? "N/A"],
+    ["Email", person.email ?? "N/A"],
+    ["Joined Date", formatDate(person.joinedDate)],
+  ].filter(([, value]) => value !== "");
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] bg-black/25"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="employee-detail-title"
+        className="ml-auto flex h-full w-full max-w-[28rem] flex-col overflow-y-auto border-l border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-floating)]"
+      >
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--divider)] bg-[var(--surface-default)] p-4 sm:p-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar name={person.name} large />
+            <div className="min-w-0">
+              <p className="truncate text-xl font-bold leading-6 text-[var(--text-primary)]" id="employee-detail-title">
+                {person.name}
+              </p>
+              <p className="mt-1 truncate text-sm text-[var(--text-secondary)]">{person.branch}</p>
+              <Badge variant={person.status === "active" ? "success" : "outline"} className="mt-2">
+                {person.status === "active" ? "Active" : "Inactive / Historical"}
+              </Badge>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Close Employee Detail"
+            onClick={onClose}
+            className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="space-y-5 p-4 sm:p-5">
+          <section aria-labelledby="employee-profile-heading">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="employee-profile-heading" className="text-sm font-semibold text-[var(--text-primary)]">
+                  Profile
+                </h3>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">Verified identity fields only.</p>
+              </div>
+              <div className="text-right">
+                <Avatar name={person.name} />
+                <button
+                  type="button"
+                  disabled
+                  aria-describedby="photo-schema-missing"
+                  title="Photo upload is unavailable until photo_url schema and storage/API approval"
+                  className="mt-2 min-h-10 rounded-[var(--radius-control)] border border-[var(--border-default)] px-3 text-xs font-semibold text-[var(--text-disabled)] opacity-70"
+                >
+                  Upload Photo
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+              {profile.map(([label, value]) => <Metric key={label} label={label} value={value} />)}
+              <Metric label="Status" value={person.status === "active" ? "Active" : "Inactive / Historical"} />
+            </div>
+          </section>
+
+          <section aria-labelledby="employee-performance-heading">
+            <h3 id="employee-performance-heading" className="text-sm font-semibold text-[var(--text-primary)]">
+              Performance Summary
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <DrawerMetric label="Rank" value={"#" + person.rank} />
+              <DrawerMetric label="Sales Unit" value={formatNumber(person.salesUnit)} icon={<BarChart3 size={15} strokeWidth={1.8} />} />
+              <DrawerMetric label="Sales Value" value={formatCurrency(person.salesValue, currency)} icon={<CircleDollarSign size={15} strokeWidth={1.8} />} />
+              <DrawerMetric label="GP Value" value={formatCurrency(person.gp, currency)} icon={<BadgeDollarSign size={15} strokeWidth={1.8} />} />
+              <DrawerMetric label="GP %" value={ratio(person.gp, person.salesValue) === null ? "N/A" : String(ratio(person.gp, person.salesValue)?.toFixed(1)) + "%"} icon={<Percent size={14} strokeWidth={1.8} />} />
+              <DrawerMetric label="Commission" value={formatCurrency(person.commission, currency)} icon={<CircleDollarSign size={15} strokeWidth={1.8} />} />
+              <DrawerMetric label="Commission % of Sales" value={ratio(person.commission, person.salesValue) === null ? "N/A" : String(ratio(person.commission, person.salesValue)?.toFixed(1)) + "%"} icon={<Percent size={14} strokeWidth={1.8} />} />
+              <DrawerMetric label="Commission / GP" value={ratio(person.commission, person.gp) === null ? "N/A" : String(ratio(person.commission, person.gp)?.toFixed(1)) + "%"} icon={<Percent size={14} strokeWidth={1.8} />} />
+              <DrawerMetric label="Target Unit" value={person.target === null ? "N/A" : formatNumber(person.target)} />
+              <DrawerMetric label="Achievement" value={person.achievement === null ? "N/A" : String(person.achievement.toFixed(1)) + "%"} />
+            </div>
+          </section>
+
+          <section aria-labelledby="employee-trend-heading">
+            <div className="flex items-center justify-between gap-3">
+              <h3 id="employee-trend-heading" className="text-sm font-semibold text-[var(--text-primary)]">
+                Monthly Sales Trend
+              </h3>
+              <div className="inline-flex rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-subtle)] p-1" role="group" aria-label="Sales trend metric">
+                <button type="button" aria-pressed={trendMode === "unit"} onClick={() => setTrendMode("unit")} className={cn("min-h-9 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", trendMode === "unit" ? "bg-[var(--surface-default)] text-[var(--text-primary)] shadow-[var(--shadow-card)]" : "text-[var(--text-secondary)]")}>
+                  Unit
+                </button>
+                <button type="button" aria-pressed={trendMode === "value"} onClick={() => setTrendMode("value")} className={cn("min-h-9 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", trendMode === "value" ? "bg-[var(--surface-default)] text-[var(--text-primary)] shadow-[var(--shadow-card)]" : "text-[var(--text-secondary)]")}>
+                  Value
+                </button>
+              </div>
+            </div>
+            {rows.length ? (
+              <div className="mt-3 flex h-32 items-end gap-0.5 border-b border-[var(--divider)] pb-1">
+                {months.map((item, index) => (
+                  <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                    <span className="kmm-tabular text-[9px] text-[var(--text-secondary)]">{trendValues[index] ? formatCompact(trendValues[index]) : ""}</span>
+                    <span className="w-full rounded-t bg-[var(--brand-500)]" style={{ height: String(trendValues[index] ? Math.max(8, (trendValues[index] / peak) * 84) : 2) + "px" }} />
+                    <span className="text-[9px] text-[var(--text-tertiary)]">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-[var(--radius-control)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--text-secondary)]">
+                Sales trend data is not available for this view.
+              </p>
+            )}
+          </section>
+
+          <section aria-labelledby="employee-recent-sales-heading">
+            <h3 id="employee-recent-sales-heading" className="text-sm font-semibold text-[var(--text-primary)]">
+              Recent Sales (Top 5)
+            </h3>
+            {recentSales.length ? (
+              <div className="mt-3 overflow-x-auto rounded-[var(--radius-control)] border border-[var(--border-subtle)]">
+                <table className="kmm-tabular min-w-[380px] w-full text-left text-xs">
+                  <thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
+                    <tr>
+                      <th className="px-2.5 py-2.5 font-semibold">Date</th>
+                      <th className="px-2.5 py-2.5 font-semibold">Product</th>
+                      <th className="px-2.5 py-2.5 font-semibold">Model</th>
+                      <th className="px-2.5 py-2.5 text-right font-semibold">Unit</th>
+                      <th className="px-2.5 py-2.5 text-right font-semibold">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--divider)]">
+                    {recentSales.map((row, index) => (
+                      <tr key={row.date + "-" + row.model + "-" + index}>
+                        <td className="px-2.5 py-2.5 text-[var(--text-secondary)]">{formatDate(row.date)}</td>
+                        <td className="px-2.5 py-2.5 text-[var(--text-secondary)]">{row.productType || "N/A"}</td>
+                        <td className="max-w-[140px] truncate px-2.5 py-2.5 font-medium text-[var(--text-primary)]" title={row.model}>{row.model || "N/A"}</td>
+                        <td className="px-2.5 py-2.5 text-right text-[var(--text-secondary)]">{formatNumber(row.quantity ?? 0)}</td>
+                        <td className="px-2.5 py-2.5 text-right font-semibold text-[var(--text-primary)]">{formatCurrency(row.finalReceived, currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-[var(--radius-control)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--text-secondary)]">
+                Recent sales data is not available for this view.
+              </p>
+            )}
+          </section>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
 function exportPeople(people: Person[], companyCode: string) { const headings = ["Rank", "Name", "Showroom", "Sales", "GP", "Booking", "Achievement %"]; const rows = people.map((person) => [String(person.rank), person.name, person.branch, String(person.salesUnit), String(person.gp), String(person.booking), person.achievement === null ? "N/A" : person.achievement.toFixed(1)]); const csv = [headings, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${companyCode.toLowerCase()}-team.csv`; anchor.click(); URL.revokeObjectURL(url); }
@@ -670,6 +855,7 @@ export function SalesOrganizationPage() {
                 <TopSalespeople
                   ranked={rankedPeople}
                   currency={currency}
+                  periodLabel={selectedPeriodLabel(filters)}
                   onSelect={(person) => setSelectedPersonId(person.id)}
                   rankBy={rankBy}
                   onRankByChange={setRankBy}

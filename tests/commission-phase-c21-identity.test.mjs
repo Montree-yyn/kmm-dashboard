@@ -22,18 +22,36 @@ function operationsDb() {
 }
 
 test("C2.1 resolves exact salesperson code and employee code only when a unique Master row exists", () => {
-  assert.equal(identity.resolveCommissionIdentity({ salespersonCode: "MM240503" }, employees)?.source, "salesperson_code");
-  assert.equal(identity.resolveCommissionIdentity({ employeeCode: "MM220406" }, employees)?.source, "employee_code");
+  const bySalesperson = identity.resolveCommissionIdentity({ salespersonCode: "MM240503" }, employees);
+  const byEmployee = identity.resolveCommissionIdentity({ employeeCode: "MM220406" }, employees);
+  assert.equal(bySalesperson?.source, "salesperson_code");
+  assert.equal(byEmployee?.source, "employee_code");
+  assert.equal(bySalesperson?.key, "employee_code:MM240503");
+  assert.equal(byEmployee?.key, "employee_code:MM220406");
   assert.equal(identity.resolveCommissionIdentity({ salespersonCode: "UNKNOWN" }, employees), null);
   assert.equal(identity.resolveCommissionIdentity({ employeeCode: "UNKNOWN" }, employees), null);
 });
 
 test("C2.1 permits the controlled legacy alias only for its exact no-code KMM01 source identity", () => {
   const resolved = identity.resolveCommissionIdentity({ salespersonName: "01-Ye Htet", branch: "KMM01" }, employees, [alias]);
-  assert.deepEqual(resolved, { key: "salesperson_code:MM240503", salespersonCode: "MM240503", employeeCode: "MM240503", name: "U Ye Htet", source: "controlled_legacy_alias" });
+  assert.deepEqual(resolved, { key: "employee_code:MM240503", salespersonCode: "MM240503", employeeCode: "MM240503", name: "U Ye Htet", source: "controlled_legacy_alias" });
   assert.equal(identity.resolveCommissionIdentity({ salespersonName: "01-Ye Htet", branch: "KMM03" }, employees, [alias]), null);
   assert.equal(identity.resolveCommissionIdentity({ salespersonName: "Ye Htet", branch: "KMM01" }, employees, [alias]), null);
   assert.equal(identity.resolveCommissionIdentity({ salespersonName: "01-Ye Htet", salespersonCode: "UNKNOWN", branch: "KMM01" }, employees, [alias]), null);
+});
+
+test("C3.2D groups an approved coded alias with its canonical master identity", () => {
+  const canonical = identity.resolveCommissionIdentity({ employeeCode: "MM220406" }, employees);
+  const aliasRow = identity.resolveCommissionIdentity({ employeeCode: "MM230406", salespersonName: "03-Lin Aung", branch: "KMM03" }, employees, [{
+    sourceSalespersonCode: null,
+    sourceEmployeeCode: "MM230406",
+    sourceSalespersonName: "03-Lin Aung",
+    sourceBranch: "KMM03",
+    canonicalEmployeeCode: "MM220406",
+    canonicalSalespersonCode: "MM220406",
+  }]);
+  assert.equal(canonical?.key, "employee_code:MM220406");
+  assert.equal(aliasRow?.key, canonical?.key);
 });
 
 test("C2.1 rejects ambiguous aliases and never uses fuzzy display-name matching", () => {

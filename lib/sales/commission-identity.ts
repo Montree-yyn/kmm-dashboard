@@ -38,6 +38,16 @@ function usable(value: unknown) {
   return normalized !== "" && normalized !== "-";
 }
 
+function identityKey(employee: CommissionIdentityEmployee) {
+  // A row may carry only employee_code while its approved alias resolves via
+  // salesperson_code.  Both identifiers belong to the same master record, so
+  // the grouping key must be derived from one canonical field rather than the
+  // lookup path used to find that record.
+  const employeeCode = stable(employee.employeeCode);
+  if (usable(employeeCode)) return `employee_code:${employeeCode}`;
+  return `salesperson_code:${stable(employee.salespersonCode)}`;
+}
+
 export function resolveCommissionIdentity(
   row: CommissionIdentityRow,
   employees: CommissionIdentityEmployee[],
@@ -55,7 +65,7 @@ export function resolveCommissionIdentity(
   if (usable(salespersonCode)) {
     const master = bySalespersonCode.get(salespersonCode);
     if (master) return {
-      key: `salesperson_code:${master.salespersonCode}`,
+      key: identityKey(master),
       salespersonCode: master.salespersonCode,
       employeeCode: master.employeeCode,
       name: master.salespersonName,
@@ -67,7 +77,7 @@ export function resolveCommissionIdentity(
   if (usable(employeeCode)) {
     const master = byEmployeeCode.get(employeeCode);
     if (master) return {
-      key: `employee_code:${master.employeeCode}`,
+      key: identityKey(master),
       salespersonCode: master.salespersonCode,
       employeeCode: master.employeeCode,
       name: master.salespersonName,
@@ -86,7 +96,7 @@ export function resolveCommissionIdentity(
   const canonicalMaster = bySalespersonCode.get(stable(canonical.canonicalSalespersonCode)) ?? byEmployeeCode.get(stable(canonical.canonicalEmployeeCode));
   if (!canonicalMaster) return null;
   return {
-    key: `salesperson_code:${canonicalMaster.salespersonCode}`,
+    key: identityKey(canonicalMaster),
     salespersonCode: canonicalMaster.salespersonCode,
     employeeCode: canonicalMaster.employeeCode,
     name: canonicalMaster.salespersonName,

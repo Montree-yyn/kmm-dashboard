@@ -36,7 +36,8 @@ test("C3.2D leaves zero-only ambiguity visible and blocks positive ambiguity", (
 test("C3.2D SQL is transaction-id targeted and changes Commission only", () => {
   const preview = buildProductionCommissionPreview([row()], [db()], masters, aliases);
   const sql = renderCommissionBackfillSql(preview);
+  const statements = sql.split("\n").filter((line) => !line.startsWith("--")).join("\n");
   assert.match(sql, /UPDATE sales_transactions SET commission/);
   assert.match(sql, /id = 'tx-1'/);
-  assert.doesNotMatch(sql.split("BEGIN IMMEDIATE;")[1], /sale_amount|gp1|expense|booking|stock|target/i);
+  assert.doesNotMatch(statements, /BEGIN|COMMIT|sale_amount|gp1|expense|booking|stock|target/i);
 });

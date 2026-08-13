@@ -132,10 +132,20 @@ export async function executeKaiRuntimeQuery(
     throw new KaiRuntimeQueryError("Only read-only business questions are supported.", "unsupported_question");
   }
   const knowledge = await loadKnowledge(database);
+  const unrecognizedBranch = unresolvedBranchCode(clean, context);
+  if (unrecognizedBranch) {
+    return unavailableResult(knowledge, "SALES_CURRENT_MONTH", "BRANCH_UNAVAILABLE",
+      `ไม่พบสาขา “${unrecognizedBranch}” ใน branch scope ที่ผู้ใช้มีสิทธิ์ จึงไม่สามารถใช้ยอดรวมบริษัทแทนได้`);
+  }
   const unresolvedCode = unresolvedProductCode(clean);
   if (unresolvedCode) {
     return unavailableResult(knowledge, "SALES_CURRENT_MONTH", "PRODUCT_MAPPING_UNAVAILABLE",
       `พบ raw product code “${unresolvedCode}” ใน source แต่ยังไม่มี canonical product mapping ที่ยืนยันได้ จึงไม่สามารถตีความเป็น Product Group หรือ Sales Unit ได้`);
+  }
+  const unverifiedField = unverifiedBusinessField(clean);
+  if (unverifiedField) {
+    return unavailableResult(knowledge, "SALES_CURRENT_MONTH", "UNVERIFIED_FIELD_UNAVAILABLE",
+      `ยังไม่มี field หรือ relationship ที่ยืนยันได้สำหรับ ${unverifiedField} จึงไม่สามารถแทนด้วย Sales หรือ Booking metric อื่นได้`);
   }
   const intent = resolveIntent(clean, context);
   if (intent === "BOOKING_PAYMENT_UNAVAILABLE") {
@@ -451,7 +461,7 @@ function parsePeriod(question: string, currentYear: number, currentMonth: number
     const month = Number(numeric[1]);
     if (month >= 1 && month <= 12) return { period: makeMonth(Number(numeric[2] ?? currentYear), month), explicit: true };
   }
-  const named = MONTHS.find(([, names]) => names.some((name) => new RegExp(`(?:เดือน\\s*)?${escapeRegex(name)}(?:\\s*(20\\d{2}))?`, "iu").test(question)));
+  const named = MONTHS.find(([, names]) => names.some((name) => monthNamePattern(name).test(question)));
   if (named) {
     const match = namesMatch(question, named[1]);
     return { period: makeMonth(Number(match?.[1] ?? currentYear), named[0]), explicit: true };
@@ -466,10 +476,18 @@ function parsePeriod(question: string, currentYear: number, currentMonth: number
 
 function namesMatch(question: string, names: string[]) {
   for (const name of names) {
-    const match = question.match(new RegExp(`(?:เดือน\\s*)?${escapeRegex(name)}(?:\\s*(20\\d{2}))?`, "iu"));
+    const match = question.match(monthNamePattern(name));
     if (match) return match;
   }
   return null;
+}
+
+function monthNamePattern(name: string) {
+  // English month abbreviations must be tokens: otherwise “summary” is
+  // accidentally interpreted as March through its embedded “mar”. Thai has
+  // no reliable word boundary, so it retains the existing Thai form.
+  const token = /^[A-Za-z]+$/.test(name) ? `\\b${escapeRegex(name)}\\b` : escapeRegex(name);
+  return new RegExp(`(?:เดือน\\s*)?${token}(?:\\s*(20\\d{2}))?`, "iu");
 }
 
 function makeMonth(year: number, month: number): Period {
@@ -505,8 +523,14 @@ function parseProduct(question: string): ProductGroup | undefined {
 
 function parseModel(question: string, context?: RuntimeQueryContext) {
   if (/\bDC\s*[- ]?\s*70G\s*PRO\b/iu.test(question)) return "DC70G PRO";
-  const match = question.match(/(?:รุ่น|model)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{1,50}?)(?=\s*(?:มี|เหลือ|ขาย|จอง|stock|สต็อก|เดือน|ปี|เท่าไร|กี่|มากที่สุด|$))/iu);
-  if (match?.[1]?.trim()) return canonicalModelName(match[1]);
+  const match = question.match(/(?:รุ่น|\bmodel\b)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{1,50}?)(?=\s*(?:มี|เหลือ|ขาย|จอง|stock|สต็อก|เดือน|ปี|เท่าไร|กี่|มากที่สุด|$))/iu);
+  const candidate = match?.[1]?.trim();
+  // Terms such as "model ranking July" describe a grouping, not a model
+  // filter.  Applying them as a product-model predicate returns an empty
+  // result and silently violates the requested ranking scope.
+  if (candidate && !/\b(?:ranking|rank|top|highest|most|best|by)\b|อันดับ|สูงสุด|มากที่สุด/iu.test(candidate)) {
+    return canonicalModelName(candidate);
+  }
   const trailingStock = question.match(/^\s*([A-Za-z0-9][A-Za-z0-9+()\- .]{2,50}?)\s+(?:stock|สต็อก)\s*$/iu)?.[1]?.trim();
   const isKnownBranch = context?.branches?.some((branch) => branch.code.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0 || branch.name.localeCompare(trailingStock ?? "", undefined, { sensitivity: "accent" }) === 0);
   const containsFilterVocabulary = /\bKMM0[1-3]\b|\b(?:TT|CH|EX|TP|IM|IMO|OT|tractor|combine|excavator|transplanter|other|current|now|value|aging|slow\s*moving)\b/iu.test(trailingStock ?? "");
@@ -516,7 +540,13 @@ function parseModel(question: string, context?: RuntimeQueryContext) {
 
 function parseSalesperson(question: string) {
   const match = question.match(/(?:salesperson|พนักงานขาย|เซลส์)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9 .()\-]{2,60}?)(?=\s*(?:ขาย|sales|booking|เดือน|ปี|january|february|march|april|may|june|july|august|september|october|november|december|เท่าไร|กี่|$))/iu);
-  return match?.[1]?.trim() || undefined;
+  const candidate = match?.[1]?.trim();
+  // A role followed by a time or grouping word means "rank salespeople", not
+  // "filter by a salesperson whose name is that word".
+  if (candidate && !/^(?:ranking|rank|top|directory|master|active|list|summary|breakdown|status)\b|^(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+20\d{2})?$/iu.test(candidate)) {
+    return candidate;
+  }
+  return undefined;
 }
 
 function parseSalespersonCode(question: string) {
@@ -565,6 +595,26 @@ function unresolvedProductCode(question: string) {
   return code?.replace(/\s+/g, "").toUpperCase();
 }
 
+function unresolvedBranchCode(question: string, context: RuntimeQueryContext) {
+  const available = context.branches ?? [];
+  const codes = [...question.matchAll(/\bKMM\d{2,}\b/giu)].map((match) => match[0].toUpperCase());
+  // A branch code without permission-derived vocabulary must fail closed;
+  // accepting it would turn a requested branch filter into a company total.
+  if (!available.length) return codes[0];
+  return codes.find((code) => !available.some((branch) => branch.code.toUpperCase() === code));
+}
+
+function unverifiedBusinessField(question: string) {
+  if (/\bcommission\b|คอมมิชชั่น|คอมมิชชั่น/iu.test(question)) return "Commission";
+  if (/\bmarketing(?:\s+expense)?\b|ค่าใช้จ่ายการตลาด|การตลาด/iu.test(question)) return "Marketing Expense";
+  if (/\b(?:receive|received)\s*date\b|(?:วันที่|วัน)\s*รับ/iu.test(question)) return "Receive Date";
+  if (/\bdelivery\s*date\b|(?:วันที่|วัน)\s*ส่งมอบ/iu.test(question)) return "Delivery Date";
+  // Booking lifecycle status "Delivered" is verified.  A Sales-delivery
+  // question is not: Sales has no verified delivery relationship.
+  if (/(?:\bsales\b|ยอดขาย|ขาย)/iu.test(question) && /\bdelivery\b|ส่งมอบ/iu.test(question)) return "Sales Delivery";
+  return undefined;
+}
+
 function resolveBranches(question: string, context: RuntimeQueryContext) {
   const available = context.branches ?? [];
   const normalized = question.toLocaleLowerCase();
@@ -579,7 +629,8 @@ function looksAmbiguous(question: string, branches: string[]) {
   const trimmed = question.trim();
   const hasBareModel = /^[A-Za-z0-9+()\- .]{3,60}\s*(?:เท่าไร|เท่าไหร่|กี่คัน|how many|how much)?[?؟!]*$/iu.test(trimmed);
   const hasBareBranch = branches.length > 0 && !/\b(?:sales|booking|stock|gp|target|value|ยอดขาย|ยอดจอง|สต็อก|คงเหลือ|กำไร|เป้า)\b/iu.test(trimmed);
-  return hasBareModel || hasBareBranch || /^(?:ยอด|amount|total)\s+(?:KMM0[1-3])$/iu.test(trimmed);
+  const bareTemporalAmount = /^(?:ยอด|amount|total)(?:\s*(?:วันนี้|เมื่อวาน|เดือนนี้|เดือนก่อน|ปีนี้|mtd|ytd|today|yesterday|this month|last month|this year))?$/iu.test(trimmed);
+  return hasBareModel || hasBareBranch || bareTemporalAmount || /^(?:ยอด|amount|total)\s+(?:KMM0[1-3])$/iu.test(trimmed);
 }
 
 function ambiguousResult(knowledge: Awaited<ReturnType<typeof loadKnowledge>>, text: string): RuntimeQueryResult {

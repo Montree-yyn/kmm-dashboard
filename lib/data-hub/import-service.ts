@@ -6,6 +6,7 @@ import type {
 } from "./types";
 import { resolveActiveCompanyId } from "../company-context/client-store";
 import { APPROVED_SALES_INCREMENTAL_GUARD, type ApprovedSalesIncrementalGuard, type SalesIncrementalPreview } from "./sales-incremental";
+import { getSessionAuthToken } from "./session-auth";
 
 export type SalesImportMode = "replace" | "append";
 
@@ -109,10 +110,7 @@ export async function persistSalesMapping(mapping: Record<string, string | null>
 }
 
 async function getAuthToken() {
-  const { auth } = await import("../" + ["fire", "base"].join(""));
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error("Your secure session has expired. Sign in again to import data.");
-  return token;
+  return getSessionAuthToken();
 }
 
 export function recordSessionImportFailure({

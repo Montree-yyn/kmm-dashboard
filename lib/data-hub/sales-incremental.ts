@@ -80,6 +80,31 @@ function stable(value: unknown) {
   return text(value).toUpperCase();
 }
 
+/** Normalize the Excel serial dates emitted by CPI workbooks as well as ISO/date text. */
+export function normalizeSalesDate(value: unknown): string | null {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = text(value);
+  if (!raw) return null;
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) return date.toISOString().slice(0, 10);
+  }
+  const serial = Number(raw.replaceAll(",", ""));
+  if (Number.isFinite(serial) && serial >= 1 && serial <= 100000) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(serial * 86_400_000));
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
 function modelKey(value: unknown) {
   return stable(value).replace(/[^A-Z0-9]/g, "");
 }
@@ -104,7 +129,7 @@ function identityCode(row: SalesIncrementalRow) {
 export function salesTransactionIdentity(row: SalesIncrementalRow) {
   return [
     stable(row.invoiceNo),
-    stable(row.saleDate),
+    stable(normalizeSalesDate(row.saleDate) ?? row.saleDate),
     stable(row.branch),
     modelKey(row.modelCode),
     identityCode(row),
@@ -114,7 +139,7 @@ export function salesTransactionIdentity(row: SalesIncrementalRow) {
 }
 
 function invalidReason(row: SalesIncrementalRow) {
-  if (!text(row.invoiceNo) || !text(row.saleDate) || !text(row.branch) || !text(row.modelCode)) {
+  if (!text(row.invoiceNo) || !normalizeSalesDate(row.saleDate) || !text(row.branch) || !text(row.modelCode)) {
     return "invoice, date, branch and model are required";
   }
   if (numberValue(row.quantity) === null || numberValue(row.saleAmount) === null) {

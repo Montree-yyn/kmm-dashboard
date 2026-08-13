@@ -26,6 +26,7 @@ import {
 import {
   APPROVED_SALES_INCREMENTAL_GUARD,
   buildSalesIncrementalPreview,
+  normalizeSalesDate,
   type ApprovedSalesIncrementalGuard,
   type SalesIncrementalRow,
 } from "../../../../lib/data-hub/sales-incremental";
@@ -134,7 +135,8 @@ export async function POST(request: Request) {
     const rows = payload.rows.map((row, index) => {
       const quantity = Number(String(row.quantity ?? "").replaceAll(",", ""));
       const saleAmount = Number(String(row.sale_amount ?? "").replaceAll(",", ""));
-      if (!row.sale_date || !row.invoice_no || !row.branch || !row.model_code || !Number.isFinite(quantity) || !Number.isFinite(saleAmount)) throw new Error(`Row ${index + 2} is not valid for import.`);
+      const normalizedSaleDate = mode === "append" ? normalizeSalesDate(row.sale_date) : String(row.sale_date ?? "");
+      if (!normalizedSaleDate || !row.invoice_no || !row.branch || !row.model_code || !Number.isFinite(quantity) || !Number.isFinite(saleAmount)) throw new Error(`Row ${index + 2} is not valid for import.`);
       const numberOrNull = (value: unknown, field?: string) => {
         if (value === null || value === undefined || String(value).trim() === "") return null;
         const parsed = Number(String(value).replaceAll(",", ""));
@@ -147,7 +149,9 @@ export async function POST(request: Request) {
       const salespersonName = String(row.salesperson_name ?? "").trim();
       const master = (employeeCode ? masterByEmployee.get(employeeCode.toUpperCase()) : undefined) || (salespersonCode ? masterByCode.get(salespersonCode.toUpperCase()) : undefined);
       if ((employeeCode || salespersonCode) && !master) unmappedEmployeeRows += 1;
-      return { id: crypto.randomUUID(), tenantId: context.tenantId, companyId, importId, importYear: year, importMonth: month, saleDate: String(row.sale_date), invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), commission: numberOrNull(row.commission, "Commission"), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
+      const effectiveYear = mode === "append" ? Number(normalizedSaleDate.slice(0, 4)) : year;
+      const effectiveMonth = mode === "append" ? Number(normalizedSaleDate.slice(5, 7)) : month;
+      return { id: crypto.randomUUID(), tenantId: context.tenantId, companyId, importId, importYear: effectiveYear, importMonth: effectiveMonth, saleDate: normalizedSaleDate, invoiceNo: String(row.invoice_no), branch: String(row.branch), modelCode: canonicalModelName(row.model_code), employeeCode, quantity, saleAmount: String(saleAmount), productType: row.product_type ? String(row.product_type) : null, model: row.model ? canonicalModelName(row.model) : null, finalReceived: numberOrNull(row.final_received), netReceived: numberOrNull(row.net_received), gp1: numberOrNull(row.gp1), expense: numberOrNull(row.expense), commission: numberOrNull(row.commission, "Commission"), salespersonCode: master?.salespersonCode ?? (salespersonCode || null), salespersonName: master?.salespersonName ?? (salespersonName || null), createdBy: context.user.id };
     });
     if (mode === "append") {
       const existingRows = await db.select({
@@ -166,7 +170,7 @@ export async function POST(request: Request) {
         commission: salesTransactions.commission,
       }).from(salesTransactions).where(eq(salesTransactions.companyId, companyId));
       const scopeViolations = rows.flatMap((row, index) => {
-        const date = String(row.saleDate);
+        const date = normalizeSalesDate(row.saleDate) ?? "";
         const branch = String(row.branch).trim().toUpperCase();
         const violations: string[] = [];
         if (date < "2026-08-05" || date > "2026-08-10") violations.push(`row ${index + 2}: sale date must be 2026-08-05 through 2026-08-10`);

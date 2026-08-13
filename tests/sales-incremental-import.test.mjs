@@ -6,7 +6,7 @@ import { tsImport } from "tsx/esm/api";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const incremental = await tsImport("../lib/data-hub/sales-incremental.ts", import.meta.url);
 
-const { APPROVED_SALES_INCREMENTAL_GUARD, buildSalesIncrementalPreview, salesTransactionIdentity } = incremental;
+const { APPROVED_SALES_INCREMENTAL_GUARD, buildSalesIncrementalPreview, normalizeSalesDate, salesTransactionIdentity } = incremental;
 
 function row(index, overrides = {}) {
   return {
@@ -29,6 +29,12 @@ function row(index, overrides = {}) {
 }
 
 const approvedRows = Array.from({ length: 11 }, (_, index) => row(index));
+
+test("Excel serial dates normalize to the canonical sale date", () => {
+  assert.equal(normalizeSalesDate(46239), "2026-08-05");
+  assert.equal(normalizeSalesDate("2026-08-10"), "2026-08-10");
+  assert.equal(normalizeSalesDate("not-a-date"), null);
+});
 
 test("approved 11-row subset preview is exact and append-only", () => {
   const preview = buildSalesIncrementalPreview(approvedRows, []);

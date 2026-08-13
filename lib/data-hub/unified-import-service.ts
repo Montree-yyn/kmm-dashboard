@@ -2,6 +2,7 @@ import type { ImportModule, ImportHistoryRecord, ParsedImportFile, ValidationSum
 import { completeSessionImport, type SalesImportMode } from "./import-service";
 import type { ApprovedSalesIncrementalGuard } from "./sales-incremental";
 import { resolveActiveCompanyId } from "../company-context/client-store";
+import { getSessionAuthToken } from "./session-auth";
 
 export type UnifiedModuleImportRequest = {
   module: ImportModule;
@@ -33,8 +34,5 @@ export async function completeUnifiedModuleImport({ module, file, validation, ye
 }
 
 async function getAuthToken() {
-  const { auth } = await import("../" + ["fire", "base"].join(""));
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error("Your secure session has expired. Sign in again to import data.");
-  return token;
+  return getSessionAuthToken();
 }

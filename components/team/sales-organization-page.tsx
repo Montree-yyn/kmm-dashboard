@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BarChart3, BadgeDollarSign, CalendarDays, ChevronDown, CircleDollarSign, Percent, RefreshCw, RotateCcw, Search, UsersRound, X } from "lucide-react";
+import { BarChart3, BadgeDollarSign, Building2, CalendarDays, ChevronDown, CircleDollarSign, Percent, RefreshCw, RotateCcw, Search, UserRound, UsersRound, X } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
-import { getEngineUnitSalesRows, getSalesKpis, getSalesUnit } from "../../lib/sales/business-service";
+import { getSalesKpis } from "../../lib/sales/business-service";
 import { loadLiveSalesData } from "../../lib/sales/client";
 import { resolveCommissionIdentity } from "../../lib/sales/commission-identity";
 import type { CommissionIdentityAlias } from "../../lib/sales/commission-identity";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { operationalShowroomForBranch } from "../../lib/marketing/location-mapping";
-import { ChartCard } from "../design-system/chart-card";
-import { EmptyState } from "../design-system/empty-state";
 import { ErrorState } from "../design-system/error-state";
 import { ExportButton } from "../design-system/export-button";
 import { FilterBar } from "../design-system/filter-bar";
@@ -47,9 +45,9 @@ type DashboardData = { meta: { sourceUpdatedAt: string }; plan: { year: number |
 type Person = { id: string; name: string; branch: string; salesUnit: number; salesValue: number; gp: number; commission: number | null; booking: number; target: number | null; achievement: number | null; conversion: number; rank: number; employeeCode: string | null; salespersonCode: string | null; status: "active" | "inactive" | "historical"; position: string | null; territory: string | null; phone: string | null; email: string | null; joinedDate: string | null };
 type RankingMetric = "salesUnit" | "salesValue" | "gp" | "gpPercent" | "commission" | "commissionOfGp";
 type RankingView = "table" | "cards";
-type BranchMetric = { code: string; name: string; people: Person[]; target: number; salesUnit: number; salesValue: number; gp: number; gpPercent: number | null; booking: number; achievement: number | null; conversion: number | null; health: number | null };
-type ShowroomTargetRow = { showroomCode: string; targetUnit: number; year: number; month: number };
-type ShowroomAchievementRankingEntry = { showroomCode: string; showroomName: string; salesUnit: number; targetUnit: number | null; achievementPercent: number | null };
+type BranchTrendPoint = { key: string; label: string; sales: number | null; gp: number | null };
+type BranchManager = { name: string; position: string | null } | null;
+type BranchMetric = { code: string; name: string; people: Person[]; salesUnit: number; salesValue: number | null; gp: number | null; gpPercent: number | null; booking: number; bookingPerPerson: number | null; trend: BranchTrendPoint[]; manager: BranchManager };
 
 const defaultFilters: FilterState = { year: ["2026"], month: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], branch: [], salesperson: [] };
 
@@ -107,20 +105,47 @@ function canonicalBranch(value: string) { return operationalShowroomForBranch(va
 function years(filters: FilterState) { return filters.year.map(Number).filter(Number.isFinite); }
 function months(filters: FilterState) { return filters.month.map((month) => MONTHS.indexOf(month) + 1).filter((month) => month > 0); }
 function matchesFilters(row: Pick<SourceRow, "year" | "month" | "branch" | "salesperson">, filters: FilterState) { const selectedYears = years(filters); const selectedMonths = months(filters); return (!selectedYears.length || (row.year !== null && selectedYears.includes(row.year))) && (!selectedMonths.length || (row.month !== null && selectedMonths.includes(row.month))) && (!filters.branch.length || filters.branch.includes(row.branch)) && (!filters.salesperson.length || filters.salesperson.includes(row.salesperson)); }
-function selectedPeriodLabel(filters: FilterState) { const year = filters.year.length === 1 ? filters.year[0] : filters.year.length ? `${filters.year.length} years` : "All years"; const month = filters.month.length === 1 ? filters.month[0] : filters.month.length ? `${filters.month.length} months` : "All months"; return `${month} · ${year}`; }
-function targetForScope(data: DashboardData, filters: FilterState) { const selectedYears = years(filters); if (selectedYears.length !== 1 || selectedYears[0] !== data.plan.year || filters.branch.length || filters.salesperson.length) return null; const selectedMonths = months(filters); const indexes = selectedMonths.length ? selectedMonths.map((month) => month - 1) : data.plan.months.map((_, index) => index); const target = sum(indexes, (index) => data.plan.units[index] ?? 0); return target || null; }
-function getShowroomTargetRows(data: DashboardData): ShowroomTargetRow[] {
-  // The dashboard plan contains only company-wide monthly targets, not showroom targets.
-  void data;
-  return [];
+function selectedPeriodTitle(filters: FilterState) {
+  if (filters.month.length === 1) return `${filters.month[0]}${filters.year.length === 1 ? ` ${filters.year[0]}` : ""}`;
+  if (filters.month.length > 1) return `${filters.month.length} Months${filters.year.length === 1 ? ` · ${filters.year[0]}` : ""}`;
+  if (filters.year.length === 1) return filters.year[0];
+  return "Selected Period";
 }
-function getShowroomAchievementRanking({ salesRows, targetRows, filters, branches }: { salesRows: SalesRow[]; targetRows: ShowroomTargetRow[]; filters: FilterState; branches: Array<{ code: string; name: string }> }): ShowroomAchievementRankingEntry[] {
-  const selectedYears = years(filters); const selectedMonths = months(filters);
-  return branches.map((showroom) => {
-    const salesUnit = getSalesKpis(salesRows.filter((row) => operationalShowroomForBranch(row.branch)?.code === showroom.code)).salesUnit;
-    const targetUnit = sum(targetRows.filter((row) => row.showroomCode === showroom.code && (!selectedYears.length || selectedYears.includes(row.year)) && (!selectedMonths.length || selectedMonths.includes(row.month))), (row) => row.targetUnit) || null;
-    return { showroomCode: showroom.code, showroomName: showroom.name, salesUnit, targetUnit, achievementPercent: targetUnit === null ? null : (salesUnit / targetUnit) * 100 };
-  }).sort((left, right) => (right.achievementPercent ?? -1) - (left.achievementPercent ?? -1) || right.salesUnit - left.salesUnit || left.showroomCode.localeCompare(right.showroomCode));
+function selectedPeriodLabel(filters: FilterState) { const year = filters.year.length === 1 ? filters.year[0] : filters.year.length ? `${filters.year.length} years` : "All years"; const month = filters.month.length === 1 ? filters.month[0] : filters.month.length ? `${filters.month.length} months` : "All months"; return `${month} · ${year}`; }
+function selectedPeriodRange(filters: FilterState, rows: SourceRow[]) {
+  const selectedYears = years(filters);
+  const selectedMonths = months(filters);
+  if (selectedYears.length === 1) {
+    const firstMonth = selectedMonths.length ? Math.min(...selectedMonths) : 1;
+    const lastMonth = selectedMonths.length ? Math.max(...selectedMonths) : 12;
+    const first = new Date(Date.UTC(selectedYears[0], firstMonth - 1, 1)).toISOString();
+    const last = new Date(Date.UTC(selectedYears[0], lastMonth, 0)).toISOString();
+    return `${formatDate(first)} – ${formatDate(last)}`;
+  }
+  const dates = rows.map((row) => row.date).filter(Boolean).sort();
+  if (dates.length) return `${formatDate(dates[0])} – ${formatDate(dates.at(-1) ?? dates[0])}`;
+  return selectedPeriodLabel(filters);
+}
+function getBranchTrend(rows: SalesRow[]): BranchTrendPoint[] {
+  const periods = new Map<string, { year: number; month: number; sales: number; salesAvailable: boolean; gp: number; gpAvailable: boolean }>();
+  rows.forEach((row) => {
+    if (row.year === null || row.month === null || row.month < 1 || row.month > 12) return;
+    const key = `${row.year}-${String(row.month).padStart(2, "0")}`;
+    const period = periods.get(key) ?? { year: row.year, month: row.month, sales: 0, salesAvailable: true, gp: 0, gpAvailable: true };
+    period.sales += row.finalReceived ?? 0;
+    period.salesAvailable = period.salesAvailable && row.finalReceived !== null;
+    period.gp += row.gp1 ?? 0;
+    period.gpAvailable = period.gpAvailable && row.gp1 !== null;
+    periods.set(key, period);
+  });
+  const sorted = [...periods.values()].sort((left, right) => left.year - right.year || left.month - right.month);
+  const includeYear = new Set(sorted.map((period) => period.year)).size > 1;
+  return sorted.map((period) => ({
+    key: `${period.year}-${period.month}`,
+    label: includeYear ? `${MONTHS[period.month - 1]} ${period.year}` : MONTHS[period.month - 1],
+    sales: period.salesAvailable ? period.sales : null,
+    gp: period.gpAvailable ? period.gp : null,
+  }));
 }
 function Avatar({ name, large = false }: { name: string; large?: boolean }) {
   return (
@@ -280,85 +305,75 @@ function TeamFilters({ filters, options, onChange, onRefresh, onReset, onExport 
   );
 }
 
-function ShowroomPerformance({ items }: { items: BranchMetric[] }) {
-  return <Card className="h-full min-h-[420px] rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6"><h2 className="text-[19px] font-semibold leading-tight tracking-normal text-[var(--text-primary)]">Showroom Performance</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">Active salespeople only. Sales, GP and bookings reflect the selected period.</p><div className="mt-6 overflow-x-auto rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)]">{items.some((item) => item.salesUnit) ? <table className="kmm-tabular min-w-[900px] w-full text-left text-xs"><thead className="bg-[var(--surface-subtle)] text-[var(--text-secondary)]"><tr>{["#", "Showroom", "Target", "Sales", "Achievement", "GP", "GP%", "Booking", "Active Sales", "Health"].map((label) => <th key={label} className="h-11 whitespace-nowrap px-3 py-2 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-[var(--divider)] text-[var(--text-secondary)]">{items.map((item, index) => <tr key={item.code} className="h-12 transition-colors hover:bg-[var(--brand-50)]"><td className="px-3 py-2 text-[var(--text-tertiary)]">{index + 1}</td><td className="px-3 py-2"><p className="font-semibold text-[var(--text-primary)]">{item.code}</p><p className="mt-0.5 text-[var(--text-tertiary)]">{item.name}</p></td><td className="px-3 py-2 text-right font-semibold">{item.target ? formatNumber(item.target) : "N/A"}</td><td className="px-3 py-2 text-right font-semibold">{formatNumber(item.salesUnit)}</td><td className="px-3 py-2 text-right">{item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`}</td><td className="px-3 py-2 text-right font-semibold">{formatCompact(item.gp)}</td><td className="px-3 py-2 text-right">{item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`}</td><td className="px-3 py-2 text-right">{formatNumber(item.booking)}</td><td className="px-3 py-2 text-right"><Badge variant="outline">{item.people.length}</Badge></td><td className="px-3 py-2 text-right font-semibold text-[var(--brand-600)]">{item.health === null ? "N/A" : `${item.health.toFixed(0)}/100`}</td></tr>)}</tbody></table> : <EmptyState />}</div></Card>;
+function trendPath(values: number[], max: number) {
+  const left = 16;
+  const right = 304;
+  const top = 10;
+  const bottom = 98;
+  return values.map((value, index) => {
+    const x = left + ((right - left) * index) / Math.max(values.length - 1, 1);
+    const y = bottom - ((value / max) * (bottom - top));
+    return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
 }
 
-function ShowroomRanking({ items }: { items: ShowroomAchievementRankingEntry[] }) {
-  const targetsAvailable = items.some((item) => item.targetUnit !== null);
-  const peakSalesUnit = Math.max(...items.map((item) => item.salesUnit), 1);
-
+function BranchTrendChart({ showroomName, currency, points }: { showroomName: string; currency: string; points: BranchTrendPoint[] }) {
+  if (!points.length) {
+    return <div className="grid min-h-[146px] place-items-center rounded-[var(--radius-control-lg)] bg-[var(--surface-subtle)] px-4 text-center text-xs text-[var(--text-tertiary)]">Trend data is not available for this view.</div>;
+  }
+  const salesAvailable = points.every((point): point is BranchTrendPoint & { sales: number } => point.sales !== null);
+  const gpAvailable = points.every((point): point is BranchTrendPoint & { gp: number } => point.gp !== null);
+  const salesMax = Math.max(...points.map((point) => point.sales ?? 0), 1);
+  const gpMax = Math.max(...points.map((point) => point.gp ?? 0), 1);
+  const salesPath = salesAvailable ? trendPath(points.map((point) => point.sales ?? 0), salesMax) : "";
+  const gpPath = gpAvailable ? trendPath(points.map((point) => point.gp ?? 0), gpMax) : "";
+  const x = (index: number) => 16 + (288 * index) / Math.max(points.length - 1, 1);
+  const ySales = (value: number) => 98 - ((value / salesMax) * 88);
+  const yGp = (value: number) => 98 - ((value / gpMax) * 88);
   return (
-    <ChartCard
-      title="Showroom Ranking"
-      subtitle={
-        targetsAvailable
-          ? "Ranked by showroom achievement"
-          : "Ranked by sales unit"
-      }
-      minHeight={420}
-      className="h-full"
-    >
-      {items.length ? (
-        <div className="flex min-h-[278px] flex-col justify-evenly gap-5">
-          {items.map((item, index) => {
-            const achievement = item.achievementPercent;
-            const width = targetsAvailable
-              ? Math.min(achievement ?? 0, 100)
-              : (item.salesUnit / peakSalesUnit) * 100;
-            const color = targetsAvailable
-              ? achievement !== null && achievement >= 100
-                ? "bg-[var(--status-success)]"
-                : achievement !== null && achievement >= 80
-                  ? "bg-[var(--brand-500)]"
-                  : "bg-[var(--brand-600)]"
-              : "bg-[var(--text-tertiary)]";
-            const metric = targetsAvailable
-              ? `${achievement?.toFixed(1)}%`
-              : `${formatNumber(item.salesUnit)} Units`;
-
-            return (
-              <div
-                key={item.showroomCode}
-                className="grid grid-cols-[24px_minmax(0,1fr)_76px] items-center gap-3 sm:grid-cols-[24px_minmax(120px,1fr)_minmax(120px,2fr)_76px]"
-              >
-                <span className="kmm-tabular text-sm font-semibold text-[var(--text-tertiary)]">
-                  {index + 1}
-                </span>
-                <span className="min-w-0 text-sm font-semibold text-[var(--text-secondary)]">
-                  {item.showroomCode}{" "}
-                  <span className="block truncate font-normal text-[var(--text-tertiary)] sm:inline">
-                    {item.showroomName}
-                  </span>
-                </span>
-                <div className="hidden h-2 overflow-hidden rounded-full bg-[var(--surface-muted)] sm:block">
-                  <div
-                    className={cn("h-full rounded-full", color)}
-                    style={{ width: `${width}%` }}
-                  />
-                </div>
-                <span className="kmm-tabular text-right text-sm font-semibold text-[var(--text-primary)]">
-                  {metric}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <EmptyState />
-      )}
-    </ChartCard>
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3 text-[11px] text-[var(--text-tertiary)]">
+        <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded-full bg-[var(--chart-current)]" aria-hidden="true" />Sales ({currency})</span>
+        {gpAvailable ? <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded-full bg-[var(--text-tertiary)]" aria-hidden="true" />GP</span> : <span>GP unavailable</span>}
+      </div>
+      <svg viewBox="0 0 320 124" className="h-[132px] w-full" role="img" aria-label={`${showroomName} sales and gross profit trend`}>
+        <line x1="16" x2="304" y1="98" y2="98" stroke="var(--divider)" strokeWidth="1" />
+        <line x1="16" x2="304" y1="54" y2="54" stroke="var(--divider)" strokeWidth="1" strokeDasharray="2 4" />
+        {salesAvailable && <path d={salesPath} fill="none" stroke="var(--chart-current)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+        {gpAvailable && <path d={gpPath} fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" />}
+        {points.map((point, index) => <g key={point.key}>{salesAvailable && <circle cx={x(index)} cy={ySales(point.sales ?? 0)} r="3.5" fill="var(--surface-default)" stroke="var(--chart-current)" strokeWidth="2" />}{gpAvailable && <circle cx={x(index)} cy={yGp(point.gp ?? 0)} r="3" fill="var(--surface-default)" stroke="var(--text-tertiary)" strokeWidth="1.7" />}</g>)}
+      </svg>
+      <div className="grid grid-flow-col auto-cols-fr gap-1 text-center text-[10px] text-[var(--text-tertiary)]">{points.map((point) => <span key={point.key} className="truncate">{point.label}</span>)}</div>
+    </div>
   );
 }
 
-function TeamSummary({ items, onSelect }: { items: BranchMetric[]; onSelect: (person: Person) => void }) {
-  return <section className="space-y-4"><SectionHeader title="Team Summary" description="Showroom view for current employees." /><div className="grid gap-4 lg:grid-cols-3">{items.map((item) => { const ordered = [...item.people].sort((a, b) => (b.achievement ?? -1) - (a.achievement ?? -1) || b.salesUnit - a.salesUnit); const top = ordered[0]; const bottom = ordered.at(-1); return <Card key={item.code} className="flex h-full min-h-[280px] flex-col rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] sm:p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-[var(--text-primary)]">{item.code}</h3><p className="mt-1 text-sm text-[var(--text-secondary)]">{item.name}</p></div><Badge variant="outline">{item.people.length} active</Badge></div><div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm"><CardMetric label="Showroom Manager" value="N/A" /><CardMetric label="Achievement" value={item.achievement === null ? "N/A" : `${item.achievement.toFixed(1)}%`} /><CardMetric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><CardMetric label="Conversion" value={item.conversion === null ? "N/A" : `${item.conversion.toFixed(1)}%`} /><CardMetric label="Booking / Person" value={item.people.length ? (item.booking / item.people.length).toFixed(1) : "N/A"} /></div><div className="mt-auto space-y-1 border-t border-[var(--divider)] pt-3"><PersonLink label="Top Performer" person={top} onSelect={onSelect} /><PersonLink label="Bottom Performer" person={bottom} onSelect={onSelect} /></div></Card>; })}</div></section>;
+function ShowroomManager({ manager }: { manager: BranchManager }) {
+  return (
+    <div className="flex items-center gap-3 border-t border-[var(--divider)] pt-3">
+      <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--surface-muted)] text-[var(--text-tertiary)]" aria-hidden="true">
+        {manager ? <Avatar name={manager.name} /> : <UserRound size={17} strokeWidth={1.8} />}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Showroom Manager</p>
+        <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{manager?.name ?? "N/A"}</p>
+        {manager?.position && <p className="truncate text-xs text-[var(--text-secondary)]">{manager.position}</p>}
+      </div>
+    </div>
+  );
+}
+
+function ShowroomMetric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><p className="truncate text-[11px] font-medium text-[var(--text-tertiary)]">{label}</p><p className="kmm-tabular mt-1 truncate text-base font-bold leading-5 text-[var(--text-primary)]">{value}</p></div>;
+}
+
+function TeamSummary({ items, currency }: { items: BranchMetric[]; currency: string }) {
+  const legend = <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]"><span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded-full bg-[var(--chart-current)]" aria-hidden="true" />Sales ({currency})</span><span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded-full bg-[var(--text-tertiary)]" aria-hidden="true" />GP ({currency})</span></div>;
+  return <section className="space-y-4" aria-label="Team Summary"><SectionHeader title="Team Summary" description="Showroom performance overview for the selected period." action={legend} /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map((item) => { const salesPerPerson = item.people.length && item.salesValue !== null ? formatCurrency(item.salesValue / item.people.length, currency) : "N/A"; const bookingPerPerson = item.bookingPerPerson === null ? null : formatNumber(item.bookingPerPerson); return <Card key={item.code} className="flex h-full min-h-[420px] flex-col rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)] sm:p-5"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control-lg)] bg-[var(--brand-50)] text-[var(--brand-600)]" aria-hidden="true"><Building2 size={19} strokeWidth={1.8} /></span><div className="min-w-0"><h3 className="truncate text-base font-bold text-[var(--text-primary)]">{item.code}</h3><p className="truncate text-sm text-[var(--text-secondary)]">{item.name}</p></div></div><Badge variant="success" className="shrink-0">{item.people.length} active</Badge></div><div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4"><ShowroomMetric label="Sales" value={formatCurrency(item.salesValue, currency)} /><ShowroomMetric label="GP" value={formatCurrency(item.gp, currency)} /><ShowroomMetric label="GP%" value={item.gpPercent === null ? "N/A" : `${item.gpPercent.toFixed(1)}%`} /><ShowroomMetric label="Sales / Person" value={salesPerPerson} />{bookingPerPerson !== null && <div className="col-span-2 sm:col-span-4"><ShowroomMetric label="Booking / Person" value={bookingPerPerson} /></div>}</div><div className="mt-5"><BranchTrendChart showroomName={item.name} currency={currency} points={item.trend} /></div><div className="mt-auto pt-4"><ShowroomManager manager={item.manager} /></div></Card>; })}</div></section>;
 }
 function Metric({ label, value }: { label: string; value: ReactNode }) { return <div className="min-w-0"><p className="text-xs text-[var(--text-tertiary)]">{label}</p><p className="kmm-tabular mt-1 break-words font-semibold leading-5 text-[var(--text-primary)]" title={typeof value === "string" ? value : undefined}>{value}</p></div>; }
 function CardMetric({ label, value, icon, full = false }: { label: string; value: ReactNode; icon?: ReactNode; full?: boolean }) { const displayValue = value === "N/A" ? "—" : value; return <div className={cn("min-w-0", full && "col-span-2")}><div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-[var(--text-tertiary)]">{icon && <span className="text-[var(--brand-600)]" aria-hidden="true">{icon}</span>}<span>{label}</span></div><p className="kmm-tabular mt-0.5 truncate text-[17px] font-bold leading-5 text-[var(--text-primary)]" title={typeof displayValue === "string" ? displayValue : undefined}>{displayValue}</p></div>; }
 function DrawerMetric({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) { return <div className="min-w-0 rounded-[var(--radius-control-lg)] border border-[var(--border-subtle)] bg-[var(--surface-subtle)] p-3"><div className="flex items-center gap-1.5 text-[11px] font-medium leading-4 text-[var(--text-tertiary)]">{icon && <span className="text-[var(--brand-600)]" aria-hidden="true">{icon}</span>}<span>{label}</span></div><p className="kmm-tabular mt-1 break-words text-base font-bold leading-5 text-[var(--text-primary)]">{value}</p></div>; }
-function PersonLink({ label, person, onSelect }: { label: string; person?: Person; onSelect: (person: Person) => void }) { return <div className="flex min-h-11 items-center justify-between gap-3 text-xs"><span className="shrink-0 text-[var(--text-tertiary)]">{label}</span>{person ? <button type="button" className="min-h-11 min-w-0 truncate rounded-[var(--radius-control)] px-1.5 text-right font-semibold text-[var(--brand-600)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" onClick={() => onSelect(person)}>{person.name}</button> : <span className="font-semibold text-[var(--text-secondary)]">—</span>}</div>; }
-
 function metricValue(person: Person, rankBy: RankingMetric) { return rankBy === "salesUnit" ? person.salesUnit : rankBy === "salesValue" ? person.salesValue : rankBy === "gp" ? person.gp : rankBy === "gpPercent" ? ratio(person.gp, person.salesValue) : rankBy === "commission" ? person.commission : ratio(person.commission, person.gp); }
 function rankPeople(people: Person[], rankBy: RankingMetric) { return [...people].sort((left, right) => { const difference = (metricValue(right, rankBy) ?? Number.NEGATIVE_INFINITY) - (metricValue(left, rankBy) ?? Number.NEGATIVE_INFINITY); return difference || left.name.localeCompare(right.name); }).map((person, index) => ({ ...person, rank: index + 1 })); }
 function RankingControls({ rankBy, onRankByChange, view, onViewChange }: { rankBy: RankingMetric; onRankByChange: (value: RankingMetric) => void; view: RankingView; onViewChange: (value: RankingView) => void }) {
@@ -626,8 +641,7 @@ export function SalesOrganizationPage() {
   const filteredSales = useMemo(() => (data?.sales ?? []).filter((row) => matchesFilters(row, filters)), [data, filters]);
   const activeSales = useMemo(() => filteredSales.filter((row) => isCurrentLiveEmployee(row, employeeDirectory, inactiveNames, data?.employees ?? [], data?.salespersonIdentityAliases ?? [])), [filteredSales, employeeDirectory, inactiveNames, data?.employees, data?.salespersonIdentityAliases]);
   const filteredBooking = useMemo(() => (data?.booking ?? []).filter((row) => matchesFilters(row, filters)).filter((row) => isCurrentLiveEmployee(row, employeeDirectory, inactiveNames, data?.employees ?? [], data?.salespersonIdentityAliases ?? [])), [data, filters, employeeDirectory, inactiveNames]);
-  const totalTarget = data ? targetForScope(data, filters) : null;
-  const activeUnitRows = useMemo(() => getEngineUnitSalesRows(activeSales), [activeSales]);
+  const bookingSourceAvailable = Boolean(data?.booking.length);
   const people = useMemo<Person[]>(() => {
     const employees = data?.employees ?? [];
     const aliases = data?.salespersonIdentityAliases ?? [];
@@ -679,16 +693,16 @@ export function SalesOrganizationPage() {
         byCode.set(code, { code, name: operationalShowroomForBranch(code)?.name ?? code });
       }
     }
-    return [...byCode.values()].sort((left, right) => left.code.localeCompare(right.code));
-  }, [activeSales, filteredBooking, selectedCompany?.branches]);
-  const branchMetrics = useMemo(() => { const totalUnits = getSalesUnit(activeUnitRows); return branchDefinitions.map((branch) => { const team = people.filter((person) => person.branch === branch.code); const salesRows = activeSales.filter((row) => row.branch === branch.code); const kpis = getSalesKpis(salesRows); const unit = kpis.salesUnit; const salesValue = kpis.salesValue ?? 0; const gp = kpis.grossProfit ?? 0; const booking = filteredBooking.filter((row) => row.branch === branch.code).length; const target = totalTarget ? totalTarget * (totalUnits ? unit / totalUnits : 1 / Math.max(branchDefinitions.length, 1)) : 0; const achievement = target ? (unit / target) * 100 : null; const gpPercent = salesValue ? (gp / salesValue) * 100 : null; const conversion = booking ? (unit / booking) * 100 : null; const health = achievement === null || conversion === null ? null : Math.min(100, achievement * 0.7 + Math.min(conversion, 100) * 0.3); return { code: branch.code, name: branch.name, people: team, target, salesUnit: unit, salesValue, gp, gpPercent, booking, achievement, conversion, health }; }); }, [people, activeSales, activeUnitRows, branchDefinitions, filteredBooking, totalTarget]);
-  const showroomAchievementRanking = useMemo(() => getShowroomAchievementRanking({ salesRows: activeSales, targetRows: data ? getShowroomTargetRows(data) : [], filters, branches: branchDefinitions }), [activeSales, branchDefinitions, data, filters]);
-  const bestShowroom = branchMetrics.find((item) => item.code === showroomAchievementRanking[0]?.showroomCode) ?? branchMetrics[0]; const bestSalesperson = people[0];
+    return [...byCode.values()]
+      .filter((branch) => !filters.branch.length || filters.branch.includes(branch.code))
+      .sort((left, right) => left.code.localeCompare(right.code));
+  }, [activeSales, filteredBooking, filters.branch, selectedCompany?.branches]);
+  const branchMetrics = useMemo(() => branchDefinitions.map((branch) => { const team = people.filter((person) => person.branch === branch.code); const salesRows = activeSales.filter((row) => row.branch === branch.code); const kpis = getSalesKpis(salesRows); const salesValue = kpis.salesValue; const gp = kpis.grossProfitAvailable ? kpis.grossProfit : null; const booking = filteredBooking.filter((row) => row.branch === branch.code).length; const gpPercent = salesValue !== null && gp !== null && salesValue !== 0 ? (gp / salesValue) * 100 : null; const bookingPerPerson = bookingSourceAvailable && team.length ? booking / team.length : null; return { code: branch.code, name: branch.name, people: team, salesUnit: kpis.salesUnit, salesValue, gp, gpPercent, booking, bookingPerPerson, trend: getBranchTrend(salesRows), manager: null }; }), [people, activeSales, branchDefinitions, filteredBooking, bookingSourceAvailable]);
   const selectedPerson = people.find((person) => person.id === selectedPersonId) ?? null;
   const selectedRankedPerson = selectedPerson ? rankedPeople.find((person) => person.id === selectedPerson.id) ?? selectedPerson : null;
   const selectedRows = selectedRankedPerson ? activeSales.filter((row) => resolveCommissionIdentity(row, data?.employees ?? [], data?.salespersonIdentityAliases ?? [])?.key === selectedRankedPerson.id) : [];
   const previousSalesValue = useMemo(() => { const selectedYears = years(filters); if (selectedYears.length !== 1) return null; const previous = { ...filters, year: [String(selectedYears[0] - 1)] }; const rows = (data?.sales ?? []).filter((row) => matchesFilters(row, previous)).filter((row) => isCurrentLiveEmployee(row, employeeDirectory, inactiveNames, data?.employees ?? [], data?.salespersonIdentityAliases ?? [])); return getSalesKpis(rows).salesValue; }, [data, filters, employeeDirectory, inactiveNames]);
-  const activeKpis = getSalesKpis(activeSales); const totalSalesValue = activeKpis.salesValue ?? 0; const totalGp = activeKpis.grossProfit ?? 0; const totalAchievement = totalTarget ? (activeKpis.salesUnit / totalTarget) * 100 : null; const totalGpPercent = totalSalesValue ? (totalGp / totalSalesValue) * 100 : null; const salesComparison = previousSalesValue && previousSalesValue !== 0 ? ((totalSalesValue - previousSalesValue) / previousSalesValue) * 100 : null;
+  const activeKpis = getSalesKpis(activeSales); const totalSalesValue = activeKpis.salesValue ?? 0; const totalGp = activeKpis.grossProfitAvailable ? activeKpis.grossProfit : null; const totalGpPercent = totalGp !== null && totalSalesValue !== 0 ? (totalGp / totalSalesValue) * 100 : null; const avgSalesPerPerson = people.length ? totalSalesValue / people.length : null; const salesComparison = previousSalesValue && previousSalesValue !== 0 ? ((totalSalesValue - previousSalesValue) / previousSalesValue) * 100 : null; const periodTitle = selectedPeriodTitle(filters); const periodRange = selectedPeriodRange(filters, activeSales);
   const filterOptions = useMemo(() => { const source = data?.sales ?? []; const matching = source.filter((row) => matchesFilters(row, { ...filters, salesperson: [] })); return { year: [...new Set(source.map((row) => String(row.year)).filter((value) => value !== "null"))].sort((a, b) => Number(b) - Number(a)), month: MONTHS, branch: [...new Set(source.map((row) => row.branch).filter(Boolean))].sort(), salesperson: [...new Set(matching.filter((row) => isCurrentLiveEmployee(row, employeeDirectory, inactiveNames, data?.employees ?? [], data?.salespersonIdentityAliases ?? [])).map((row) => row.salesperson).filter(Boolean))].sort() }; }, [data, filters, employeeDirectory, inactiveNames]);
   function updateFilter(key: FilterKey, values: string[]) { setSelectedPersonId(null); setFilters((current) => ({ ...current, [key]: values, ...(key === "branch" ? { salesperson: [] } : {}) })); }
   return (
@@ -752,7 +766,7 @@ export function SalesOrganizationPage() {
             {data && !loading && !error && (
               <>
                 <section
-                  aria-label="Team KPIs"
+                  aria-label="Organization KPI Overview"
                   className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:gap-3 2xl:gap-4"
                 >
                   <KpiCard
@@ -760,23 +774,15 @@ export function SalesOrganizationPage() {
                     title="Active Salespeople"
                     value={people.length}
                     unit="People"
+                    icon={<UsersRound size={18} strokeWidth={1.8} />}
                     subtitle="Current employees only"
-                  />
-                  <KpiCard
-                    variant="executive"
-                    title="Showroom Achievement"
-                    value={
-                      totalAchievement === null
-                        ? "N/A"
-                        : `${totalAchievement.toFixed(1)}%`
-                    }
-                    subtitle="vs selected target"
                   />
                   <KpiCard
                     variant="executive"
                     title="Total Sales"
                     value={formatCompact(totalSalesValue)}
                     unit={currency}
+                    icon={<CircleDollarSign size={18} strokeWidth={1.8} />}
                     trendValue={
                       salesComparison === null
                         ? undefined
@@ -803,54 +809,38 @@ export function SalesOrganizationPage() {
                   <KpiCard
                     variant="executive"
                     title="Total GP"
-                    value={formatCompact(totalGp)}
+                    value={totalGp === null ? "N/A" : formatCompact(totalGp)}
                     unit={currency}
-                    subtitle={
-                      totalGpPercent === null
-                        ? "GP% N/A"
-                        : `GP% ${totalGpPercent.toFixed(1)}%`
-                    }
+                    icon={<BadgeDollarSign size={18} strokeWidth={1.8} />}
+                    subtitle={totalGpPercent === null ? "GP% N/A" : `GP% ${totalGpPercent.toFixed(1)}%`}
                   />
                   <KpiCard
                     variant="executive"
-                    title="Best Showroom"
-                    value={bestShowroom?.code ?? "N/A"}
-                    subtitle={
-                      bestShowroom?.achievement === null || !bestShowroom
-                        ? "Achievement N/A"
-                        : `${bestShowroom.achievement.toFixed(1)}% achievement`
-                    }
+                    title="Avg GP %"
+                    value={totalGpPercent === null ? "N/A" : `${totalGpPercent.toFixed(1)}%`}
+                    icon={<Percent size={18} strokeWidth={1.8} />}
+                    subtitle="Total GP / Total Sales"
                   />
                   <KpiCard
                     variant="executive"
-                    title="Best Salesperson"
-                    value={
-                      bestSalesperson ? (
-                        <span className="flex min-w-0 items-center gap-2 text-xl">
-                          <Avatar name={bestSalesperson.name} />
-                          <span className="truncate">
-                            {bestSalesperson.name}
-                          </span>
-                        </span>
-                      ) : (
-                        "N/A"
-                      )
-                    }
-                    subtitle={
-                      bestSalesperson
-                        ? `${bestSalesperson.branch} · ${bestSalesperson.achievement === null ? "Achievement N/A" : `${bestSalesperson.achievement.toFixed(1)}% achievement`}`
-                        : undefined
-                    }
+                    title="Avg Sales / Person"
+                    value={avgSalesPerPerson === null ? "N/A" : formatCompact(avgSalesPerPerson)}
+                    unit={currency}
+                    icon={<BarChart3 size={18} strokeWidth={1.8} />}
+                    subtitle="Total Sales / Active Salespeople"
+                  />
+                  <KpiCard
+                    variant="executive"
+                    title="Selected Period"
+                    value={periodTitle}
+                    icon={<CalendarDays size={18} strokeWidth={1.8} />}
+                    subtitle={periodRange}
                   />
                 </section>
 
-                <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:items-stretch">
-                  <ShowroomPerformance items={branchMetrics} />
-                  <ShowroomRanking items={showroomAchievementRanking} />
-                </section>
                 <TeamSummary
                   items={branchMetrics}
-                  onSelect={(person) => setSelectedPersonId(person.id)}
+                  currency={currency}
                 />
                 <TopSalespeople
                   ranked={rankedPeople}

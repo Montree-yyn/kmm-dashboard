@@ -43,22 +43,17 @@ test("Sales Organization KPIs preserve their existing calculations", async () =>
   assert.match(page, /const totalGp = activeKpis\.grossProfit/);
   assert.match(
     page,
-    /const totalAchievement = totalTarget \? \(activeKpis\.salesUnit \/ totalTarget\) \* 100 : null/,
+    /const totalGpPercent = totalGp !== null && totalSalesValue !== 0 \? \(totalGp \/ totalSalesValue\) \* 100 : null/,
   );
-  assert.match(
-    page,
-    /const totalGpPercent = totalSalesValue \? \(totalGp \/ totalSalesValue\) \* 100 : null/,
-  );
-  assert.match(page, /const bestShowroom = branchMetrics\.find/);
-  assert.match(page, /const bestSalesperson = people\[0\]/);
+  assert.match(page, /const avgSalesPerPerson = people\.length \? totalSalesValue \/ people\.length : null/);
 
   for (const title of [
     "Active Salespeople",
-    "Showroom Achievement",
     "Total Sales",
     "Total GP",
-    "Best Showroom",
-    "Best Salesperson",
+    "Avg GP %",
+    "Avg Sales / Person",
+    "Selected Period",
   ]) {
     assert.match(page, new RegExp(`title="${title}"`));
   }
@@ -155,23 +150,36 @@ test("filters retain all dimensions, actions, and accessible geometry", async ()
   assert.match(page, /exportPeople\(people, companyCode\)/);
 });
 
-test("reporting views, branch grouping, and employee links remain present", async () => {
+test("Team Summary replaces duplicate showroom reporting sections", async () => {
   const page = await read("components/team/sales-organization-page.tsx");
 
-  for (const section of [
-    "Showroom Performance",
-    "Showroom Ranking",
-    "Team Summary",
-    "Top Salespeople",
-    "Employee Detail",
-  ]) {
-    assert.match(page, new RegExp(section));
-  }
-  assert.match(page, /Top Performer/);
-  assert.match(page, /Bottom Performer/);
-  assert.match(page, /onSelect\(person\)/);
+  assert.match(page, /function TeamSummary/);
+  assert.match(page, /Showroom performance overview for the selected period/);
+  assert.match(page, /function BranchTrendChart/);
+  assert.match(page, /function ShowroomManager/);
+  assert.doesNotMatch(page, /Showroom Performance/);
+  assert.doesNotMatch(page, /Showroom Ranking/);
+  assert.doesNotMatch(page, /Top Performer/);
+  assert.doesNotMatch(page, /Bottom Performer/);
+  assert.match(page, /onSelect=\{\(person\) => setSelectedPersonId\(person\.id\)\}/);
   assert.match(page, /setSelectedPersonId\(person\.id\)/);
   assert.match(page, /selectedPerson = people\.find/);
+});
+
+test("Team Summary uses filtered showroom sales, GP, trend, and safe manager data", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /const branchMetrics = useMemo\(\(\) => branchDefinitions\.map/);
+  assert.match(page, /const salesRows = activeSales\.filter\(\(row\) => row\.branch === branch\.code\)/);
+  assert.match(page, /filter\(\(branch\) => !filters\.branch\.length \|\| filters\.branch\.includes\(branch\.code\)\)/);
+  assert.match(page, /trend: getBranchTrend\(salesRows\)/);
+  assert.match(page, /bookingPerPerson/);
+  assert.match(page, /manager: null/);
+  assert.match(page, /manager\?\.name \?\? "N\/A"/);
+  assert.match(page, /Sales \/ Person/);
+  assert.match(page, /Booking \/ Person/);
+  assert.doesNotMatch(page, /<ShowroomMetric label="Commission"/);
+  assert.doesNotMatch(page, /item\.achievement/);
 });
 
 test("ranking and detail retain columns, metrics, and keyboard selection", async () => {

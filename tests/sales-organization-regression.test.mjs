@@ -170,7 +170,7 @@ test("reporting views, branch grouping, and employee links remain present", asyn
   assert.match(page, /Top Performer/);
   assert.match(page, /Bottom Performer/);
   assert.match(page, /onSelect\(person\)/);
-  assert.match(page, /setSelectedName\(person\.name\)/);
+  assert.match(page, /setSelectedPersonId\(person\.id\)/);
   assert.match(page, /selectedPerson = people\.find/);
 });
 

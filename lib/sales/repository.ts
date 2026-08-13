@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { getOperationsDb } from "../../db";
-import { salesTransactions, salespersonMaster } from "../../db/schema";
+import { salesTransactions, salespersonIdentityAliases, salespersonMaster } from "../../db/schema";
 
 export async function listSalesTransactions(companyId: string) {
   const db = await getOperationsDb();
@@ -18,4 +18,19 @@ export async function listSalespeople(companyId: string) {
     })
     .from(salespersonMaster)
     .where(eq(salespersonMaster.companyId, companyId));
+}
+
+export async function listSalespersonIdentityAliases(companyId: string) {
+  const db = await getOperationsDb();
+  return db
+    .select({
+      sourceSalespersonCode: salespersonIdentityAliases.sourceSalespersonCode,
+      sourceEmployeeCode: salespersonIdentityAliases.sourceEmployeeCode,
+      sourceSalespersonName: salespersonIdentityAliases.sourceSalespersonName,
+      sourceBranch: salespersonIdentityAliases.sourceBranch,
+      canonicalEmployeeCode: salespersonIdentityAliases.canonicalEmployeeCode,
+      canonicalSalespersonCode: salespersonIdentityAliases.canonicalSalespersonCode,
+    })
+    .from(salespersonIdentityAliases)
+    .where(eq(salespersonIdentityAliases.companyId, companyId));
 }

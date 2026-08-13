@@ -9,6 +9,7 @@ export type LiveSalesPayload = {
   plan: { year: number; months: string[]; units: number[] };
   sales: Array<{ date: string; year: number; month: number | null; branch: string; salesperson: string; salespersonCode?: string | null; salespersonName?: string | null; employeeCode?: string; productType: string; model: string; quantity?: number; finalReceived: number | null; netReceived: number | null; gp1: number | null; expense: number | null; commission: number | null }>;
   employees?: Array<{ employeeCode: string; salespersonCode: string; salespersonName: string }>;
+  salespersonIdentityAliases?: Array<{ sourceSalespersonCode?: string | null; sourceEmployeeCode?: string | null; sourceSalespersonName: string; sourceBranch: string; canonicalEmployeeCode: string; canonicalSalespersonCode: string }>;
   employeeMasterAvailable?: boolean;
   business?: { all: { salesUnit: number; salesValue: number | null; grossProfit: number | null; grossProfitAvailable: boolean; expense: number | null }; grossProfitAvailable: boolean };
 };

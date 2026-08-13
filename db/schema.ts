@@ -263,6 +263,27 @@ export const salesTransactions = sqliteTable(
   ],
 );
 
+export const salespersonIdentityAliases = sqliteTable(
+  "salesperson_identity_aliases",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    companyId: text("company_id").notNull(),
+    sourceSalespersonCode: text("source_salesperson_code"),
+    sourceEmployeeCode: text("source_employee_code"),
+    sourceSalespersonName: text("source_salesperson_name").notNull(),
+    sourceBranch: text("source_branch").notNull(),
+    canonicalEmployeeCode: text("canonical_employee_code").notNull(),
+    canonicalSalespersonCode: text("canonical_salesperson_code").notNull(),
+    evidence: text("evidence").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdBy: text("created_by").notNull(),
+  },
+  (table) => [
+    index("salesperson_identity_alias_company_scope_idx").on(table.companyId, table.sourceBranch, table.sourceSalespersonName),
+  ],
+);
+
 export const dataImportHistory = sqliteTable("data_" + "import_" + "history", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull(),

@@ -1,7 +1,7 @@
 import { AuthError } from "../../../lib/server/firebase-auth";
 import { toCanonicalSalesRow, toLegacySalesRow } from "../../../lib/sales/compatibility-adapter";
 import { getBranchSummary, getMonthlyTrend, getProductSummary, getSalesKpis, getSalespersonSummary, getTargetAvailability, getWeeklyTrend } from "../../../lib/sales/business-service";
-import { listSalespeople, listSalesTransactions } from "../../../lib/sales/repository";
+import { listSalespeople, listSalespersonIdentityAliases, listSalesTransactions } from "../../../lib/sales/repository";
 import { CompanyAccessError, requireCompanyContext } from "../../../lib/server/company-context";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +13,10 @@ export async function GET(request: Request) {
       allowLegacyKmmRead: true,
     });
     const companyId = context.id;
-    const [transactionRows, employeeRows] = await Promise.all([
+    const [transactionRows, employeeRows, identityAliasRows] = await Promise.all([
       listSalesTransactions(companyId),
       listSalespeople(companyId),
+      listSalespersonIdentityAliases(companyId),
     ]);
     const canonicalRows = transactionRows.map(toCanonicalSalesRow);
     const activeEmployees = employeeRows
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
       plan: { year: null, months: [], units: [] },
       sales: canonicalRows.map(toLegacySalesRow),
       employees: activeEmployees,
+      salespersonIdentityAliases: identityAliasRows,
       employeeMasterAvailable: employeeRows.length > 0,
       business: { all: kpis, grossProfitAvailable: kpis.grossProfitAvailable, branchSummary: getBranchSummary(canonicalRows), salespersonSummary: getSalespersonSummary(canonicalRows), productSummary: getProductSummary(canonicalRows), weeklyTrend: getWeeklyTrend(canonicalRows), monthlyTrend: getMonthlyTrend(canonicalRows), target: getTargetAvailability({}, null) },
     }, { headers: { "Cache-Control": "no-store" } });

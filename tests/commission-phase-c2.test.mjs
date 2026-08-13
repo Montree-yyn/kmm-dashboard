@@ -35,14 +35,14 @@ test("C2 backfill rejects invalid values and never writes unmatched or ambiguous
   assert.equal(preview.rows.filter((row) => row.status === "VALUE_CHANGED").length, 0);
 });
 
-test("C2 financial identity prefers salesperson code, then employee code, then a unique master relation", () => {
+test("C2 financial identity resolves only stable salesperson or employee codes", () => {
   const employees = [
     { employeeCode: "EMP-1", salespersonCode: "SP-1", salespersonName: "Person One" },
     { employeeCode: "EMP-2", salespersonCode: "SP-2", salespersonName: "Person Two" },
   ];
   assert.deepEqual(identity.resolveCommissionIdentity({ salespersonCode: "SP-1", employeeCode: "EMP-2", salesperson: "Wrong Name" }, employees), { key: "salesperson_code:SP-1", salespersonCode: "SP-1", employeeCode: "EMP-1", name: "Person One", source: "salesperson_code" });
   assert.deepEqual(identity.resolveCommissionIdentity({ employeeCode: "EMP-2", salesperson: "Wrong Name" }, employees), { key: "employee_code:EMP-2", salespersonCode: "SP-2", employeeCode: "EMP-2", name: "Person Two", source: "employee_code" });
-  assert.equal(identity.resolveCommissionIdentity({ salesperson: "Person One" }, employees)?.source, "unique_master_relation");
+  assert.equal(identity.resolveCommissionIdentity({ salesperson: "Person One" }, employees), null);
   assert.equal(identity.resolveCommissionIdentity({ salesperson: "Unverified Display Name" }, employees), null);
 });
 

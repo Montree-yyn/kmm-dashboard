@@ -4,11 +4,21 @@ export type CommissionIdentityEmployee = {
   salespersonName: string;
 };
 
+export type CommissionIdentityAlias = {
+  sourceSalespersonCode?: string | null;
+  sourceEmployeeCode?: string | null;
+  sourceSalespersonName: string;
+  sourceBranch: string;
+  canonicalEmployeeCode: string;
+  canonicalSalespersonCode: string;
+};
+
 export type CommissionIdentityRow = {
   salespersonCode?: string | null;
   employeeCode?: string | null;
   salespersonName?: string | null;
   salesperson?: string | null;
+  branch?: string | null;
 };
 
 export type ResolvedCommissionIdentity = {
@@ -16,12 +26,12 @@ export type ResolvedCommissionIdentity = {
   salespersonCode: string | null;
   employeeCode: string | null;
   name: string;
-  source: "salesperson_code" | "employee_code" | "unique_master_relation";
+  source: "salesperson_code" | "employee_code" | "unique_master_relation" | "controlled_legacy_alias";
 };
 
 const stable = (value: unknown) => String(value ?? "").trim().toUpperCase();
 const display = (value: unknown) => String(value ?? "").trim();
-const nameKey = (value: unknown) => display(value).replace(/\s+/g, " ").replace(/\s*\(\s*out\s*\)\s*$/i, "").toUpperCase();
+const sourceNameKey = (value: unknown) => display(value).replace(/\s+/g, " ").toUpperCase();
 
 function usable(value: unknown) {
   const normalized = stable(value);
@@ -31,26 +41,24 @@ function usable(value: unknown) {
 export function resolveCommissionIdentity(
   row: CommissionIdentityRow,
   employees: CommissionIdentityEmployee[],
+  aliases: CommissionIdentityAlias[] = [],
 ): ResolvedCommissionIdentity | null {
   const bySalespersonCode = new Map<string, CommissionIdentityEmployee>();
   const byEmployeeCode = new Map<string, CommissionIdentityEmployee>();
-  const byUniqueName = new Map<string, CommissionIdentityEmployee | null>();
 
   for (const employee of employees) {
     if (usable(employee.salespersonCode)) bySalespersonCode.set(stable(employee.salespersonCode), employee);
     if (usable(employee.employeeCode)) byEmployeeCode.set(stable(employee.employeeCode), employee);
-    const key = nameKey(employee.salespersonName);
-    if (key) byUniqueName.set(key, byUniqueName.has(key) ? null : employee);
   }
 
   const salespersonCode = stable(row.salespersonCode);
   if (usable(salespersonCode)) {
     const master = bySalespersonCode.get(salespersonCode);
-    return {
-      key: `salesperson_code:${master?.salespersonCode ?? salespersonCode}`,
-      salespersonCode: master?.salespersonCode ?? salespersonCode,
-      employeeCode: master?.employeeCode ?? (usable(row.employeeCode) ? stable(row.employeeCode) : null),
-      name: display(master?.salespersonName) || display(row.salespersonName) || display(row.salesperson) || salespersonCode,
+    if (master) return {
+      key: `salesperson_code:${master.salespersonCode}`,
+      salespersonCode: master.salespersonCode,
+      employeeCode: master.employeeCode,
+      name: master.salespersonName,
       source: "salesperson_code",
     };
   }
@@ -58,22 +66,30 @@ export function resolveCommissionIdentity(
   const employeeCode = stable(row.employeeCode);
   if (usable(employeeCode)) {
     const master = byEmployeeCode.get(employeeCode);
-    return {
-      key: `employee_code:${master?.employeeCode ?? employeeCode}`,
-      salespersonCode: master?.salespersonCode ?? null,
-      employeeCode: master?.employeeCode ?? employeeCode,
-      name: display(master?.salespersonName) || display(row.salespersonName) || display(row.salesperson) || employeeCode,
+    if (master) return {
+      key: `employee_code:${master.employeeCode}`,
+      salespersonCode: master.salespersonCode,
+      employeeCode: master.employeeCode,
+      name: master.salespersonName,
       source: "employee_code",
     };
   }
 
-  const master = byUniqueName.get(nameKey(row.salespersonName ?? row.salesperson));
-  if (!master) return null;
+  const alias = aliases.filter((candidate) =>
+    stable(candidate.sourceSalespersonCode) === salespersonCode
+    && stable(candidate.sourceEmployeeCode) === employeeCode
+    && sourceNameKey(candidate.sourceSalespersonName) === sourceNameKey(row.salespersonName ?? row.salesperson)
+    && stable(candidate.sourceBranch) === stable(row.branch),
+  );
+  if (alias.length !== 1) return null;
+  const canonical = alias[0];
+  const canonicalMaster = bySalespersonCode.get(stable(canonical.canonicalSalespersonCode)) ?? byEmployeeCode.get(stable(canonical.canonicalEmployeeCode));
+  if (!canonicalMaster) return null;
   return {
-    key: `salesperson_code:${master.salespersonCode}`,
-    salespersonCode: master.salespersonCode,
-    employeeCode: master.employeeCode,
-    name: master.salespersonName,
-    source: "unique_master_relation",
+    key: `salesperson_code:${canonicalMaster.salespersonCode}`,
+    salespersonCode: canonicalMaster.salespersonCode,
+    employeeCode: canonicalMaster.employeeCode,
+    name: canonicalMaster.salespersonName,
+    source: "controlled_legacy_alias",
   };
 }

@@ -260,3 +260,37 @@ test("Salesperson target is not inferred from company target", async () => {
   assert.match(page, /achievement: null/);
   assert.doesNotMatch(page, /perPersonTarget/);
 });
+
+test("Team V3 cards follow the mockup hierarchy and open the drawer from the whole card", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /function SalespersonCard/);
+  assert.match(page, /<Badge variant="outline">\{person\.status === "active" \? "Active"/);
+  assert.match(page, /Showroom · \{person\.branch\}/);
+  assert.match(page, /<Avatar name=\{person\.name\} large \/>/);
+  assert.match(page, /aria-label=\{`Open \$\{person\.name\} employee detail`\}/);
+  assert.doesNotMatch(page, /View Detail/);
+  assert.match(page, /sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
+});
+
+test("Photo upload surfaces are honest and write-disabled while PHOTO_SCHEMA_MISSING", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  assert.match(page, /function BulkPhotoImportButton/);
+  assert.match(page, /Bulk Import Photos/);
+  assert.match(page, /Upload Photo/);
+  assert.match(page, /PHOTO_SCHEMA_MISSING/);
+  assert.match(page, /disabled aria-describedby="photo-schema-missing"/);
+  assert.doesNotMatch(page, /photo_url.*insert|insert.*photo_url/i);
+});
+
+test("Employee drawer exposes only verified profile fields and safe target states", async () => {
+  const page = await read("components/team/sales-organization-page.tsx");
+
+  for (const label of ["Employee ID", "Employee Code", "Salesperson Code", "Position", "Showroom", "Branch", "Territory", "Phone", "Email", "Joined Date", "Status", "Target Unit", "Achievement"]) {
+    assert.match(page, new RegExp(label.replace(/[.*+?^${}()|[\\]\\]/g, "\\\\$&")));
+  }
+  assert.match(page, /const profile = \[\["Employee ID", "N\/A"\]/);
+  assert.match(page, /label="Target Unit" value=\{person\.target === null \? "N\/A"/);
+  assert.match(page, /label="Achievement" value=\{person\.achievement === null \? "N\/A"/);
+});

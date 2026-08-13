@@ -73,7 +73,14 @@ function employeeForRow(row: Pick<SalesRow | BookingRow, "salesperson" | "salesp
   }
   return undefined;
 }
-function canonicalSalesperson(row: Pick<SalesRow | BookingRow, "salesperson" | "salespersonCode" | "salespersonName"> & { employeeCode?: string }, directory: EmployeeDirectory) {
+function canonicalSalesperson(
+  row: Pick<SalesRow | BookingRow, "salesperson" | "salespersonCode" | "salespersonName" | "branch"> & { employeeCode?: string },
+  directory: EmployeeDirectory,
+  employees: Employee[] = [],
+  aliases: CommissionIdentityAlias[] = [],
+) {
+  const identity = resolveCommissionIdentity(row, employees, aliases);
+  if (identity) return identity.name.trim();
   const match = employeeForRow(row, directory);
   return match?.salespersonName.trim() || row.salespersonName?.trim() || row.salesperson?.trim() || row.salespersonCode?.trim() || row.employeeCode?.trim() || "";
 }
@@ -359,6 +366,7 @@ export function SalesOrganizationPage() {
         loadLiveOperationalData({ allowFallback: false, companyId }),
       ]);
       const employees = salesPayload.employees ?? [];
+      const aliases = salesPayload.salespersonIdentityAliases ?? [];
       const directory = makeEmployeeDirectory(
         employees,
         salesPayload.employeeMasterAvailable === true,
@@ -366,12 +374,12 @@ export function SalesOrganizationPage() {
       const sales = salesPayload.sales.map((row) => ({
         ...row,
         branch: canonicalBranch(row.branch),
-        salesperson: canonicalSalesperson(row, directory),
+        salesperson: canonicalSalesperson(row, directory, employees, aliases),
       }));
       const booking = operationalPayload.booking.map((row) => ({
         ...row,
         branch: canonicalBranch(row.branch),
-        salesperson: canonicalSalesperson(row, directory),
+        salesperson: canonicalSalesperson(row, directory, employees, aliases),
       }));
       setData({
         meta: { sourceUpdatedAt: salesPayload.meta.sourceUpdatedAt },
@@ -379,7 +387,7 @@ export function SalesOrganizationPage() {
         sales,
         booking,
         employees,
-        salespersonIdentityAliases: salesPayload.salespersonIdentityAliases ?? [],
+        salespersonIdentityAliases: aliases,
         employeeMasterAvailable: directory.available,
       });
     } catch (loadError) {

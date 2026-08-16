@@ -97,8 +97,11 @@ test("MapLibre Marketing restores legacy map interactions and presentation overl
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
   ]);
+  // Production path uses the simplified states dataset; the original full
+  // resolution geometry remains only as the rollback fallback.
+  assert.match(maplibre, /myanmar-states-simplified\.geojson/);
   assert.match(maplibre, /myanmar-states\.geojson/);
-  assert.match(maplibre, /myanmar-townships\.geojson/);
+  assert.match(maplibre, /myanmar-township-labels\.json/);
   assert.match(maplibre, /kmm-showrooms\.json/);
   assert.match(maplibre, /marketing-state-labels/);
   assert.match(maplibre, /marketing-township-labels/);
@@ -108,6 +111,121 @@ test("MapLibre Marketing restores legacy map interactions and presentation overl
   assert.match(vectorMap, /doubleClickZoom: true/);
   assert.match(vectorMap, /FullscreenControl/);
   assert.match(vectorMap, /data-marketing-workspace/);
+});
+
+test("township labels dataset is compact and matches the vertex-mean label algorithm", async () => {
+  const labels = JSON.parse(await read("public/maps/myanmar-township-labels.json"));
+  const geo = JSON.parse(await read("public/maps/myanmar-townships.geojson"));
+  assert.equal(labels.count, 330);
+  assert.equal(labels.labels.length, 330);
+  // File must stay tiny versus the 11.4 MB geometry it replaces.
+  const raw = await read("public/maps/myanmar-township-labels.json");
+  assert.ok(raw.length < 200_000, "township labels file must stay compact");
+
+  const collectPoints = (input, points = []) => {
+    if (!Array.isArray(input)) return points;
+    if (typeof input[0] === "number" && typeof input[1] === "number")
+      points.push([input[0], input[1]]);
+    else input.forEach((item) => collectPoints(item, points));
+    return points;
+  };
+  const norm = (value) => String(value).trim().toLowerCase();
+  const byKey = new Map(
+    labels.labels.map((label) => [
+      `${norm(label.stateRegion)}-${norm(label.name)}`,
+      label.coordinates,
+    ]),
+  );
+  let checked = 0;
+  for (const feature of geo.features) {
+    const name = feature.properties.TS;
+    const stateRegion = feature.properties.ST ?? "";
+    if (!name) continue;
+    const points = collectPoints(feature.geometry?.coordinates);
+    if (!points.length) continue;
+    checked += 1;
+    const mean = [
+      points.reduce((sum, point) => sum + point[0], 0) / points.length,
+      points.reduce((sum, point) => sum + point[1], 0) / points.length,
+    ];
+    const expected = byKey.get(
+      `${norm(stateRegion)}-${norm(name)}`,
+    );
+    assert.ok(expected, `label missing for ${name} (${stateRegion})`);
+    assert.ok(
+      Math.abs(expected[0] - mean[0]) < 1e-9 &&
+        Math.abs(expected[1] - mean[1]) < 1e-9,
+      `label coordinate mismatch for ${name}`,
+    );
+  }
+  assert.equal(checked, 330);
+});
+
+test("simplified states dataset keeps every state and shrinks geometry", async () => {
+  const original = JSON.parse(await read("public/maps/myanmar-states.geojson"));
+  const simplified = JSON.parse(
+    await read("public/maps/myanmar-states-simplified.geojson"),
+  );
+  // Same feature count and identical state IDs (ST | ST_PCODE).
+  assert.equal(simplified.features.length, original.features.length);
+  assert.equal(simplified.features.length, 15);
+  const ids = (features) =>
+    features
+      .map((feature) => `${feature.properties.ST}|${feature.properties.ST_PCODE}`)
+      .sort();
+  assert.deepEqual(ids(simplified.features), ids(original.features));
+
+  // Geometry size threshold: simplified must stay well under 1 MB.
+  const raw = await read("public/maps/myanmar-states-simplified.geojson");
+  assert.ok(raw.length < 1_000_000, "simplified states file must stay under 1 MB");
+
+  // Coordinate reduction: at most 25% of the original vertices.
+  const countPairs = (geometry) => {
+    const collect = (input, points = []) => {
+      if (!Array.isArray(input)) return points;
+      if (typeof input[0] === "number" && typeof input[1] === "number")
+        points.push([input[0], input[1]]);
+      else input.forEach((item) => collect(item, points));
+      return points;
+    };
+    return collect(geometry.coordinates).length;
+  };
+  const originalPairs = original.features.reduce(
+    (total, feature) => total + countPairs(feature.geometry),
+    0,
+  );
+  const simplifiedPairs = simplified.features.reduce(
+    (total, feature) => total + countPairs(feature.geometry),
+    0,
+  );
+  assert.ok(
+    simplifiedPairs <= Math.ceil(originalPairs * 0.25),
+    `coordinates must drop to <=25% (${simplifiedPairs} of ${originalPairs})`,
+  );
+
+  // Label positions are precomputed from the ORIGINAL geometry (vertex mean),
+  // so state labels do not move after simplification.
+  const collectPoints = (input, points = []) => {
+    if (!Array.isArray(input)) return points;
+    if (typeof input[0] === "number" && typeof input[1] === "number")
+      points.push([input[0], input[1]]);
+    else input.forEach((item) => collectPoints(item, points));
+    return points;
+  };
+  for (let index = 0; index < original.features.length; index += 1) {
+    const points = collectPoints(original.features[index].geometry.coordinates);
+    const mean = [
+      points.reduce((sum, point) => sum + point[0], 0) / points.length,
+      points.reduce((sum, point) => sum + point[1], 0) / points.length,
+    ];
+    const position = simplified.features[index].properties.label_position;
+    assert.ok(position, `label_position missing for ${original.features[index].properties.ST}`);
+    assert.ok(
+      Math.abs(position[0] - mean[0]) < 1e-9 &&
+        Math.abs(position[1] - mean[1]) < 1e-9,
+      `label_position mismatch for ${original.features[index].properties.ST}`,
+    );
+  }
 });
 
 test("Marketing labels switch cleanly between State and Township zoom levels", async () => {
@@ -164,10 +282,10 @@ test("MapLibre visual styling matches the legacy Marketing map", async () => {
     read("components/maps/global-vector-map.tsx"),
   ]);
   assert.match(vectorMap, /overlayFillOpacity = 0\.98/);
-  assert.match(vectorMap, /"line-color": "#F5F1EC"/);
+  assert.match(vectorMap, /"line-color": chartTheme\.grid/);
   assert.match(vectorMap, /"line-width": 0\.9/);
   assert.match(vectorMap, /"line-cap": "round"/);
-  assert.match(maplibre, /"line-color": "#CBD5E1"/);
+  assert.match(maplibre, /"line-color": chartTheme\.grid/);
   assert.match(maplibre, /Noto Sans Medium/);
   assert.match(maplibre, /Noto Sans Regular/);
   assert.match(
@@ -203,7 +321,7 @@ test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", asy
   assert.match(vectorMap, /createMarketingBasemapStyle/);
   assert.match(
     vectorMap,
-    /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return "#F8FAFC"/,
+    /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return chartTheme\.marketing\.noData/,
   );
   assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /failMap/);
@@ -246,8 +364,8 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   ]);
   assert.match(workspace, /type Mode = "sales" \| "population" \| "activity"/);
   assert.match(workspace, /useState<Mode>\("sales"\)/);
-  assert.match(workspace, /ZERO_SALES_COLOR = "#F3F4F6"/);
-  assert.match(workspace, /NO_DATA_COLOR = "#F8FAFC"/);
+  assert.match(workspace, /ZERO_SALES_COLOR = chartTheme\.marketing\.zero/);
+  assert.match(workspace, /NO_DATA_COLOR = chartTheme\.marketing\.noData/);
   assert.match(
     workspace,
     /metricValue[\s\S]*?mode === "sales"\s*\?\s*item\.salesUnit/,
@@ -260,7 +378,7 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(maplibre, /initialMetricFromMode/);
   assert.match(maplibre, /return "salesUnit"/);
   assert.match(maplibre, /metric\.salesUnit/);
-  assert.match(vectorMap, /colorPairs\.push\("#F8FAFC"\)/);
+  assert.match(vectorMap, /colorPairs\.push\(chartTheme\.marketing\.noData\)/);
 });
 
 test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover highlight, and top-township layer", async () => {
@@ -272,11 +390,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover h
   assert.match(maplibre, /jenksNaturalBreaks/);
   assert.match(maplibre, /Natural Breaks \(Jenks\)/);
   assert.match(maplibre, /quantileBreaks/);
-  assert.match(maplibre, /#FFE6C7/);
-  assert.match(maplibre, /#FFC98B/);
-  assert.match(maplibre, /#FFA64D/);
-  assert.match(maplibre, /#F26B00/);
-  assert.match(maplibre, /#C84A00/);
+  assert.match(maplibre, /const CHOROPLETH_COLORS = chartTheme\.marketing\.heatScale/);
   assert.match(maplibre, /EXECUTIVE_METRICS/);
   assert.match(maplibre, /metric\.gpPercent/);
   assert.match(maplibre, /legendRange/);
@@ -285,7 +399,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover h
   assert.match(vectorMap, /setFeatureState/);
   assert.match(vectorMap, /topCanonicalLocationIds/);
   assert.match(vectorMap, /topTownshipLayerId/);
-  assert.match(vectorMap, /"fill-color": "#FFFFFF"/);
+  assert.match(vectorMap, /"fill-color": chartTheme\.surface/);
   assert.match(vectorMap, /"line-width": 2\.5/);
   assert.match(layerOrder, /township-top-five-outline/);
 });
@@ -425,7 +539,7 @@ test("Area Comparison Phase B renders map selection badges and approved panel st
   assert.match(maplibre, /comparisonLabelPositionsRef/);
   assert.match(maplibre, /kmm-comparison-selection-badge/);
   assert.match(maplibre, /Comparison \$\{index \+ 1\}/);
-  assert.match(maplibre, /element\.style\.background = "#E86F00"/);
+  assert.match(maplibre, /element\.style\.background = chartTheme\.current/);
   assert.match(
     maplibre,
     /map\.setFilter\(\s*COMPARISON_OUTLINE_LAYER_ID,\s*comparisonSelectionFilter\(comparisonSelectionIdsRef\.current\)/,

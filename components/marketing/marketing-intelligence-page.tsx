@@ -1,6 +1,8 @@
 "use client";
 import {
   Fragment,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -42,6 +44,7 @@ import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
 import { TableCard } from "../design-system/table-card";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
+import { chartTheme } from "../common/charts/chartTheme";
 import { MapFullscreenDialog } from "../common/map/MapFullscreenDialog";
 import {
   OPERATIONAL_SHOWROOMS,
@@ -75,8 +78,17 @@ import {
   salesTransactionQuantity,
 } from "../../lib/sales/business-service";
 import { useLocale } from "../../src/hooks/useLocale";
-import { MyanmarMarketingMap } from "./myanmar-marketing-map";
+import { clientDataLayer } from "../../lib/client-data-layer";
 import townshipMaster from "../../data/master-townships.json";
+
+// The map module graph (MapLibre renderer, PMTiles protocol, Protomaps
+// basemap) is the heaviest part of the Marketing bundle. Split it into its own
+// chunk and load it only when the map view mounts.
+const MyanmarMarketingMap = lazy(() =>
+  import("./myanmar-marketing-map").then((module) => ({
+    default: module.MyanmarMarketingMap,
+  })),
+);
 const MONTHS = [
   "Jan",
   "Feb",
@@ -133,9 +145,9 @@ const REGIONS = [
   { label: "Bago West", source: "Bago (West)" },
   { label: "Shan State", source: "Shan (North)" },
 ];
-const COLORS = ["#FFF7ED", "#FFEDD5", "#FDBA74", "#F97316", "#C2410C"];
-const ZERO_SALES_COLOR = "#F3F4F6";
-const NO_DATA_COLOR = "#F8FAFC";
+const COLORS = chartTheme.marketing.heatScale;
+const ZERO_SALES_COLOR = chartTheme.marketing.zero;
+const NO_DATA_COLOR = chartTheme.marketing.noData;
 type Product = "All" | "TT" | "CH" | "EX" | "TP";
 type ProductGroup = Exclude<Product, "All">;
 type Mode = "sales" | "population" | "activity";
@@ -427,7 +439,7 @@ function quantile(sorted: number[], ratio: number) {
     ] ?? 0
   );
 }
-function heatColor(value: number, values: number[], zeroColor = NO_DATA_COLOR) {
+function heatColor(value: number, values: number[], zeroColor: string = NO_DATA_COLOR) {
   if (!value) return zeroColor;
   const sorted = values.filter((item) => item > 0).sort((a, b) => a - b);
   if (!sorted.length) return zeroColor;
@@ -1952,7 +1964,7 @@ function Bars({
             </span>
             <div className="h-2 rounded-full bg-[#F3F4F6]">
               <div
-                className="h-full rounded-full bg-[#FF7A00]"
+                className="h-full rounded-full bg-[var(--chart-current)]"
                 style={{ width: `${width}%` }}
               />
             </div>
@@ -2040,7 +2052,7 @@ function ShowroomChart({
             width="20"
             height={(month.cost / maxCost) * 60}
             rx="3"
-            fill="#FF7A00"
+            fill={chartTheme.current}
             opacity="0.9"
           />
           <text
@@ -2048,7 +2060,7 @@ function ShowroomChart({
             y="102"
             textAnchor="middle"
             fontSize="9"
-            fill="#9CA3AF"
+            fill={chartTheme.text}
           >
             {month.label}
           </text>
@@ -2057,7 +2069,7 @@ function ShowroomChart({
       <polyline
         points={points}
         fill="none"
-        stroke="#6B7280"
+        stroke={chartTheme.previous}
         strokeWidth="2"
         strokeLinecap="round"
       />
@@ -2067,8 +2079,8 @@ function ShowroomChart({
           cx={28 + index * 46}
           cy={84 - (month.unit / maxUnit) * 60}
           r="2.5"
-          fill="white"
-          stroke="#6B7280"
+          fill={chartTheme.surface}
+          stroke={chartTheme.previous}
           strokeWidth="1.5"
         />
       ))}
@@ -2101,7 +2113,7 @@ function TopTownshipTable({
           </span>
           <div className="h-2 rounded-full bg-[#F3F4F6]">
             <div
-              className="h-full rounded-full bg-[#FF7A00]"
+              className="h-full rounded-full bg-[var(--chart-current)]"
               style={{ width: `${(row.value / max) * 100}%` }}
             />
           </div>
@@ -2555,7 +2567,7 @@ function Phase1TownshipPanel({
                           </div>
                           <div className="mt-1 h-1 rounded-full bg-[#F3F4F6]">
                             <div
-                              className="h-full rounded-full bg-[#FF8615]"
+                              className="h-full rounded-full bg-[var(--chart-current)]"
                               style={{ width: `${(row.unit / maxMix) * 100}%` }}
                             />
                           </div>
@@ -3027,21 +3039,29 @@ export function MarketingIntelligencePage() {
   const [mapResetSignal, setMapResetSignal] = useState(0);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [data, setData] = useState<Data | null>(null);
-  const [geoTownships, setGeoTownships] = useState<GeoTownship[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const fetchMarketingData = async (): Promise<Data> => {
+    const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok)
+      throw new Error(
+        `Unable to load dashboard-data.json (${response.status})`,
+      );
+    return (await response.json()) as Data;
+  };
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (!response.ok)
-        throw new Error(
-          `Unable to load dashboard-data.json (${response.status})`,
-        );
-      setData((await response.json()) as Data);
+      // dashboard-data.json is a build-time artifact; dedupe + a long TTL
+      // avoid re-fetching it on every page mount (client-data-layer).
+      setData(
+        await clientDataLayer.request("marketing:data", fetchMarketingData, {
+          ttlMs: 10 * 60_000,
+        }),
+      );
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -3057,20 +3077,6 @@ export function MarketingIntelligencePage() {
       void load();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
-  useEffect(() => {
-    let active = true;
-    fetch("/maps/myanmar-townships.geojson")
-      .then((response) => response.json())
-      .then((geo: { features: GeoTownship[] }) => {
-        if (active) setGeoTownships(geo.features);
-      })
-      .catch(() => {
-        if (active) setGeoTownships([]);
-      });
-    return () => {
-      active = false;
-    };
   }, []);
   const options = useMemo<Filters>(
     () => ({
@@ -3113,6 +3119,17 @@ export function MarketingIntelligencePage() {
     const ordered: ProductGroup[] = ["TT", "CH", "EX", "TP"];
     return ordered.filter((option) => supported.has(option));
   }, [data]);
+  // Township name/state pairs were previously derived from the 11.4 MB
+  // townships GeoJSON fetch just to read its TS/ST properties; the township
+  // master carries the same 330 canonical names (~112 KB, already imported),
+  // so no geometry fetch is needed at the page level.
+  const geoTownships = useMemo<GeoTownship[]>(
+    () =>
+      townshipMaster.map((record) => ({
+        properties: { TS: record.township, ST: record.state_region },
+      })),
+    [],
+  );
   const boundary = useMemo(
     () =>
       canonicalBoundaryIds(
@@ -3939,6 +3956,13 @@ export function MarketingIntelligencePage() {
               aria-label="Marketing territory map"
               className="min-h-0 overflow-hidden bg-[var(--surface-subtle)]"
             >
+              <Suspense
+                fallback={
+                  <div className="grid h-full min-h-[360px] w-full place-items-center p-6">
+                    <LoadingSkeleton variant="chart" label="Loading map" />
+                  </div>
+                }
+              >
               <MyanmarMarketingMap
                 visibleShowroomIds={visibleShowroomIds}
                 townshipMetrics={mapped.metrics}
@@ -3956,6 +3980,7 @@ export function MarketingIntelligencePage() {
                 onFullscreenChange={setMapFullscreen}
                 resetSignal={mapResetSignal}
               />
+              </Suspense>
             </section>
             {!mapFullscreen &&
               (compareMode ? (

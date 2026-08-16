@@ -19,6 +19,7 @@ import { useLocale } from "../../src/hooks/useLocale";
 import type { LocaleKey } from "../../src/locales";
 import { GlobalVectorMap } from "../maps/global-vector-map";
 import { MarketingLayerManager } from "./marketing-layer-manager";
+import { chartTheme } from "../common/charts/chartTheme";
 import {
   MyanmarTownshipDetailPanel,
   type MyanmarMarketingMapProps,
@@ -40,7 +41,15 @@ type Showroom = {
 };
 type GeoFeature = {
   geometry?: { coordinates?: unknown };
-  properties: { TS?: string; ST?: string };
+  properties: { TS?: string; ST?: string; label_position?: [number, number] };
+};
+// Compact precomputed township label (built from the townships GeoJSON by
+// scripts/maps/build_township_labels.py — same vertex-mean algorithm as
+// getLabelPositions). Loaded instead of the full 11.4 MB geometry.
+type TownshipLabel = {
+  name: string;
+  stateRegion: string;
+  coordinates: [number, number];
 };
 type MyanmarMarketingMapMapLibreProps = MyanmarMarketingMapProps & {
   onLoadError?: () => void;
@@ -64,15 +73,9 @@ declare const __KMM_BUILD_COMMIT__: string;
 declare const __KMM_BUILD_TIMESTAMP__: string;
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
-const NO_DATA_COLOR = "#F8FAFC";
-const ZERO_COLOR = "#F3F4F6";
-const CHOROPLETH_COLORS = [
-  "#FFE6C7",
-  "#FFC98B",
-  "#FFA64D",
-  "#F26B00",
-  "#C84A00",
-];
+const NO_DATA_COLOR = chartTheme.marketing.noData;
+const ZERO_COLOR = chartTheme.marketing.zero;
+const CHOROPLETH_COLORS = chartTheme.marketing.heatScale;
 const COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline";
 const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
   { key: "salesUnit", labelKey: "metric.salesUnit" },
@@ -425,7 +428,7 @@ export function MyanmarMarketingMapMapLibre({
   );
   const activeMetric = sharedActiveMetric ?? initialMetricFromMode(mode);
   const presentationMapRef = useRef<MapLibreMap | null>(null);
-  const townshipLabelFeaturesRef = useRef<GeoFeature[]>([]);
+  const townshipLabelsRef = useRef<TownshipLabel[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
   const showroomMarkersRef = useRef(new Map<string, Marker>());
   const comparisonBadgeMarkersRef = useRef(new Map<string, Marker>());
@@ -582,7 +585,7 @@ export function MyanmarMarketingMapMapLibre({
   };
 
   const buildTownshipLabelCollection = (
-    features: GeoFeature[],
+    labels: TownshipLabel[],
   ): LabelCollection => {
     const canonicalByLocation = new Map(
       master.map((record) => [
@@ -592,7 +595,7 @@ export function MyanmarMarketingMapMapLibre({
     );
     return {
       type: "FeatureCollection",
-      features: getLabelPositions(features, "township").map((label) => {
+      features: labels.map((label) => {
         const canonicalId = canonicalByLocation.get(
           `${normalizeLocation(label.name)}|${normalizeLocation(label.stateRegion)}`,
         );
@@ -623,9 +626,7 @@ export function MyanmarMarketingMapMapLibre({
       | { setData?: (data: LabelCollection) => void }
       | undefined;
     if (source?.setData)
-      source.setData(
-        buildTownshipLabelCollection(townshipLabelFeaturesRef.current),
-      );
+      source.setData(buildTownshipLabelCollection(townshipLabelsRef.current));
   };
 
   const ensureComparisonSelectionLayer = (map: MapLibreMap) => {
@@ -651,7 +652,7 @@ export function MyanmarMarketingMapMapLibre({
         "line-join": "round",
       },
       paint: {
-        "line-color": "#E86F00",
+        "line-color": chartTheme.current,
         "line-width": 3,
         "line-opacity": 0.92,
         "line-blur": 0.2,
@@ -708,9 +709,9 @@ export function MyanmarMarketingMapMapLibre({
       element.style.borderRadius = "9999px";
       element.style.display = "grid";
       element.style.placeItems = "center";
-      element.style.background = "#E86F00";
-      element.style.color = "#FFFFFF";
-      element.style.border = "2px solid #FFFFFF";
+      element.style.background = chartTheme.current;
+      element.style.color = chartTheme.surface;
+      element.style.border = `2px solid ${chartTheme.surface}`;
       element.style.boxShadow = "0 1px 6px rgba(31,41,55,0.28)";
       element.style.fontSize = "12px";
       element.style.fontWeight = "800";
@@ -752,14 +753,27 @@ export function MyanmarMarketingMapMapLibre({
     [],
   );
 
-  async function installLegacyPresentationOverlays(map: MapLibreMap) {
-    const [{ Marker }, states, townships, showrooms] = await Promise.all([
-      import("maplibre-gl"),
-      fetchOverlayJson<{ features: GeoFeature[] }>(
+  async function loadStatesGeometry(): Promise<{ features: GeoFeature[] }> {
+    try {
+      // Production path: simplified state boundaries (scripts/maps/
+      // simplify_myanmar_states.py) with precomputed label positions.
+      return await fetchOverlayJson<{ features: GeoFeature[] }>(
+        "/maps/myanmar-states-simplified.geojson",
+      );
+    } catch {
+      // Rollback: the original full-resolution geometry stays available.
+      return fetchOverlayJson<{ features: GeoFeature[] }>(
         "/maps/myanmar-states.geojson",
-      ),
-      fetchOverlayJson<{ features: GeoFeature[] }>(
-        "/maps/myanmar-townships.geojson",
+      );
+    }
+  }
+
+  async function installLegacyPresentationOverlays(map: MapLibreMap) {
+    const [{ Marker }, states, townshipLabels, showrooms] = await Promise.all([
+      import("maplibre-gl"),
+      loadStatesGeometry(),
+      fetchOverlayJson<{ labels: TownshipLabel[] }>(
+        "/maps/myanmar-township-labels.json",
       ),
       fetchOverlayJson<Showroom[]>("/maps/kmm-showrooms.json"),
     ]);
@@ -770,7 +784,7 @@ export function MyanmarMarketingMapMapLibre({
       showrooms.map((showroom) => normalizeLocation(showroom.township)),
     );
     showroomTownshipsRef.current = showroomTownships;
-    townshipLabelFeaturesRef.current = townships.features;
+    townshipLabelsRef.current = townshipLabels.labels;
     const canonicalByLocation = new Map(
       master.map((record) => [
         `${normalizeLocation(record.township)}|${normalizeLocation(record.state_region)}`,
@@ -778,7 +792,7 @@ export function MyanmarMarketingMapMapLibre({
       ]),
     );
     comparisonLabelPositionsRef.current = new Map(
-      getLabelPositions(townships.features, "township")
+      townshipLabels.labels
         .map((label) => {
           const canonicalId = canonicalByLocation.get(
             `${normalizeLocation(label.name)}|${normalizeLocation(label.stateRegion)}`,
@@ -807,16 +821,38 @@ export function MyanmarMarketingMapMapLibre({
           ] => Boolean(entry),
         ),
     );
-    const labelCollection = (labels: ReturnType<typeof getLabelPositions>) => ({
+    const stateLabelCollection = (features: GeoFeature[]) => ({
       type: "FeatureCollection" as const,
-      features: labels.map((label) => ({
-        type: "Feature" as const,
-        geometry: { type: "Point" as const, coordinates: label.coordinates },
-        properties: {
-          name: label.name,
-          has_showroom: showroomTownships.has(normalizeLocation(label.name)),
-        },
-      })),
+      features: features
+        .filter((feature) => feature.properties.ST)
+        .map((feature) => {
+          const name = feature.properties.ST as string;
+          const position = feature.properties.label_position;
+          // Simplified datasets ship a precomputed label position; the
+          // original geometry falls back to the vertex-mean calculation.
+          const coordinates =
+            position ?? getLabelPositions([feature], "state")[0]?.coordinates;
+          return coordinates
+            ? {
+                type: "Feature" as const,
+                geometry: {
+                  type: "Point" as const,
+                  coordinates,
+                },
+                properties: {
+                  name,
+                  has_showroom: showroomTownships.has(
+                    normalizeLocation(name),
+                  ),
+                },
+              }
+            : null;
+        })
+        .filter(
+          (
+            feature,
+          ): feature is NonNullable<typeof feature> => Boolean(feature),
+        ),
     });
     if (!map.getSource("marketing-state-boundaries"))
       map.addSource("marketing-state-boundaries", {
@@ -826,12 +862,12 @@ export function MyanmarMarketingMapMapLibre({
     if (!map.getSource("marketing-state-labels"))
       map.addSource("marketing-state-labels", {
         type: "geojson",
-        data: labelCollection(getLabelPositions(states.features, "state")),
+        data: stateLabelCollection(states.features),
       });
     if (!map.getSource("marketing-township-labels"))
       map.addSource("marketing-township-labels", {
         type: "geojson",
-        data: buildTownshipLabelCollection(townships.features),
+        data: buildTownshipLabelCollection(townshipLabelsRef.current),
       });
     const labelLayout = (size: number, font: string[]) => ({
       "text-field": ["get", "name"],
@@ -850,8 +886,8 @@ export function MyanmarMarketingMapMapLibre({
       ],
     });
     const labelPaint = (opacity: unknown) => ({
-      "text-color": "#4B5563",
-      "text-halo-color": "#FFFFFF",
+      "text-color": chartTheme.text,
+      "text-halo-color": chartTheme.surface,
       "text-halo-width": 1,
       "text-halo-blur": 0.35,
       "text-opacity": opacity,
@@ -862,7 +898,7 @@ export function MyanmarMarketingMapMapLibre({
         type: "line",
         source: "marketing-state-boundaries",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#CBD5E1", "line-width": 1 },
+        paint: { "line-color": chartTheme.grid, "line-width": 1 },
       } as never);
     if (!map.getLayer("marketing-state-labels"))
       map.addLayer({
@@ -953,7 +989,7 @@ export function MyanmarMarketingMapMapLibre({
   return (
     <div
       className={cn(
-        "kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]",
+        "kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[var(--surface-subtle)]",
         (selectedMetric || comparisonSelectionIds.length > 0) &&
           "kmm-map-has-side-panel",
         className,

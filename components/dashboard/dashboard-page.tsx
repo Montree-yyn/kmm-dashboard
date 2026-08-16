@@ -16,9 +16,6 @@ import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import {
-  getOpenBookingUnit,
-} from "../../lib/dashboard/booking-selectors";
-import {
   getCurrentStockRows,
   getStockUnit,
   normalizeProductType,
@@ -40,17 +37,14 @@ import {
   PercentStackedBar,
   StackedColumnChart,
 } from "../common/charts/AnalyticalCharts";
-import { buildMonthlyLifecycle } from "../common/charts/chartData";
-import { loadLiveSalesData } from "../../lib/sales/client";
-import {
-  getBranchSummary,
-  getProductSummary,
-  getSalesKpis,
-  isEngineUnitProduct,
-  salesTransactionQuantity,
-} from "../../lib/sales/business-service";
-import { loadLiveOperationalData } from "../../lib/operations/client";
+import { chartProductColor, chartTheme } from "../common/charts/chartTheme";
+import { loadLiveSalesDashboardSummary } from "../../lib/sales/client";
+import type { SalesDashboardSummary } from "../../lib/sales/dashboard-summary-service";
+import { loadLiveOperationalDashboardSummary } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { asOfDate } from "../../lib/operations/as-of";
+import type { BookingDashboardSummary } from "../../lib/operations/booking-dashboard-summary-service";
+import type { StockDashboardSummary } from "../../lib/operations/stock-dashboard-summary-service";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
 
@@ -141,6 +135,7 @@ type DashboardData = {
     sourceUpdatedAt: string;
     sources: string[];
   };
+  asOf: string;
   plan: {
     year: number;
     months: string[];
@@ -149,6 +144,9 @@ type DashboardData = {
     expense: number[];
   };
   sales: SalesRow[];
+  salesSummary: SalesDashboardSummary;
+  bookingSummary: BookingDashboardSummary;
+  stockSummary: StockDashboardSummary;
   booking: BookingRow[];
   stock: StockRow[];
   marketing: MarketingRow[];
@@ -170,8 +168,8 @@ const defaultFilters: FilterState = {
 };
 
 function createLiveDashboardData(
-  liveSales: Awaited<ReturnType<typeof loadLiveSalesData>>,
-  liveOperations: Awaited<ReturnType<typeof loadLiveOperationalData>>,
+  liveSales: Awaited<ReturnType<typeof loadLiveSalesDashboardSummary>>,
+  liveOperations: Awaited<ReturnType<typeof loadLiveOperationalDashboardSummary>>,
   company: { name: string; code: string },
 ): DashboardData {
   return {
@@ -185,23 +183,31 @@ function createLiveDashboardData(
     // Sales targets are not yet supplied by the Dashboard API. Keep this
     // empty rather than borrowing target values from the legacy static file.
     plan: { year: 0, months: [], units: [], revenue: [], expense: [] },
-    sales: liveSales.sales,
-    booking: liveOperations.booking,
-    stock: liveOperations.stock,
+    sales: [],
+    salesSummary: liveSales.summary,
+    booking: [],
+    bookingSummary: liveOperations.bookingSummary,
+    stock: [],
+    stockSummary: liveOperations.stockSummary,
     marketing: [],
+    // "Business today" in the company timezone, supplied by /api/operations.
+    // Every client-side operational recompute below measures booking age
+    // against this same date.
+    asOf: liveOperations.asOf,
   };
 }
 
 async function loadDashboardPresentationData(
   companyId: string,
   company: { name: string; code: string },
+  filters: FilterState,
 ) {
   const [liveSales, liveOperations] = await Promise.all([
     // Dashboard operational KPIs are D1/API-only in every runtime. Passing
     // this explicitly avoids any Worker/client environment-detection drift
     // from reactivating the packaged legacy payload after an API failure.
-    loadLiveSalesData({ allowFallback: false, companyId }),
-    loadLiveOperationalData({ allowFallback: false, companyId }),
+    loadLiveSalesDashboardSummary({ companyId, filters }),
+    loadLiveOperationalDashboardSummary({ companyId, filters }),
   ]);
   return createLiveDashboardData(liveSales, liveOperations, company);
 }
@@ -214,27 +220,6 @@ function formatCompact(value: number) {
   return Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
 }
 
-function sum<T>(rows: T[], selector: (row: T) => number | null) {
-  return rows.reduce((total, row) => total + (selector(row) ?? 0), 0);
-}
-
-function monthlySparkline<
-  T extends {
-    year: number | null;
-    month: number | null;
-    branch: string;
-    salesperson: string;
-  },
->(rows: T[], filters: FilterState, selector: (row: T) => number | null) {
-  const scopedYears = selectedYears(filters);
-  if (scopedYears.length !== 1) return [];
-  const year = scopedYears[0];
-  return MONTHS.map((_, index) => sum(
-    rows.filter((row) => rowMatches(row, { ...filters, year: [String(year)], month: [MONTHS[index]] })),
-    selector,
-  ));
-}
-
 function selectedYears(filters: FilterState) {
   return filters.year.map(Number).filter(Number.isFinite);
 }
@@ -243,14 +228,6 @@ function selectedMonths(filters: FilterState) {
   return filters.month
     .map((month) => MONTHS.indexOf(month) + 1)
     .filter((month) => month > 0);
-}
-
-function previousYearFilters(filters: FilterState): FilterState {
-  const years = selectedYears(filters);
-  return {
-    ...filters,
-    year: years.length ? years.map((year) => String(year - 1)) : [],
-  };
 }
 
 function rowMatches(
@@ -368,26 +345,18 @@ function KpiSection({
   currency: string;
 }) {
   const { t } = useLocale();
-  const filteredStock = data.stock.filter((row) => rowMatches(row, filters));
-  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, {
-    year: filters.year,
-    month: filters.month,
-    branch: filters.branch,
-    salesperson: filters.salesperson,
-  });
   // Legacy parity expression retained: getStockUnit(currentStock).
   // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
-  const currentBooking = operationalBusiness.booking.unit;
-  const currentBookingValue = operationalBusiness.booking.value ?? 0;
-  const currentBookingDeposit = operationalBusiness.booking.deposit ?? 0;
-  const currentStock = getCurrentStockRows(filteredStock);
+  const currentBooking = data.bookingSummary.kpis.unit;
+  const currentBookingValue = data.bookingSummary.kpis.value;
+  const currentBookingDeposit = data.bookingSummary.kpis.deposit;
 
-  const businessKpis = getSalesKpis(data.sales, filters);
+  const businessKpis = data.salesSummary.kpis;
   const years = selectedYears(filters);
   const months = selectedMonths(filters);
   const comparisonEnabled = years.length === 1;
   const previousBusinessKpis = comparisonEnabled
-    ? getSalesKpis(data.sales, previousYearFilters(filters))
+    ? data.salesSummary.previousYearKpis
     : null;
   const salesValue = businessKpis.salesValue ?? 0;
   const previousSalesValue = previousBusinessKpis?.salesValue ?? 0;
@@ -407,12 +376,10 @@ function KpiSection({
   const grossProfitComparison = previousBusinessKpis?.grossProfitAvailable
     ? percentChange(grossProfit, previousGrossProfit)
     : null;
-  const salesUnitSparkline = monthlySparkline(data.sales, filters, (row) =>
-    isEngineUnitProduct(row) ? salesTransactionQuantity(row) : 0,
-  );
-  const salesValueSparkline = monthlySparkline(data.sales, filters, (row) => row.finalReceived ?? 0);
+  const salesUnitSparkline = data.salesSummary.sparklines.salesUnit;
+  const salesValueSparkline = data.salesSummary.sparklines.salesValue;
   const grossProfitSparkline = businessKpis.grossProfitAvailable
-    ? monthlySparkline(data.sales, filters, (row) => row.gp1 ?? 0)
+    ? data.salesSummary.sparklines.grossProfit
     : [];
 
   return (
@@ -465,27 +432,19 @@ function KpiSection({
       <KpiCard
         variant="executive"
         title={t("metric.stockUnit")}
-        value={getStockUnit(currentStock)}
+        value={data.stockSummary.kpis.unit}
         unit={t("common.units")}
       />
     </section>
   );
 }
 
-const DASHBOARD_PRODUCT_COLORS: Record<string, string> = {
-  TT: "#A54100",
-  CH: "#C95700",
-  EX: "#F56600",
-  TP: "#F58B3D",
-  MAX: "#F7A35C",
-};
-
 function dashboardLifecycleColor(label: string) {
   const status = label.trim().toLowerCase();
-  if (status === "delivered" || status.includes("complete")) return "var(--chart-health)";
-  if (status === "cancelled" || status === "canceled") return "var(--chart-critical)";
-  if (status === "open" || status.includes("confirm")) return "var(--chart-watch)";
-  return "var(--chart-current)";
+  if (status === "delivered" || status.includes("complete")) return chartTheme.status.positive;
+  if (status === "cancelled" || status === "canceled") return chartTheme.status.negative;
+  if (status === "open" || status.includes("confirm") || status.includes("pending")) return chartTheme.status.warning;
+  return chartTheme.current;
 }
 
 function filterForCharts<
@@ -584,7 +543,7 @@ function LegacyLineChart({
   const valuePoints = valueData
     ? chartPoints(valueData, valueMax, width, height, padX, padY)
     : [];
-  const lineColor = variant === "orange" ? "#FF7A00" : "#4B5563";
+  const lineColor = variant === "orange" ? chartTheme.current : chartTheme.previous;
   const guideMonth = selectedMonths.length === 1 ? selectedMonths[0] : null;
   const yTicks = [0, 0.5, 1].map((ratio) => ({
     ratio,
@@ -627,7 +586,7 @@ function LegacyLineChart({
               x2={width - padX}
               y1={tick.y}
               y2={tick.y}
-              stroke="#F3F4F6"
+              stroke={chartTheme.grid}
               strokeWidth="1"
             />
           ))}
@@ -640,7 +599,7 @@ function LegacyLineChart({
                   x2={point.x}
                   y1={padY - 8}
                   y2={height - padY + 8}
-                  stroke="#D1D5DB"
+                  stroke={chartTheme.target}
                   strokeWidth="1"
                   strokeDasharray="4 6"
                 />
@@ -652,7 +611,7 @@ function LegacyLineChart({
                 x={padX - 14}
                 y={tick.y + 4}
                 textAnchor="end"
-                fill="#4B5563"
+                fill={chartTheme.text}
                 fontSize="12"
                 fontWeight="600"
               >
@@ -663,7 +622,7 @@ function LegacyLineChart({
                   x={width - padX + 14}
                   y={tick.y + 4}
                   textAnchor="start"
-                  fill="#4B5563"
+                  fill={chartTheme.text}
                   fontSize="12"
                   fontWeight="600"
                 >
@@ -675,7 +634,7 @@ function LegacyLineChart({
           <text
             x={padX - 34}
             y={padY - 18}
-            fill="#4B5563"
+            fill={chartTheme.text}
             fontSize="12"
             fontWeight="700"
           >
@@ -685,7 +644,7 @@ function LegacyLineChart({
             <text
               x={width - padX + 8}
               y={padY - 18}
-              fill="#4B5563"
+              fill={chartTheme.text}
               fontSize="12"
               fontWeight="700"
             >
@@ -709,7 +668,7 @@ function LegacyLineChart({
                 key={`value-path-${index}`}
                 d={path}
                 fill="none"
-                stroke="#4B5563"
+                stroke={chartTheme.previous}
                 strokeWidth="2.75"
                 strokeDasharray="8 8"
                 strokeLinecap="round"
@@ -737,7 +696,7 @@ function LegacyLineChart({
                   cx={point.x}
                   cy={point.y}
                   r={active ? 6 : 4.5}
-                  fill="white"
+                  fill={chartTheme.surface}
                   stroke={lineColor}
                   strokeWidth="2.75"
                 />
@@ -766,8 +725,8 @@ function LegacyLineChart({
                     cx={point.x}
                     cy={point.y}
                     r={active ? 6 : 4.25}
-                    fill="white"
-                    stroke="#4B5563"
+                    fill={chartTheme.surface}
+                    stroke={chartTheme.previous}
                     strokeWidth="2.5"
                   />
                 </g>
@@ -779,7 +738,7 @@ function LegacyLineChart({
               x={point.x}
               y={height - 10}
               textAnchor="middle"
-              fill="#4B5563"
+              fill={chartTheme.text}
               fontSize="12"
               fontWeight="600"
             >
@@ -898,7 +857,7 @@ function YearTrendChart({
 
 function HorizontalBarChart({
   data,
-  color = "#F56600",
+  color = chartTheme.current,
 }: {
   data: { label: string; value: number }[];
   color?: string;
@@ -917,12 +876,12 @@ function HorizontalBarChart({
             {index + 1}
           </span>
           <span
-            className="min-w-0 font-semibold leading-tight text-[#4B5563]"
+            className="min-w-0 font-semibold leading-tight text-[var(--text-secondary)]"
             title={item.label}
           >
             {item.label}
           </span>
-          <div className="h-3 rounded-full bg-[#F3F4F6]">
+          <div className="h-3 rounded-full bg-[var(--surface-muted)]">
             <div
               className="h-3 rounded-full"
               style={{
@@ -931,7 +890,7 @@ function HorizontalBarChart({
               }}
             />
           </div>
-          <span className="min-w-10 text-right text-xs font-bold text-[#4B5563]">
+          <span className="min-w-10 text-right text-xs font-bold text-[var(--text-secondary)]">
             {formatCompact(item.value)}
           </span>
         </div>
@@ -1029,17 +988,14 @@ function stockHealthTone(ageBucket: string): StockHealthTone {
   return "watch";
 }
 
-function StockHealthCard({ rows }: { rows: StockRow[] }) {
+function StockHealthCard({ health }: { health: { healthy: number; watch: number; critical: number } }) {
   const { t } = useLocale();
-  const counts = rows.reduce<Record<StockHealthTone, number>>((result, row) => {
-    result[stockHealthTone(row.ageBucket)] += 1;
-    return result;
-  }, { healthy: 0, watch: 0, critical: 0 });
-  const total = Math.max(rows.length, 1);
+  const counts = health;
+  const total = Math.max(counts.healthy + counts.watch + counts.critical, 1);
   const items = [
-    { id: "healthy" as const, label: `${t("status.healthy")} · 0–30 ${t("common.days")}`, value: counts.healthy, color: "var(--chart-health)" },
-    { id: "watch" as const, label: `${t("status.watch")} · 31–90 ${t("common.days")}`, value: counts.watch, color: "var(--chart-watch)" },
-    { id: "critical" as const, label: `${t("status.critical")} · 91+ ${t("common.days")}`, value: counts.critical, color: "var(--chart-critical)" },
+    { id: "healthy" as const, label: `${t("status.healthy")} · 0–30 ${t("common.days")}`, value: counts.healthy, color: chartTheme.status.positive },
+    { id: "watch" as const, label: `${t("status.watch")} · 31–90 ${t("common.days")}`, value: counts.watch, color: chartTheme.status.warning },
+    { id: "critical" as const, label: `${t("status.critical")} · 91+ ${t("common.days")}`, value: counts.critical, color: chartTheme.status.negative },
   ];
 
   return (
@@ -1153,36 +1109,27 @@ function ChartsSection({
 }) {
   const { t } = useLocale();
   const trendFilters = { ...filters, year: [], month: [] };
-  const trendSales = filterForCharts(data.sales, trendFilters);
-  const filteredSales = filterForCharts(data.sales, filters);
-  const lifecycleRows = filterForCharts(data.booking, trendFilters);
-  const salesUnitTrendRows = trendSales.map((row) => ({
+  const salesUnitTrendRows = data.salesSummary.trendRows.map((row) => ({
     year: row.year,
     month: row.month,
-    value: isEngineUnitProduct(row) ? salesTransactionQuantity(row) : 0,
+    value: row.salesUnit,
   }));
-  const salesValueTrendRows = trendSales.map((row) => ({
+  const salesValueTrendRows = data.salesSummary.trendRows.map((row) => ({
     year: row.year,
     month: row.month,
-    value: row.finalReceived ?? 0,
+    value: row.salesValue ?? 0,
   }));
-  const salesByBranch = getBranchSummary(filteredSales);
-  const productMix = getProductSummary(filteredSales);
-  const bookingLifecycle = buildMonthlyLifecycle(lifecycleRows);
-  const operationalBusiness = getOperationalBusiness(data.booking, data.stock, {
-    year: filters.year,
-    month: filters.month,
-    branch: filters.branch,
-    salesperson: filters.salesperson,
-  });
-  const bookingByProduct = operationalBusiness.booking.byProduct
+  const salesByBranch = data.salesSummary.branchSummary;
+  const productMix = data.salesSummary.productSummary;
+  const bookingLifecycle = data.bookingSummary.lifecycle;
+  const bookingByProduct = data.bookingSummary.byProduct
     .filter((item) =>
       (PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[]).includes(
         item.product,
       ),
     )
     .map((item) => ({ label: item.product, value: item.unit }));
-  const stockByProduct = operationalBusiness.stock.byProduct
+  const stockByProduct = data.stockSummary.kpis.byProduct
     .filter((item) =>
       STOCK_UNIT_PRODUCTS.includes(
         item.product as (typeof STOCK_UNIT_PRODUCTS)[number],
@@ -1205,22 +1152,9 @@ function ChartsSection({
       const rightGap = right.right - right.left;
       return leftGap - rightGap || Math.max(right.left, right.right) - Math.max(left.left, left.right);
     });
-  const currentStockForHealth = getCurrentStockRows(filterForCharts(data.stock, filters)).filter((row) =>
-    STOCK_UNIT_PRODUCTS.includes(normalizeProductType(row) as (typeof STOCK_UNIT_PRODUCTS)[number]),
-  );
-  const agingRisk = STOCK_UNIT_PRODUCTS.map((product) => {
-    const productRows = currentStockForHealth.filter(
-      (row) => normalizeProductType(row) === product,
-    );
-    return {
-      label: product,
-      values: STOCK_AGE_BANDS.map(
-        (band) => productRows.filter((row) => stockAgeBand(row.ageBucket) === band).length,
-      ),
-    };
-  }).filter((item) => item.values.some((value) => value > 0));
-  const criticalStock = currentStockForHealth.filter((row) => stockHealthTone(row.ageBucket) === "critical").length;
-  const openBookings = getOpenBookingUnit(data.booking, filters);
+  const agingRisk = data.stockSummary.agingRisk;
+  const criticalStock = data.stockSummary.health.critical;
+  const openBookings = data.bookingSummary.kpis.unit;
   const recentActivities = buildRecentActivities(data, filters).slice(0, 6);
   const displayBookingStatus = (label: string) => {
     const normalized = label.trim().toLowerCase();
@@ -1266,7 +1200,7 @@ function ChartsSection({
           >
             <HorizontalBarChart data={salesByBranch} />
           </ChartCard>
-          <StockHealthCard rows={currentStockForHealth} />
+          <StockHealthCard health={data.stockSummary.health} />
         </div>
       </section>
 
@@ -1308,8 +1242,8 @@ function ChartsSection({
             rightLabel={t("metric.stockUnit")}
             leftShortLabel={t("common.booking")}
             rightShortLabel={t("common.stock")}
-            leftColor="#F56600"
-            rightColor="#F7A35C"
+            leftColor={chartTheme.current}
+            rightColor={chartTheme.previous}
             shortageLabel={t("comparison.shortage")}
             surplusLabel={t("comparison.surplus")}
             balancedLabel={t("comparison.balanced")}
@@ -1329,7 +1263,7 @@ function ChartsSection({
               id: item.label,
               label: item.label,
               value: item.value,
-              color: DASHBOARD_PRODUCT_COLORS[item.label] ?? "#FBC49D",
+              color: chartProductColor(item.label),
             }))}
             formatValue={formatCompact}
           />
@@ -1358,8 +1292,7 @@ function buildRecentActivities(
   data: DashboardData,
   filters: FilterState,
 ): ActivityRow[] {
-  const sales = data.sales
-    .filter((row) => rowMatches(row, filters))
+  const sales = data.salesSummary.recentSales
     .map((row) => ({
       date: row.date,
       branch: row.branch,
@@ -1367,8 +1300,7 @@ function buildRecentActivities(
       activity: `Sales record: ${row.model || row.productType || "Unknown model"}`,
       status: "",
     }));
-  const booking = data.booking
-    .filter((row) => rowMatches(row, filters))
+  const booking = data.bookingSummary.recentBookings
     .map((row) => ({
       date: row.date,
       branch: row.branch,
@@ -1404,9 +1336,15 @@ function buildFilterOptions(data: DashboardData): FilterState {
     if (row.branch) branches.add(row.branch);
     if (row.salesperson) salespeople.add(row.salesperson);
   };
-  data.sales.forEach(addRow);
-  data.booking.forEach(addRow);
-  data.stock.forEach(addRow);
+  data.salesSummary.filters.year.forEach((year) => years.add(year));
+  data.salesSummary.filters.branch.forEach((branch) => branches.add(branch));
+  data.salesSummary.filters.salesperson.forEach((salesperson) => salespeople.add(salesperson));
+  data.bookingSummary.filters.year.forEach((year) => years.add(year));
+  data.bookingSummary.filters.branch.forEach((branch) => branches.add(branch));
+  data.bookingSummary.filters.salesperson.forEach((salesperson) => salespeople.add(salesperson));
+  data.stockSummary.filters.year.forEach((year) => years.add(year));
+  data.stockSummary.filters.branch.forEach((branch) => branches.add(branch));
+  data.stockSummary.filters.salesperson.forEach((salesperson) => salespeople.add(salesperson));
   data.marketing.forEach(addRow);
   return {
     year: Array.from(years).sort((a, b) => Number(b) - Number(a)),
@@ -1459,7 +1397,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     let ignore = false;
-    loadDashboardPresentationData(companyId, { name: companyName, code: companyCode })
+    loadDashboardPresentationData(companyId, { name: companyName, code: companyCode }, filters)
       .then((data) => {
         if (!ignore) {
           setDashboardState({
@@ -1497,7 +1435,7 @@ export function DashboardPage() {
       ignore = true;
       window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
-  }, [companyCode, companyId, companyName, reloadVersion]);
+  }, [companyCode, companyId, companyName, filters, reloadVersion]);
 
   function updateFilter(key: FilterKey, values: string[]) {
     setFilterSnapshot((current) => ({
@@ -1507,10 +1445,12 @@ export function DashboardPage() {
         [key]: values,
       },
     }));
+    setReloadVersion((current) => current + 1);
   }
 
   function resetFilters() {
     setFilterSnapshot({ companyId, filters: defaultFilters });
+    setReloadVersion((current) => current + 1);
   }
 
   function exportDashboard() {

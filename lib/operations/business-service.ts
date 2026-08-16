@@ -1,5 +1,5 @@
 import { getAverageBookingAge, getBookingByProduct, getBookingConversionRate, getBookingValue, getDepositAmount, getOpenBookingUnit, type BookingRow } from "../dashboard/booking-selectors";
-import { getAgedStock, getAverageStockAge, getStockByProduct, getStockUnit, getStockValue, normalizeProductType, type StockRow } from "../dashboard/stock-selectors";
+import { getAgedStock, getAverageStockAge, getCurrentStockRows, getStockByProduct, getStockUnit, getStockValue, normalizeProductType, type StockRow } from "../dashboard/stock-selectors";
 import type { OperationalBusiness, OperationalFilters } from "./types";
 
 /**
@@ -8,13 +8,30 @@ import type { OperationalBusiness, OperationalFilters } from "./types";
  * `year`/`month` fields because those canonical fields intentionally differ
  * from the raw `booking_year`/`booking_month` column names.
  */
-export function getOperationalBusiness(bookingRows: BookingRow[], stockRows: StockRow[], filters: OperationalFilters = {}): OperationalBusiness {
+export type OperationalBusinessOptions = {
+  /**
+   * "Business today" used to measure booking age. The API supplies this from
+   * the company timezone; the Dashboard, Booking and Stock pages pass the
+   * payload asOf into filtered recomputes so every surface measures age
+   * against the same business date. The evaluation-time date is only a
+   * fallback when no asOf is supplied (never a frozen value).
+   */
+  asOf?: Date;
+};
+
+export function getOperationalBusiness(bookingRows: BookingRow[], stockRows: StockRow[], filters: OperationalFilters = {}, options: OperationalBusinessOptions = {}): OperationalBusiness {
   const booking = bookingRows;
   const stock = filterStockRows(stockRows, filters);
+  const asOf = options.asOf ?? new Date();
   return {
-    booking: { unit: getOpenBookingUnit(booking, filters), value: getBookingValue(booking, filters), deposit: getDepositAmount(booking, filters), averageAge: getAverageBookingAge(booking, filters), conversionRate: getBookingConversionRate(booking, filters), byProduct: getBookingByProduct(booking, filters) },
+    booking: { unit: getOpenBookingUnit(booking, filters), value: getBookingValue(booking, filters), deposit: getDepositAmount(booking, filters), averageAge: getAverageBookingAge(booking, filters, asOf), conversionRate: getBookingConversionRate(booking, filters), byProduct: getBookingByProduct(booking, filters) },
     stock: { unit: getStockUnit(stock), value: getStockValue(stock), averageAge: getAverageStockAge(stock), agedUnit: getAgedStock(stock).length, byProduct: getStockByProduct(stock) },
   };
+}
+
+/** Shared exact stock scope for aggregate Dashboard views. */
+export function getFilteredCurrentStockRows<T extends StockRow>(rows: T[], filters: OperationalFilters = {}) {
+  return getCurrentStockRows(filterStockRows(rows, filters));
 }
 
 function filterStockRows(rows: StockRow[], filters: OperationalFilters) {

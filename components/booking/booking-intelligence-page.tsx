@@ -29,12 +29,14 @@ import {
 import { buildMonthlyLifecycle, businessStatusColor } from "../common/charts/chartData";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { asOfDate } from "../../lib/operations/as-of";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
 // Legacy QA fallback contract remains available through fetch("/dashboard-data.json").
 // Legacy parity expression retained: getOpenBookingUnit(data.booking, filters).
-// Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getAverageBookingAge(data.booking, filters); getBookingConversionRate(data.booking, filters).
+// Legacy parity expressions retained: getBookingValue(data.booking, filters); getDepositAmount(data.booking, filters); getBookingConversionRate(data.booking, filters).
+// getAverageBookingAge is a live call below, measured against the server-supplied asOf date.
 import {
   PRODUCT_GROUPS,
   productCategory,
@@ -88,6 +90,7 @@ type Booking = {
 };
 type Data = {
   meta: { sourceUpdatedAt: string; sources: string[] };
+  asOf: string;
   booking: Booking[];
 };
 const initial: Filters = {
@@ -109,12 +112,12 @@ const agingPresentation = [
   {
     range: "31–60 Days",
     tone: "text-[var(--status-warning)]",
-    surface: "border-[#F2DFC1] bg-[#FFF9EF]",
+    surface: "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)]",
   },
   {
     range: "61–90 Days",
-    tone: "text-[#C45E12]",
-    surface: "border-[#F3D1B7] bg-[#FFF7F0]",
+    tone: "text-[var(--status-warning)]",
+    surface: "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)]",
   },
   {
     range: ">90 Days",
@@ -158,11 +161,11 @@ function isUnitProduct(row: Booking) {
     productCategory(row),
   );
 }
-function age(row: Booking) {
-  return bookingAge(row);
+function age(row: Booking, asOf: Date) {
+  return bookingAge(row, asOf);
 }
-function risk(row: Booking) {
-  const days = age(row);
+function risk(row: Booking, asOf: Date) {
+  const days = age(row, asOf);
   return days <= 30
     ? "Healthy"
     : days <= 60
@@ -299,11 +302,15 @@ export function BookingIntelligencePage() {
     [filters, setFilters] = useState<Filters>(initial),
     [query, setQuery] = useState(""),
     [page, setPage] = useState(1);
+  // Booking age is measured against the server's company-timezone "business
+  // today" (data.asOf). The placeholder Date only applies while data is null
+  // (loading/error), when no rows are derived from it.
+  const asOf = data ? asOfDate(data.asOf) : new Date();
   const load = (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError("");
     loadLiveOperationalData({ companyId })
-      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, booking: value.booking }))
+      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, asOf: value.asOf, booking: value.booking }))
       .catch(() => setError("Booking data could not be loaded."))
       .finally(() => setLoading(false));
   };
@@ -325,14 +332,14 @@ export function BookingIntelligencePage() {
     () => (data ? getOpenBookingValueRows(data.booking, filters) : []),
     [data, filters],
   );
-  const operationalBusiness = data ? getOperationalBusiness(data.booking, [], filters).booking : null;
+  const operationalBusiness = data ? getOperationalBusiness(data.booking, [], filters, { asOf }).booking : null;
   const bookingUnit = operationalBusiness?.unit ?? 0;
   const bookingValue = operationalBusiness?.value ?? 0;
   const depositReceived = operationalBusiness?.deposit ?? 0;
-  const averageBookingAge = operationalBusiness?.averageAge ?? null;
+  const averageBookingAge = data ? getAverageBookingAge(data.booking, filters, asOf) : null;
   const bookingConversionRate = operationalBusiness?.conversionRate ?? null;
   const bookingByProduct = data
-    ? getOperationalBusiness(data.booking, [], filters).booking.byProduct
+    ? getOperationalBusiness(data.booking, [], filters, { asOf }).booking.byProduct
     : [];
   const options = useMemo(
     () => ({
@@ -360,7 +367,7 @@ export function BookingIntelligencePage() {
     [data],
   );
   const health = ["Healthy", "Watch", "At Risk", "Critical"].map((label) => {
-    const items = open.filter((row) => risk(row) === label);
+    const items = open.filter((row) => risk(row, asOf) === label);
     return {
       label,
       rows: items,
@@ -421,7 +428,7 @@ export function BookingIntelligencePage() {
   ).map((item) => ({
     label: item.label,
     values: ["Healthy", "Watch", "At Risk", "Critical"].map(
-      (bucket) => item.rows.filter((row) => risk(row) === bucket).length,
+      (bucket) => item.rows.filter((row) => risk(row, asOf) === bucket).length,
     ),
   }));
   const branchRisk = options.branch
@@ -432,9 +439,9 @@ export function BookingIntelligencePage() {
       return {
         branch,
         open: openRows.length,
-        critical: openRows.filter((row) => risk(row) === "Critical").length,
+        critical: openRows.filter((row) => risk(row, asOf) === "Critical").length,
         value: openValue.filter((row) => row.branch === branch).reduce((sum, row) => sum + priceOf(row), 0),
-        averageAge: openRows.length ? Math.round(openRows.reduce((sum, row) => sum + age(row), 0) / openRows.length) : null,
+        averageAge: openRows.length ? Math.round(openRows.reduce((sum, row) => sum + age(row, asOf), 0) / openRows.length) : null,
         conversion: branchRows.length ? (delivered / branchRows.length) * 100 : null,
       } satisfies BranchRiskItem;
     })
@@ -482,8 +489,8 @@ export function BookingIntelligencePage() {
         String(r.deposit ?? ""),
         r.status,
         r.statusDate,
-        String(age(r)),
-        risk(r),
+        String(age(r, asOf)),
+        risk(r, asOf),
       ]),
     ]
       .map((row) =>
@@ -763,8 +770,8 @@ export function BookingIntelligencePage() {
                 >
                   <div className="space-y-3">
                     {open
-                      .filter((r) => age(r) > 90)
-                      .sort((a, b) => age(b) - age(a))
+                      .filter((r) => age(r, asOf) > 90)
+                      .sort((a, b) => age(b, asOf) - age(a, asOf))
                       .slice(0, 5)
                       .map((r) => (
                         <div
@@ -776,11 +783,11 @@ export function BookingIntelligencePage() {
                             {r.branch} · {r.salesperson}
                           </span>
                           <span className="kmm-tabular shrink-0 font-semibold text-[var(--status-danger)]">
-                            {age(r)} {t("common.days")} · {t("booking.escalate")}
+                            {age(r, asOf)} {t("common.days")} · {t("booking.escalate")}
                           </span>
                         </div>
                       ))}
-                    {!open.some((r) => age(r) > 90) && (
+                    {!open.some((r) => age(r, asOf) > 90) && (
                       <p className="text-sm text-[var(--text-secondary)]">
                         {t("booking.noCriticalFollowUp")}
                       </p>
@@ -916,7 +923,7 @@ export function BookingIntelligencePage() {
                                 : "N/A"}
                             </td>
                             <td className="kmm-tabular px-3 py-3 text-center">
-                              {age(r)}
+                              {age(r, asOf)}
                             </td>
                             <td className="px-3 py-3">{r.status}</td>
                             <td className="px-3 py-3">
@@ -925,14 +932,14 @@ export function BookingIntelligencePage() {
                             <td className="px-3 py-3">
                               <span
                                 className={
-                                  risk(r) === "Critical"
+                                  risk(r, asOf) === "Critical"
                                     ? "font-semibold text-[var(--status-danger)]"
-                                    : risk(r) === "At Risk"
+                                    : risk(r, asOf) === "At Risk"
                                       ? "text-[#C45E12]"
                                       : "text-[var(--text-secondary)]"
                                 }
                               >
-                                {risk(r)}
+                                {risk(r, asOf)}
                               </span>
                             </td>
                           </tr>

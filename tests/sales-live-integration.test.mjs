@@ -7,6 +7,7 @@ import { tsImport } from "tsx/esm/api";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 const salesBusiness = await tsImport("../lib/sales/business-service.ts", import.meta.url);
+const dashboardSummary = await tsImport("../lib/sales/dashboard-summary-service.ts", import.meta.url);
 
 function businessRow({
   type,
@@ -46,15 +47,19 @@ test("D1 repository, shared business service, API, and page adapters are connect
   ]);
   assert.match(repository, /salesTransactions/);
   assert.match(repository, /listSalespeople/);
+  assert.match(repository, /listSalesDashboardBuckets/);
+  assert.match(repository, /groupBy\(year, month/);
   assert.match(service, /getSalesKpis/);
   assert.match(service, /getMonthlyTrend/);
   assert.match(service, /getWeeklyTrend/);
   assert.match(api, /listSalesTransactions/);
   assert.match(api, /toLegacySalesRow/);
   assert.match(api, /employeeMasterAvailable/);
-  assert.match(dashboard, /loadLiveSalesData/);
-  assert.match(dashboard, /getBranchSummary/);
-  assert.match(dashboard, /salesTransactionQuantity/);
+  assert.match(api, /listSalesDashboardBuckets/);
+  assert.match(api, /listRecentSalesDashboardRows/);
+  assert.match(dashboard, /loadLiveSalesDashboardSummary/);
+  assert.match(dashboard, /salesSummary\.branchSummary/);
+  assert.match(dashboard, /salesSummary\.trendRows/);
   assert.match(sales, /loadLiveSalesData/);
   assert.match(sales, /getProductSummary/);
   assert.match(organization, /getSalesKpis/);
@@ -87,6 +92,26 @@ test("approved KMM Sales Unit, Value, and GP rules have exact parity", () => {
   assert.equal(kpis.salesUnit, 2);
   assert.equal(kpis.salesValue, 375);
   assert.equal(kpis.grossProfit, 38);
+});
+
+test("dashboard-summary view is compact and retains Sales KPI parity", async () => {
+  const api = await read("app/api/sales/route.ts");
+  const rows = [
+    businessRow({ type: "TT", quantity: 2, value: 100, gp: 10, year: 2026, month: 1, branch: "KMM01", salesperson: "Alice" }),
+    businessRow({ type: "CH", quantity: 3, value: 200, gp: 20, year: 2025, month: 1, branch: "KMM02", salesperson: "Bob" }),
+  ];
+  const summary = dashboardSummary.getSalesDashboardSummary(rows, { year: ["2026"] });
+  assert.match(api, /view === "dashboard-summary"/);
+  assert.match(api, /getSalesDashboardSummary/);
+  assert.equal(summary.rowCount, 2);
+  assert.deepEqual(summary.kpis, salesBusiness.getSalesKpis(rows, { year: ["2026"] }));
+  assert.deepEqual(summary.previousYearKpis, salesBusiness.getSalesKpis(rows, { year: [2025] }));
+  assert.deepEqual(summary.filters.year, ["2026", "2025"]);
+  assert.equal(summary.monthlyTrend.length, 12);
+  assert.equal(summary.monthlyTrend[0].salesUnit, 5);
+  assert.deepEqual(summary.trendRows.map((row) => [row.year, row.month, row.salesUnit]), [[2025, 1, 3], [2026, 1, 2]]);
+  assert.equal(summary.sparklines.salesUnit[0], 2);
+  assert.equal(summary.recentSales.length, 1);
 });
 
 test("all and only TT/CH/EX/TP quantities count while every valid row contributes Value and GP", () => {

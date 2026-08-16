@@ -1,7 +1,8 @@
 "use client";
 
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { auth, storage } from "../firebase";
+import { auth } from "../firebase";
+import { storage } from "../firebase-storage";
 import type {
   CompanyManagementResponse,
   CompanySettingsSnapshot,

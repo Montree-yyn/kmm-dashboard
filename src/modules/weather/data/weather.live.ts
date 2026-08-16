@@ -1,5 +1,6 @@
 import { weatherLocationSeeds } from "./weather.locations";
 import { getWeatherRiskLevel } from "./weather.rules";
+import { normalizeWeatherContract } from "../weather.contract";
 import type {
   WeatherCondition,
   WeatherCacheStatus,
@@ -109,13 +110,17 @@ export async function fetchLiveWeather(
     }
 
     const locations = responses.map((weather, index) => mapWeatherLocation(seeds[index], weather));
-    const livePayload: WeatherDataPayload = {
+    const basePayload = {
       source: "open-meteo",
       sourceLabel: apiKey ? "Open-Meteo live forecast" : "Open-Meteo public live forecast",
       fetchedAt: new Date().toISOString(),
       cacheStatus: "live",
       cacheAgeSeconds: 0,
       locations,
+    } satisfies Omit<WeatherDataPayload, "contract">;
+    const livePayload: WeatherDataPayload = {
+      ...basePayload,
+      contract: normalizeWeatherContract(basePayload),
     };
     if (cacheable) lastKnownGoodWeather = { payload: livePayload, storedAt: Date.now() };
     return livePayload;
@@ -165,10 +170,14 @@ function isDefaultLocationSet(seeds: WeatherLocationSeed[]) {
 }
 
 function withCacheMetadata(payload: WeatherDataPayload, cacheStatus: WeatherCacheStatus, storedAt: number): WeatherDataPayload {
-  return {
+  const nextPayload = {
     ...payload,
     cacheStatus,
     cacheAgeSeconds: Math.max(0, Math.floor((Date.now() - storedAt) / 1000)),
+  };
+  return {
+    ...nextPayload,
+    contract: normalizeWeatherContract(nextPayload),
   };
 }
 

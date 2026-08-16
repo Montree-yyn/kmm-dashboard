@@ -71,9 +71,9 @@ test("keeps the KMM Design System v3.3 foundation and V3.5 analysis contract sem
     readFile(new URL("../DESIGN.md", import.meta.url), "utf8"),
   ]);
 
-  assert.match(globalStyles, /--brand-500:\s*#f56600/i);
-  assert.match(globalStyles, /--surface-canvas:\s*#f6f6f3/i);
-  assert.match(globalStyles, /--text-primary:\s*#171718/i);
+  assert.match(globalStyles, /--brand-500:\s*#ff7a00/i);
+  assert.match(globalStyles, /--surface-canvas:\s*#f7f8fa/i);
+  assert.match(globalStyles, /--text-primary:\s*#1f2937/i);
   assert.match(globalStyles, /--radius-card:\s*14px/i);
   assert.match(globalStyles, /--motion-standard:\s*200ms/i);
   assert.match(globalStyles, /--font-kmm:[\s\S]*?"IBM Plex Sans Thai"/i);

@@ -48,9 +48,9 @@ test("Booking lifecycle uses observed source statuses rather than invented stage
     ["Cancelled", "Delivered", "Open"],
   );
   assert.deepEqual(result.series.find((series) => series.label === "Open").values, [1, 1]);
-  assert.equal(result.series.find((series) => series.label === "Delivered").color, "#35363A");
-  assert.equal(result.series.find((series) => series.label === "Cancelled").color, "#9B948A");
-  assert.equal(result.series.find((series) => series.label === "Open").color, "#F56600");
+  assert.equal(result.series.find((series) => series.label === "Delivered").color, "#16A34A");
+  assert.equal(result.series.find((series) => series.label === "Cancelled").color, "#DC2626");
+  assert.equal(result.series.find((series) => series.label === "Open").color, "#F59E0B");
   assert.equal(result.series.some((series) => series.label === "Finance Approved"), false);
 });
 

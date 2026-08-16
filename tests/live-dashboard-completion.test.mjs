@@ -24,13 +24,16 @@ test("D1 adapters preserve nullable values and approved age derivation", () => {
 });
 
 test("Dashboard, Booking and Stock read through the shared operational client", () => {
-  for (const file of ["components/dashboard/dashboard-page.tsx", "components/booking/booking-intelligence-page.tsx", "components/stock/stock-intelligence-page.tsx"]) {
+  for (const file of ["components/booking/booking-intelligence-page.tsx", "components/stock/stock-intelligence-page.tsx"]) {
     const page = read(file);
     assert.match(page, /loadLiveOperationalData/);
     assert.match(page, /kmm:sales-imported/);
   }
+  assert.match(read("components/dashboard/dashboard-page.tsx"), /loadLiveOperationalDashboardSummary/);
+  assert.match(read("components/dashboard/dashboard-page.tsx"), /kmm:sales-imported/);
   assert.match(read("app/api/operations/route.ts"), /listBookingTransactions/);
   assert.match(read("app/api/operations/route.ts"), /listStockTransactions/);
+  assert.match(read("app/api/operations/route.ts"), /listBookingDashboardBuckets/);
 });
 
 test("Business layer owns cross-module KPI aggregation and retains existing selectors", () => {

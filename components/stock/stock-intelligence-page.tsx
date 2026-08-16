@@ -37,8 +37,10 @@ import {
   PairedBarChart,
   PercentStackedBar,
 } from "../common/charts/AnalyticalCharts";
+import { chartProductColor } from "../common/charts/chartTheme";
 import { loadLiveOperationalData } from "../../lib/operations/client";
 import { getOperationalBusiness } from "../../lib/operations/business-service";
+import { asOfDate } from "../../lib/operations/as-of";
 import { canonicalModelName } from "../../lib/dashboard/model-normalization";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
@@ -60,13 +62,6 @@ const MONTHS = [
   "Dec",
 ];
 const UNIT_PRODUCTS = PRODUCT_GROUPS.UNIT_PRODUCTS as readonly string[];
-const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#F56600",
-  CH: "#35363A",
-  EX: "#86868B",
-  TP: "#B6B7BA",
-  MAX: "#245487",
-};
 const chartCardClass =
   "min-w-0 rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]";
 const agingPresentation = [
@@ -127,6 +122,7 @@ type Booking = {
 };
 type Data = {
   meta?: { sourceUpdatedAt?: string; sources?: string[] };
+  asOf: string;
   stock: Stock[];
   booking: Booking[];
 };
@@ -199,7 +195,7 @@ export function StockIntelligencePage() {
     setLoading(true);
     setError("");
     loadLiveOperationalData({ companyId })
-      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, stock: value.stock, booking: value.booking }))
+      .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, asOf: value.asOf, stock: value.stock, booking: value.booking }))
       .catch(() => setError("Stock data could not be loaded."))
       .finally(() => setLoading(false));
   };
@@ -222,7 +218,9 @@ export function StockIntelligencePage() {
   );
   const unitRows = getStockUnitRows(rows);
   const valueRows = getStockValueRows(rows);
-  const operationalBusiness = data ? getOperationalBusiness([], data.stock, { year: filters.year, month: filters.month, branch: filters.branch, product: filters.product }).stock : null;
+  // Booking age in this recompute is measured against the payload asOf (the
+  // server's company-timezone "business today"), matching the Booking page.
+  const operationalBusiness = data ? getOperationalBusiness([], data.stock, { year: filters.year, month: filters.month, branch: filters.branch, product: filters.product }, { asOf: asOfDate(data.asOf) }).stock : null;
   const stockValue = operationalBusiness?.value ?? 0;
   const averageStockAge = operationalBusiness?.averageAge ?? null;
   const aged = operationalBusiness ? Array.from({ length: operationalBusiness.agedUnit }) : [];
@@ -604,7 +602,7 @@ export function StockIntelligencePage() {
                           [
                             "bg-[var(--status-success)]",
                             "bg-[var(--status-warning)]",
-                            "bg-[var(--brand-500)]",
+                            "bg-[var(--chart-product-strategic)]",
                             "bg-[var(--status-danger)]",
                           ][index]
                         }
@@ -620,7 +618,7 @@ export function StockIntelligencePage() {
                           className={[
                             "size-2 rounded-full bg-[var(--status-success)]",
                             "bg-[var(--status-warning)]",
-                            "bg-[var(--brand-500)]",
+                            "bg-[var(--chart-product-strategic)]",
                             "bg-[var(--status-danger)]",
                           ][index]}
                         />
@@ -804,7 +802,7 @@ export function StockIntelligencePage() {
                         id: item.label,
                         label: item.label,
                         value: item.count,
-                        color: PRODUCT_COLORS[item.label] ?? "#B6B7BA",
+                        color: chartProductColor(item.label),
                       }))}
                     />
                   </ChartCard>

@@ -1,9 +1,19 @@
 "use client";
 
+import { lazy, Suspense } from "react";
 import { ChevronDown, Globe2, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { HeaderPresentationTrigger } from "../presentation/HeaderPresentationTrigger";
-import { KaiHeaderAssistant } from "../kai/kai-header-assistant";
+
+// KAI assistant ships a heavy bundle (chat UI, Workers AI client, many icons)
+// and lives in the global header on every page. Load it on demand so the
+// initial shell stays light; the shell only mounts after auth, so this lazy
+// chunk never participates in SSR.
+const KaiHeaderAssistant = lazy(() =>
+  import("../kai/kai-header-assistant").then((module) => ({
+    default: module.KaiHeaderAssistant,
+  })),
+);
 import { CompanySwitcher } from "../company/company-switcher";
 import { GlobalNavigationSearch } from "../navigation/global-navigation-search";
 import { useLocale } from "../../src/hooks/useLocale";
@@ -149,7 +159,15 @@ export function GlobalHeader({ onOpenNavigation }: GlobalHeaderProps) {
             <ChevronDown className="pointer-events-none absolute right-2.5 text-[var(--text-tertiary)]" size={14} aria-hidden="true" />
           </label>
           <span className="hidden md:block"><HeaderPresentationTrigger /></span>
-          <KaiHeaderAssistant key={selectedCompany?.id ?? "company"} className="kmm-glass-control" />
+          <Suspense
+            fallback={
+              <span className="kmm-glass-control hidden h-10 items-center rounded-[20px] px-3 text-xs font-semibold text-[var(--text-secondary)] sm:inline-flex" aria-hidden="true">
+                KAI
+              </span>
+            }
+          >
+            <KaiHeaderAssistant key={selectedCompany?.id ?? "company"} className="kmm-glass-control" />
+          </Suspense>
           <div
             className="kmm-glass-control hidden min-h-11 items-center gap-2 rounded-[var(--radius-control-lg)] p-1 pr-2 text-[var(--text-primary)] sm:flex"
             aria-label={selectedCompany ? `${selectedCompany.code} ${companyRoleLabel(selectedCompany.role)}` : "Company member"}

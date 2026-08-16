@@ -1,4 +1,5 @@
 import type { StackedColumnSeries } from "./AnalyticalCharts";
+import { chartTheme } from "./chartTheme";
 
 const MONTHS = [
   "Jan",
@@ -23,10 +24,10 @@ type LifecycleRow = {
 
 export const businessStatusColor = (label: string, index: number) => {
   const status = label.trim().toLowerCase();
-  if (status === "delivered" || status.includes("complete")) return "#35363A";
-  if (status === "cancelled" || status === "canceled") return "#9B948A";
-  if (status === "open" || status.includes("confirm")) return "#F56600";
-  return ["#F7A35C", "#6B6C70", "#C9C4BC", "#B88A66"][index % 4];
+  if (status === "delivered" || status.includes("complete")) return chartTheme.status.positive;
+  if (status === "cancelled" || status === "canceled") return chartTheme.status.negative;
+  if (status === "open" || status.includes("confirm") || status.includes("pending")) return chartTheme.status.warning;
+  return [chartTheme.previous, chartTheme.product.muted, chartTheme.product.neutral][index % 3];
 };
 
 export function buildMonthlyLifecycle(

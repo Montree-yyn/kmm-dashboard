@@ -92,7 +92,7 @@ export function StandardLineChart({ title, subtitle, labels, series, unit = "Uni
     if (kind === "target") return { color: chartTheme.target, width: chartStroke.target, dash: "8 7" };
     if (kind === "current") return { color: chartTheme.current, width: visualStyle === "precision" ? 3 : chartStroke.current };
     if (kind === "previous") return visualStyle === "precision"
-      ? { color: "#6B6C70", width: 2.25, dash: "2 7" }
+      ? { color: chartTheme.previous, width: 2.25, dash: "2 7" }
       : { color: chartTheme.previous, width: chartStroke.previous };
     return { color: chartTheme.older[Math.max(0, index - 2) % chartTheme.older.length], width: chartStroke.older };
   };
@@ -190,7 +190,7 @@ export function StandardLineChart({ title, subtitle, labels, series, unit = "Uni
               <g key={`${item.id}-mobile`}>
                 <path d={linePath(item.values, mobileX, mobileY)} fill="none" stroke={token.color} strokeWidth={token.width} strokeDasharray={token.dash} strokeLinecap="round" strokeLinejoin="round" />
                 {lastIndex >= 0 && item.values[lastIndex] !== null && (
-                  <circle cx={mobileX(lastIndex)} cy={mobileY(item.values[lastIndex] as number)} r="4" fill="white" stroke={token.color} strokeWidth="2.25" />
+                  <circle cx={mobileX(lastIndex)} cy={mobileY(item.values[lastIndex] as number)} r="4" fill={chartTheme.surface} stroke={token.color} strokeWidth="2.25" />
                 )}
               </g>
             );
@@ -244,11 +244,11 @@ export function StandardLineChart({ title, subtitle, labels, series, unit = "Uni
                     if (value === null) return null;
                     if (visualStyle === "precision") {
                       if (index !== lastIndex && index !== activePoint) return null;
-                      return <circle key={index} cx={x(index)} cy={y(value)} r={index === activePoint ? 5.5 : 4} fill="white" stroke={token.color} strokeWidth="2.5" />;
+                      return <circle key={index} cx={x(index)} cy={y(value)} r={index === activePoint ? 5.5 : 4} fill={chartTheme.surface} stroke={token.color} strokeWidth="2.5" />;
                     }
                     return (
                       <g key={index}>
-                        <circle cx={x(index)} cy={y(value)} r="6.5" fill="white" stroke={token.color} strokeWidth="2.75" />
+                        <circle cx={x(index)} cy={y(value)} r="6.5" fill={chartTheme.surface} stroke={token.color} strokeWidth="2.75" />
                         <text x={x(index)} y={dataLabelY(seriesIndex, index, value)} textAnchor="middle" fontSize="10" fontWeight="700" fill={token.color} paintOrder="stroke" stroke="white" strokeWidth="3" strokeLinejoin="round">{formatValue(value)}</text>
                       </g>
                     );

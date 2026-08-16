@@ -24,6 +24,7 @@ import {
 import { Card } from "../ui/card";
 import { ExportButton } from "../design-system/export-button";
 import { StatusBadge } from "../design-system/status-badge";
+import { chartTheme } from "../common/charts/chartTheme";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
 
@@ -177,11 +178,11 @@ function SalesPerformance({ snapshot }: { snapshot: DailyManagementSnapshot }) {
 
 function BookingPipeline({ snapshot }: { snapshot: DailyManagementSnapshot }) {
   const stages = [
-    { label: "New Today", value: snapshot.booking.newToday, color: "#61AF4D" },
-    { label: "A HOT", value: snapshot.booking.aHot, color: "#D6A500" },
-    { label: "B HOT", value: snapshot.booking.bHot, color: "#F97316" },
-    { label: "C HOT", value: snapshot.booking.cHot, color: "#8B4BB5" },
-    { label: "Active Booking", value: snapshot.booking.activeUnits, color: "#3B82F6" },
+    { label: "New Today", value: snapshot.booking.newToday, color: chartTheme.status.positive },
+    { label: "A HOT", value: snapshot.booking.aHot, color: chartTheme.status.warning },
+    { label: "B HOT", value: snapshot.booking.bHot, color: chartTheme.product.strategic },
+    { label: "C HOT", value: snapshot.booking.cHot, color: chartTheme.product.attention },
+    { label: "Active Booking", value: snapshot.booking.activeUnits, color: chartTheme.current },
   ];
   const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
   return (
@@ -226,7 +227,7 @@ function StockHealth({ snapshot, currency }: { snapshot: DailyManagementSnapshot
     label: row.label === "0–30" ? "≤ 30 Days" : row.label === ">90" ? "91+ Days" : `${row.label} Days`,
     units: row.units,
     percent: snapshot.stock.engineUnits ? Math.round((row.units / snapshot.stock.engineUnits) * 100) : 0,
-    color: row.label === "0–30" ? "#54A948" : row.label === "31–60" ? "#D6A500" : row.label === "61–90" ? "#F28C28" : row.label === ">90" ? "#EF4B2F" : "#8C8F96",
+    color: row.label === "0–30" ? chartTheme.status.positive : row.label === "31–60" ? chartTheme.status.warning : row.label === "61–90" ? chartTheme.product.strategic : row.label === ">90" ? chartTheme.status.negative : chartTheme.product.muted,
   }));
   const maxLocation = Math.max(...locations.map((row) => row.units), 1);
   const agingSegments = liveAging.filter((row) => row.units > 0).reduce<{ cursor: number; values: string[] }>((result, row) => {
@@ -243,7 +244,7 @@ function StockHealth({ snapshot, currency }: { snapshot: DailyManagementSnapshot
       <div className="grid gap-px bg-[var(--divider)] sm:grid-cols-2">
         <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Value</p><p className="kmm-tabular mt-2 break-words text-[18px] font-semibold tracking-[-0.025em]">{snapshot.stock.value === null ? "N/A" : snapshot.stock.value.toLocaleString("en-US")}<span className="ml-1.5 text-[9px]">{currency}</span></p><p className="mt-2 inline-flex rounded-full bg-[var(--surface-subtle)] px-2 py-1 text-[9px] font-bold text-[var(--text-secondary)]">Snapshot {snapshot.sourceDates.stock ?? "unavailable"}</p></div>
         <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">PSI Engine</p><strong className="kmm-tabular text-xl text-[var(--text-secondary)]">N/A</strong></div><p className="mt-2 text-[9px] leading-4 text-[var(--text-secondary)]">PSI remains unavailable until its period and denominator are approved.</p><div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-subtle)] p-2 text-center text-[8px] text-[var(--text-secondary)]"><span>Sales<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.sales.mtdUnits}</strong></span><span>Booking<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.booking.activeUnits}</strong></span><span>Stock<strong className="mt-0.5 block text-[11px] text-[var(--text-primary)]">{snapshot.stock.engineUnits}</strong></span></div></div>
-        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[#F0F1F4]"><div className="h-full rounded-full bg-gradient-to-r from-[#FFA45C] to-[var(--brand-500)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
+        <div className="bg-[var(--surface-default)] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Distribution</p><div className="mt-2 space-y-1.5">{locations.map((row) => <div key={row.label} className="grid grid-cols-[84px_minmax(0,1fr)_20px] items-center gap-1.5 text-[8px]"><span className="truncate" title={row.label}>{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"><div className="h-full rounded-full bg-[var(--chart-current)]" style={{ width: `${(row.units / maxLocation) * 100}%` }} /></div><strong className="kmm-tabular text-right">{row.units}</strong></div>)}</div></div>
         <div className="bg-[var(--surface-default)] p-3"><div className="flex items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[var(--text-secondary)]">Stock Aging</p><span className="rounded-full bg-[var(--status-danger-bg)] px-2 py-1 text-[8px] font-bold text-[var(--status-danger)]">{highRisk.percent}% high risk</span></div><div className="mt-2 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3"><div className="relative mx-auto size-24" role="img" aria-label={`Stock aging: ${highRisk.units} units over 90 days out of ${snapshot.stock.engineUnits}`}><div className="absolute inset-0 rounded-full border border-[#ECEEF1] bg-[#F8F9FA]" /><div className="absolute inset-1 rounded-full shadow-[0_8px_18px_rgba(31,41,55,0.10)]" style={{ background: agingGradient }} /><div className="absolute inset-[20px] grid place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_#ECEEF1]"><span className="text-center"><strong className="kmm-tabular block text-lg leading-none text-[var(--status-danger)]">{highRisk.units}</strong><span className="mt-1 block text-[7px] font-semibold text-[var(--text-secondary)]">&gt; 90 days</span></span></div><span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#202124] px-2 py-0.5 text-[7px] font-bold text-white shadow-sm">{snapshot.stock.engineUnits} total</span></div><ul className="min-w-0 space-y-1.5">{liveAging.map((row) => <li key={row.label} className="grid grid-cols-[8px_minmax(0,1fr)_48px] items-center gap-1.5 text-[8px]"><span className="size-2 rounded-full" style={{ backgroundColor: row.color }} /><span className="leading-3">{row.label}</span><strong className="kmm-tabular text-right">{row.units} · {row.percent}%</strong></li>)}</ul></div></div>
       </div>
     </Card>

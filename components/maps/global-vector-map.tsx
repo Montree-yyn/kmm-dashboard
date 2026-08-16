@@ -8,6 +8,7 @@ import { getMapLayers, isLayerGroupEnabled, type MapLayerState } from "../../lib
 import { applyRequiredLayerOrder, getActualManagedLayerOrder, isRequiredLayerOrder, MAP_LAYER_IDS } from "../../lib/maps/layer-order";
 import type { MapDatasetConfig } from "../../lib/maps/types";
 import { createMarketingBasemapStyle } from "../../src/kme/apps/kmm-dashboard/marketing/basemap";
+import { chartTheme } from "../common/charts/chartTheme";
 
 export type MapDebugStatus = {
   selectedFeatureId: string | number | null;
@@ -64,10 +65,10 @@ const clickableLayerIds = [fillLayerId, baseFillLayerId];
 const townshipMapLayerIds = [fillLayerId, baseFillLayerId, hoverFillLayerId, selectedFillLayerId, outlineLayerId, topTownshipLayerId, selectedLayerId];
 
 function getFillColorExpression(fillColorsByCanonicalId: Record<string, string>) {
-  if (!Object.keys(fillColorsByCanonicalId).length) return "#F8FAFC";
+  if (!Object.keys(fillColorsByCanonicalId).length) return chartTheme.marketing.noData;
   const colorPairs: (string | unknown)[] = ["match", ["get", "canonical_location_id"]];
   Object.entries(fillColorsByCanonicalId).forEach(([id, color]) => colorPairs.push(id, color));
-  colorPairs.push("#F8FAFC");
+  colorPairs.push(chartTheme.marketing.noData);
   return colorPairs as never;
 }
 
@@ -273,12 +274,12 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
             const metricVisibility = isLayerGroupEnabled("heatmap", layerStateRef.current) ? "visible" : "none";
             const boundaryVisibility = isLayerGroupEnabled("township-boundary", layerStateRef.current) ? "visible" : "none";
             if (layers.has("township-fill") && !map.getLayer(fillLayerId)) map.addLayer({ id: fillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: metricVisibility }, paint: { "fill-color": getFillColorExpression(fillColorsRef.current), "fill-opacity": getFillOpacityExpression(overlayFillOpacityRef.current) } });
-            if (!map.getLayer(baseFillLayerId)) map.addLayer({ id: baseFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": 0.001 } });
-            if (layers.has("township-hover") && !map.getLayer(hoverFillLayerId)) map.addLayer({ id: hoverFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getHoverOpacityExpression(selectedCanonicalLocationIdRef.current, overlayHoverOpacityRef.current) } });
-            if (layers.has("township-selected") && !map.getLayer(selectedFillLayerId)) map.addLayer({ id: selectedFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": "#FFFFFF", "fill-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current, overlaySelectedOpacityRef.current) } });
-            if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": "#F5F1EC", "line-width": 0.9, "line-opacity": 0.5 } });
-            if (!map.getLayer(topTownshipLayerId)) map.addLayer({ id: topTownshipLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, filter: getTopTownshipFilter(topCanonicalLocationIdsRef.current), layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 1.55, "line-opacity": 0.72, "line-blur": 0.6 } });
-            if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#F26B00", "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
+            if (!map.getLayer(baseFillLayerId)) map.addLayer({ id: baseFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": 0.001 } });
+            if (layers.has("township-hover") && !map.getLayer(hoverFillLayerId)) map.addLayer({ id: hoverFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": getHoverOpacityExpression(selectedCanonicalLocationIdRef.current, overlayHoverOpacityRef.current) } });
+            if (layers.has("township-selected") && !map.getLayer(selectedFillLayerId)) map.addLayer({ id: selectedFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current, overlaySelectedOpacityRef.current) } });
+            if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": chartTheme.grid, "line-width": 0.9, "line-opacity": 0.5 } });
+            if (!map.getLayer(topTownshipLayerId)) map.addLayer({ id: topTownshipLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, filter: getTopTownshipFilter(topCanonicalLocationIdsRef.current), layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": chartTheme.current, "line-width": 1.55, "line-opacity": 0.72, "line-blur": 0.6 } });
+            if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": chartTheme.current, "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
             applyRequiredLayerOrder(map);
             if (dataset.bounds) map.fitBounds([[dataset.bounds[0], dataset.bounds[1]], [dataset.bounds[2], dataset.bounds[3]]], { padding: getFitPadding(fitPaddingRef.current, viewportPaddingRightRef.current), duration: 0 });
             map.on("mousemove", interactionLayerId, (event) => {

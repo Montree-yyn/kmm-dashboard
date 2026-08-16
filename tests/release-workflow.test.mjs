@@ -28,6 +28,16 @@ test("production configuration uses explicit company and operations D1 bindings"
   assert.match(companyContext, /getCompanyDb/);
 });
 
+test("deploy retains content-hashed assets during rollout", async () => {
+  const packageJson = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.match(
+    packageJson.scripts.deploy,
+    /wrangler deploy --old-asset-ttl 86400$/,
+  );
+});
+
 test("release dry-run runs checks and never deploys", async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), "kmm-release-dry-run-"));
   const npmStub = path.join(tempDir, process.platform === "win32" ? "npm.cmd" : "npm");

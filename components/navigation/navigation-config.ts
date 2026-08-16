@@ -14,7 +14,6 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { DAILY_MANAGEMENT_REPORT_ENABLED } from "../../lib/features";
 import type { LocaleKey } from "../../src/locales";
 
 export type NavigationItem = {
@@ -39,7 +38,8 @@ export const navigationItems: NavigationItem[] = [
     labelKey: "nav.dailyReport",
     href: "/daily-management",
     icon: BarChart3,
-    visible: DAILY_MANAGEMENT_REPORT_ENABLED,
+    // Hidden until the Daily Report feature is developed. Routes and components remain in place.
+    visible: false,
   },
   { label: "Sales", labelKey: "nav.sales", href: "/sales", icon: Banknote, visible: true },
   {
@@ -60,7 +60,7 @@ export const navigationItems: NavigationItem[] = [
   },
   {
     label: "Weather",
-    labelKey: "nav.weather",
+    labelKey: "nav.weatherAgriculture",
     href: "/weather",
     icon: CloudRain,
     visible: true,

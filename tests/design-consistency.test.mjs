@@ -152,31 +152,41 @@ test("Dashboard and Sales analytics share card and chart contracts", async () =>
 });
 
 test("project charts preserve the approved color conditions", async () => {
-  const [theme, globals, dashboard, stock, booking, chartData] = await Promise.all([
+  const [theme, globals, dashboard, stock, booking, marketing, map, chartData] = await Promise.all([
     read("components/common/charts/chartTheme.ts"),
     read("app/globals.css"),
     read("components/dashboard/dashboard-page.tsx"),
     read("components/stock/stock-intelligence-page.tsx"),
     read("components/booking/booking-intelligence-page.tsx"),
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/common/charts/chartData.ts"),
   ]);
 
-  assert.match(theme, /current: "#F97316"/);
-  assert.match(theme, /previous: "#FBBF24"/);
-  assert.match(theme, /older: \["#FFD54F", "#FFE082", "#FFECB3"\]/);
+  assert.match(theme, /current: "#FF7A00"/);
+  assert.match(theme, /previous: "#64748B"/);
+  assert.match(theme, /older: \["#94A3B8", "#CBD5E1", "#E2E8F0"\]/);
   assert.match(theme, /target: "#9CA3AF"/);
-  assert.match(globals, /--chart-current: #f56600/);
-  assert.match(globals, /--chart-previous: #f7a35c/);
-  assert.match(globals, /--chart-neutral: #86868b/);
-  assert.match(globals, /--chart-ink: #35363a/);
-  assert.match(globals, /--chart-warm-gray: #9b948a/);
-  assert.match(dashboard, /DASHBOARD_PRODUCT_COLORS[\s\S]*?TT: "#A54100"[\s\S]*?CH: "#C95700"[\s\S]*?EX: "#F56600"[\s\S]*?TP: "#F58B3D"[\s\S]*?MAX: "#F7A35C"/);
+  assert.match(theme, /core: "#3A8F5B"[\s\S]*?attention: "#D85C5C"[\s\S]*?strategic: "#D99A00"/);
+  assert.match(theme, /positive: "#16A34A"[\s\S]*?negative: "#DC2626"[\s\S]*?warning: "#F59E0B"/);
+  assert.match(theme, /heatScale: \["#FFF8F3", "#FFE7D6", "#F4C09A", "#D98A59", "#C45100"\]/);
+  assert.match(globals, /--chart-current: #ff7a00/);
+  assert.match(globals, /--chart-previous: #64748b/);
+  assert.match(globals, /--chart-neutral: #94a3b8/);
+  assert.match(globals, /--chart-ink: #1f2937/);
+  assert.match(globals, /--chart-warm-gray: #9ca3af/);
+  assert.match(globals, /--chart-product-core: #3a8f5b/);
+  assert.match(globals, /--chart-product-attention: #d85c5c/);
+  assert.match(globals, /--chart-product-strategic: #d99a00/);
+  assert.match(dashboard, /chartProductColor\(item\.label\)/);
   assert.match(dashboard, /dashboardLifecycleColor/);
   assert.match(dashboard, /columnTones=\{\["healthy", "current", "watch", "critical"\]\}/);
   assert.match(dashboard, /semanticGapColors/);
-  assert.match(stock, /TT: "#F56600"[\s\S]*?CH: "#35363A"[\s\S]*?EX: "#86868B"[\s\S]*?TP: "#B6B7BA"[\s\S]*?MAX: "#245487"/);
+  assert.match(stock, /chartProductColor\(item\.label\)/);
   assert.match(booking, /businessStatusColor\(item\.label, index\)/);
-  assert.match(chartData, /status === "delivered"[\s\S]*?#35363A[\s\S]*?status === "cancelled"[\s\S]*?#9B948A[\s\S]*?status === "open"[\s\S]*?#F56600/);
+  assert.match(marketing, /const COLORS = chartTheme\.marketing\.heatScale/);
+  assert.match(map, /const CHOROPLETH_COLORS = chartTheme\.marketing\.heatScale/);
+  assert.match(chartData, /status === "delivered"[\s\S]*?chartTheme\.status\.positive[\s\S]*?status === "cancelled"[\s\S]*?chartTheme\.status\.negative[\s\S]*?status === "open"[\s\S]*?chartTheme\.status\.warning/);
 });
 
 test("Sprint 4 page refinement keeps an executive hierarchy without changing data contracts", async () => {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL("../" + path, import.meta.url), "utf8");
@@ -19,9 +19,9 @@ test("Weather is wired into the active navigation and shell", async () => {
   assert.match(route, /WeatherPage/);
 });
 
-test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations", async () => {
-  const [types, locations, client, api, radarApi, live, radarData, page, map] = await Promise.all([
-    access(new URL("../src/modules/weather/weather.types.ts", import.meta.url)),
+test("Weather uses live Open-Meteo data for ten Myanmar and five Tak locations", async () => {
+  const [types, locations, client, api, radarApi, live, radarData, page, map, ui] = await Promise.all([
+    read("src/modules/weather/weather.types.ts"),
     read("src/modules/weather/data/weather.locations.ts"),
     read("src/modules/weather/weather.client.ts"),
     read("app/api/weather/route.ts"),
@@ -30,10 +30,11 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
     read("src/modules/weather/data/weather.radar.ts"),
     read("src/modules/weather/WeatherPage.tsx"),
     read("src/modules/weather/WeatherMap.tsx"),
+    read("src/modules/weather/weather.ui.ts"),
   ]);
 
-  assert.ok(types === undefined);
-  assert.equal((locations.match(/id: "MM-/g) ?? []).length, 6);
+  assert.match(types, /agricultureLocationId/);
+  assert.equal((locations.match(/id: "MM-/g) ?? []).length, 10);
   assert.equal((locations.match(/id: "TH-/g) ?? []).length, 5);
   assert.match(client, /\/api\/weather/);
   assert.match(client, /\/api\/weather\/radar/);
@@ -54,18 +55,18 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(radarData, /api\.rainviewer\.com\/public\/weather-maps\.json/);
   assert.match(radarData, /RAINVIEWER_CACHE_TTL_MS/);
   assert.match(radarData, /RAINVIEWER_FRAME_LIMIT/);
-  assert.match(page, /Weather Overview/);
+  assert.match(page, /weatherCopy/);
   assert.match(page, /w-full min-w-0 max-w-full overflow-x-clip/);
   assert.match(page, /mx-auto w-full max-w-\[1600px\]/);
-  assert.match(page, /Current conditions/);
-  assert.match(page, /Operating areas/);
-  assert.match(page, /Next 12 hours/);
+  assert.match(ui, /currentConditions/);
+  assert.match(ui, /operatingAreas/);
+  assert.match(ui, /next12Hours/);
   assert.match(page, /formatWeatherNumber/);
-  assert.match(page, /7-Day Forecast/);
-  assert.match(page, /Agriculture Impact/);
-  assert.match(page, /Weather Alerts/);
-  assert.match(page, /Recommended Actions/);
-  assert.match(page, /Forecast: Open-Meteo/);
+  assert.match(ui, /sevenDayForecast/);
+  assert.match(ui, /agricultureImpact/);
+  assert.match(ui, /alerts:/);
+  assert.match(ui, /recommendedActions/);
+  assert.match(page, /forecastSource/);
   assert.doesNotMatch(page, /weather\.mock/);
   assert.match(page, /xl:grid-cols-\[minmax\(0,1\.55fr\)_minmax\(320px,0\.78fr\)\]/);
   assert.match(page, /lg:grid-cols-3/);
@@ -89,21 +90,18 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.match(map, /MAP_PIN_FOCUS_ZOOM/);
   assert.match(map, /map\.flyTo\(/);
   assert.match(map, /maxZoom: MAP_OVERVIEW_ZOOM/);
-  assert.match(map, /Reset map to Myanmar overview/);
+  assert.match(map, /copy\.resetOverview/);
   assert.match(map, /getWeatherPinIcon\(activeLayer\)/);
   assert.match(map, /const isRadarDataPin = activeLayer === "radar"/);
   assert.match(map, /temperature\.textContent = `\$\{location\.temperature\}°`/);
-  assert.match(map, /rain\.textContent = `\$\{location\.rainRisk\}% rain`/);
+  assert.match(map, /copy\.rainRiskPercent/);
   assert.match(map, /tooltip\.textContent = `\$\{location\.name\}/);
   assert.match(map, /const showLabel = selected \|\| location\.id === "MM-THA"/);
   assert.match(map, /zIndex: selected \? "4" : showLabel \? "3" : "1"/);
-  assert.match(map, /const RISK_LABELS/);
-  assert.match(map, /LOW: "Normal"/);
-  assert.match(map, /MEDIUM: "Watch"/);
-  assert.match(map, /HIGH: "Critical"/);
+  assert.match(map, /weatherRiskShortLabel/);
   assert.match(map, /backdropFilter: "blur\(8px\) saturate\(1\.08\)"/);
-  assert.match(map, /Weather pin risk legend/);
-  assert.match(map, /aria-label="Weather map controls"/);
+  assert.match(map, /copy\.weatherPinRiskLegend/);
+  assert.match(map, /aria-label={copy\.mapControls}/);
   assert.match(map, /md:h-\[520px\]/);
   assert.match(map, /xl:h-\[620px\]/);
   assert.match(map, /sm:flex-row sm:items-center sm:justify-between/);
@@ -111,15 +109,20 @@ test("Weather uses live Open-Meteo data for six Myanmar and five Tak locations",
   assert.doesNotMatch(map, /absolute left-3 top-3 z-10 hidden md:block/);
   assert.match(map, /tilecache|radar\.host/);
   assert.match(map, /RainViewer/);
-  assert.match(map, /Radar timeline/);
+  assert.match(map, /copy\.radarTimeline/);
   assert.match(map, /aria-pressed/);
   assert.match(map, /h-auto/);
-  assert.match(map, /Map controls/);
+  assert.match(map, /copy\.mapControls/);
   assert.match(map, /<details className="group mt-3">/);
   assert.match(map, /requestFullscreen/);
-  assert.match(map, /Exit weather map fullscreen/);
-  assert.match(map, /Open weather map fullscreen/);
+  assert.match(map, /copy\.exitFullscreen/);
+  assert.match(map, /copy\.openFullscreen/);
   assert.match(map, /document\.addEventListener\("fullscreenchange"/);
   assert.match(map, /isFullscreen && "fixed inset-0 z-\[120\]/);
   assert.match(locations, /name: "Tharyawaddy"/);
+  assert.match(locations, /id: "MM-MUD"/);
+  assert.match(locations, /agricultureLocationId: "MM-MON-MUDON"/);
+  for (const [weatherId, agricultureId] of [["MM-KAW", "MM-KYN-KAWKAREIK"], ["MM-KYA", "MM-MON-KYAIKMARAW"], ["MM-THB", "MM-MON-THANBYUZAYAT"]]) {
+    assert.match(locations, new RegExp(`id: "${weatherId}"[\\s\\S]*agricultureLocationId: "${agricultureId}"`));
+  }
 });

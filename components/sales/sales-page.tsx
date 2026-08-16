@@ -29,6 +29,7 @@ import {
   LollipopChart,
   PercentStackedBar,
 } from "../common/charts/AnalyticalCharts";
+import { chartProductColor, chartTheme } from "../common/charts/chartTheme";
 import { loadLiveSalesData } from "../../lib/sales/client";
 import {
   getBranchSummary,
@@ -63,14 +64,6 @@ const PRODUCT_FILTER_OPTIONS = [
   "All Products",
   ...PRODUCT_GROUPS.UNIT_PRODUCTS,
 ];
-const PRODUCT_COLORS: Record<string, string> = {
-  TT: "#F56600",
-  CH: "#35363A",
-  EX: "#86868B",
-  TP: "#B6B7BA",
-  MAX: "#245487",
-};
-
 type FilterKey = "year" | "month" | "branch" | "salesperson" | "productGroup";
 type FilterState = Record<FilterKey, string[]>;
 
@@ -491,9 +484,9 @@ function SalesTrendChart({
       return `${result} C ${middle} ${yFor(previous)}, ${middle} ${yFor(value)}, ${xFor(index)} ${yFor(value)}`;
     }, "");
   const styles = [
-    { color: "#F57C00", dash: undefined, label: "Current" },
-    { color: "#FBC02D", dash: undefined, label: "Previous" },
-    { color: "#FFD54F", dash: undefined, label: "Comparison" },
+    { color: chartTheme.current, dash: undefined, label: "Current" },
+    { color: chartTheme.previous, dash: undefined, label: "Previous" },
+    { color: chartTheme.older[0], dash: undefined, label: "Comparison" },
   ];
   const valueLabel = metric === "unit" ? "Sales Unit" : "Sales Value";
   const formatMetric = (value: number | null) =>
@@ -515,7 +508,7 @@ function SalesTrendChart({
               <i
                 className="h-0 w-7 border-t-[3px]"
                 style={{
-                  borderColor: styles[index]?.color ?? "#9CA3AF",
+                  borderColor: styles[index]?.color ?? chartTheme.target,
                   borderStyle: styles[index]?.dash ? "dashed" : "solid",
                 }}
               />
@@ -524,7 +517,7 @@ function SalesTrendChart({
           ))}
           {points.some((point) => point.target !== null) && (
             <span className="flex items-center gap-2">
-              <i className="h-0 w-7 border-t-[3px] border-dotted border-[#9CA3AF]" />
+              <i className="h-0 w-7 border-t-[3px] border-dotted" style={{ borderColor: chartTheme.target }} />
               {targetYear} Target
             </span>
           )}
@@ -642,13 +635,13 @@ function SalesTrendChart({
                   x2={width - padX}
                   y1={y}
                   y2={y}
-                  stroke="#E5E7EB"
+                  stroke={chartTheme.grid}
                 />
                 <text
                   x={padX - 12}
                   y={y + 4}
                   textAnchor="end"
-                  fill="#4B5563"
+                  fill={chartTheme.text}
                   fontSize="12"
                   fontWeight="600"
                 >
@@ -659,7 +652,7 @@ function SalesTrendChart({
               </g>
             );
           })}
-          <text x={padX} y={18} fill="#4B5563" fontSize="12" fontWeight="700">
+          <text x={padX} y={18} fill={chartTheme.text} fontSize="12" fontWeight="700">
             {metric === "unit" ? "Unit" : currency}
           </text>
           {visibleYears.map((year, index) => (
@@ -667,7 +660,7 @@ function SalesTrendChart({
               <path
                 d={path(points.map((point) => point.values[year]))}
                 fill="none"
-                stroke={styles[index]?.color ?? "#9CA3AF"}
+                stroke={styles[index]?.color ?? chartTheme.target}
                 strokeWidth={index === 0 ? 4 : 3}
                 strokeDasharray={styles[index]?.dash}
                 strokeLinecap="round"
@@ -680,8 +673,8 @@ function SalesTrendChart({
                     cx={xFor(pointIndex)}
                     cy={yFor(point.values[year] ?? 0)}
                     r={hoveredMonth === pointIndex ? 5.5 : 3.5}
-                    fill="white"
-                    stroke={styles[index]?.color ?? "#9CA3AF"}
+                    fill={chartTheme.surface}
+                    stroke={styles[index]?.color ?? chartTheme.target}
                     strokeWidth={2.5}
                     onMouseEnter={() => setHoveredMonth(pointIndex)}
                   />
@@ -693,7 +686,7 @@ function SalesTrendChart({
             <path
               d={path(points.map((point) => point.target))}
               fill="none"
-              stroke="#9CA3AF"
+              stroke={chartTheme.target}
               strokeWidth={2.25}
               strokeDasharray="2 7"
               strokeLinecap="round"
@@ -705,7 +698,7 @@ function SalesTrendChart({
               x={xFor(index)}
               y={height - 10}
               textAnchor="middle"
-              fill="#4B5563"
+              fill={chartTheme.text}
               fontSize="12"
               fontWeight="600"
             >
@@ -1431,7 +1424,7 @@ export function SalesPage() {
                         id: item.label,
                         label: item.label,
                         value: item.value,
-                        color: PRODUCT_COLORS[item.label] ?? "#B6B7BA",
+                        color: chartProductColor(item.label),
                       }))}
                       formatValue={formatCompact}
                     />

@@ -12,13 +12,15 @@ test("Dashboard operational KPIs are API-only and explicitly reject local fallba
     read("lib/operations/client.ts"),
   ]);
 
-  assert.match(dashboard, /loadLiveSalesData\(\{ allowFallback: false, companyId \}\)/);
-  assert.match(dashboard, /loadLiveOperationalData\(\{ allowFallback: false, companyId \}\)/);
+  assert.match(dashboard, /loadLiveSalesDashboardSummary\(\{ companyId, filters \}\)/);
+  assert.match(dashboard, /loadLiveOperationalDashboardSummary\(\{ companyId, filters \}\)/);
   assert.doesNotMatch(dashboard, /dashboard-data\.json/);
   assert.doesNotMatch(dashboard, /allowLegacyDashboardFallback/);
   assert.match(dashboard, /<ErrorState message=\{dashboardError\} onRetry=\{loadDashboardData\}/);
   assert.match(salesClient, /if \(options\.allowFallback === false\) throw new Error\(`Unable to load live D1 Sales data/);
+  assert.match(salesClient, /view: "dashboard-summary"/);
   assert.match(operationsClient, /if \(options\.allowFallback === false\) throw error/);
+  assert.match(operationsClient, /view: "dashboard-summary"/);
 });
 
 test("legacy static data fingerprints cannot be operational Dashboard values", async () => {

@@ -53,7 +53,7 @@ YoY is calculated only when exactly one year is selected. With no year or multip
 
 ## Charts and data
 
-- Dashboard chart color is semantic and intentionally scarce: observed/current values use KMM orange, sourced targets or plans use gray, achieved/healthy states use green, watch states use yellow, and critical or urgent states use red. Product categories use an orange ramp rather than borrowing semantic status colors. Every risk color is paired with a label, status word, line style, or position.
+- Dashboard chart color is semantic and intentionally scarce: observed/current values use KMM orange, sourced targets or plans use gray, achieved/healthy states use green, watch states use yellow, and critical or urgent states use red. Product categories use the shared KMM product tokens: TT/CH/EX core green, IM attention coral, TP strategic gold, and neutral gray for uncategorized products. Every risk color is paired with a label, status word, line style, or position.
 - A missing target remains unavailable; the interface never turns an observed value green without a sourced target or an approved healthy-state rule.
 
 - Trend: line/area only for continuous time series with at least eight observed periods. Sparse Stock history is explicitly withheld instead of drawing a misleading line.

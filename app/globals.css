@@ -63,55 +63,63 @@
 :root {
   color-scheme: light;
 
-  /* KMM Design System v3.3: Precision Operations / Selective Glass. */
+  /* KMM Corporate Premium Enterprise chart and surface tokens. */
   --brand-50: #fff8f3;
   --brand-100: #fff0e6;
   --brand-200: #ffd9bf;
   --brand-300: #ffc2a1;
   --brand-400: #ff9d66;
-  --brand-500: #f56600;
-  --brand-600: #c24700;
-  --brand-700: #9f3d00;
-  --brand-focus: rgb(159 61 0 / 24%);
-  --focus-ring: #9f3d00;
+  --brand-500: #ff7a00;
+  --brand-600: #e86f00;
+  --brand-700: #c45100;
+  --brand-focus: rgb(255 122 0 / 24%);
+  --focus-ring: #ff7a00;
 
-  --surface-canvas: #f6f6f3;
+  --surface-canvas: #f7f8fa;
   --surface-default: #ffffff;
-  --surface-subtle: #fafaf8;
-  --surface-muted: #f0f0ed;
+  --surface-subtle: #fafbfc;
+  --surface-muted: #f3f4f6;
   --surface-elevated: rgb(255 255 255 / 82%);
   --surface-glass: rgb(255 255 255 / 76%);
   --surface-glass-strong: rgb(255 255 255 / 88%);
 
-  --text-primary: #171718;
-  --text-secondary: #5f6065;
-  --text-tertiary: #6b6c70;
-  --text-disabled: #9b9ca1;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-disabled: #d1d5db;
 
-  --border-default: #e1e1de;
+  --border-default: #e5e7eb;
   --border-subtle: rgb(0 0 0 / 6%);
   --border-glass: rgb(255 255 255 / 76%);
-  --divider: #ececea;
+  --divider: #eef0f3;
 
-  --status-success: #0f6b35;
-  --status-success-bg: #eaf7ef;
-  --status-warning: #8a4b00;
-  --status-warning-bg: #fff4e5;
-  --status-danger: #a51b13;
-  --status-danger-bg: #fdecec;
+  --status-success: #16a34a;
+  --status-success-bg: #ecfdf3;
+  --status-warning: #f59e0b;
+  --status-warning-bg: #fffbeb;
+  --status-danger: #dc2626;
+  --status-danger-bg: #fef2f2;
   --status-info: #245487;
   --status-info-bg: #eef4fb;
 
-  --chart-current: #f56600;
-  --chart-previous: #f7a35c;
-  --chart-neutral: #86868b;
-  --chart-ink: #35363a;
-  --chart-warm-gray: #9b948a;
-  --chart-soft: #c9c4bc;
-  --chart-health: #2e7d4f;
-  --chart-watch: #c98500;
-  --chart-critical: #b42318;
-  --chart-grid: #ededf2;
+  --chart-current: #ff7a00;
+  --chart-previous: #64748b;
+  --chart-neutral: #94a3b8;
+  --chart-ink: #1f2937;
+  --chart-warm-gray: #9ca3af;
+  --chart-soft: #cbd5e1;
+  --chart-health: #16a34a;
+  --chart-watch: #f59e0b;
+  --chart-critical: #dc2626;
+  --chart-grid: #e5e7eb;
+  --chart-product-core: #3a8f5b;
+  --chart-product-attention: #d85c5c;
+  --chart-product-strategic: #d99a00;
+  --chart-product-neutral: #64748b;
+  --chart-product-muted: #94a3b8;
+  --chart-positive: #16a34a;
+  --chart-negative: #dc2626;
+  --chart-warning: #f59e0b;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -171,6 +179,14 @@
   --color-text-tertiary: var(--text-tertiary);
   --color-border: var(--border-default);
   --color-divider: var(--divider);
+  --color-chart-current: var(--chart-current);
+  --color-chart-previous: var(--chart-previous);
+  --color-chart-product-core: var(--chart-product-core);
+  --color-chart-product-attention: var(--chart-product-attention);
+  --color-chart-product-strategic: var(--chart-product-strategic);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-chart-warning: var(--chart-warning);
   --radius-kmm-control: var(--radius-control);
   --radius-kmm-card: var(--radius-card);
   --radius-kmm-panel: var(--radius-panel);

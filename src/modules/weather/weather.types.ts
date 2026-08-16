@@ -13,7 +13,8 @@ export type WeatherCondition =
 
 export type WeatherLocationSeed = {
   id: string;
-  branchCode: string;
+  branchCode: string | null;
+  agricultureLocationId?: string;
   name: string;
   country: WeatherCountry;
   region: string;
@@ -45,7 +46,8 @@ export type WeatherHourlyPoint = {
 
 export type WeatherLocation = {
   id: string;
-  branchCode: string;
+  branchCode: string | null;
+  agricultureLocationId?: string;
   name: string;
   country: WeatherCountry;
   region: string;
@@ -80,6 +82,52 @@ export type WeatherDataPayload = {
   cacheStatus: WeatherCacheStatus;
   cacheAgeSeconds: number;
   locations: WeatherLocation[];
+  contract?: SharedWeatherContract;
+};
+
+export type SharedWeatherQualityStatus = "LIVE" | "STALE" | "UNAVAILABLE";
+export type SharedWeatherFreshnessStatus = "FRESH" | "CACHED" | "STALE" | "UNKNOWN";
+
+/**
+ * Normalized contract shared by Weather UI and Agriculture services. A null
+ * field means the provider did not supply that value; it must not be inferred
+ * by a consumer.
+ */
+export type SharedWeatherRecord = {
+  locationId: string;
+  latitude: number;
+  longitude: number;
+  source: string;
+  provider: string;
+  model: string | null;
+  runTime: string | null;
+  validTime: string | null;
+  retrievedAt: string;
+  spatialResolution: string;
+  temperature: number | null;
+  rainfall: number | null;
+  humidity: number | null;
+  wind: number | null;
+  soilMoisture: number | null;
+  forecastHorizon: number | null;
+  qualityStatus: SharedWeatherQualityStatus;
+  freshnessStatus: SharedWeatherFreshnessStatus;
+  coveragePercent: number | null;
+  gridCount: number | null;
+  aggregationMethod: string | null;
+};
+
+export type SharedWeatherContract = {
+  contractVersion: "weather.v1";
+  source: string;
+  provider: string;
+  model: string | null;
+  runTime: string | null;
+  retrievedAt: string;
+  forecastHorizon: number | null;
+  qualityStatus: SharedWeatherQualityStatus;
+  freshnessStatus: SharedWeatherFreshnessStatus;
+  records: SharedWeatherRecord[];
 };
 
 export type WeatherRadarFrame = {

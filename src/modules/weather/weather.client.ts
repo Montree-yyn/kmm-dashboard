@@ -1,7 +1,16 @@
 import { auth } from "../../../lib/firebase";
 import type { WeatherDataPayload, WeatherRadarPayload } from "./weather.types";
+import { clientDataLayer } from "../../../lib/client-data-layer";
 
 export async function loadLiveWeather(options: { forceRefresh?: boolean } = {}): Promise<WeatherDataPayload> {
+  return clientDataLayer.request(
+    "weather",
+    () => fetchLiveWeather(options),
+    { force: options.forceRefresh },
+  );
+}
+
+async function fetchLiveWeather(options: { forceRefresh?: boolean }): Promise<WeatherDataPayload> {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Your secure session has expired. Sign in again.");
 
@@ -20,6 +29,14 @@ export async function loadLiveWeather(options: { forceRefresh?: boolean } = {}):
 }
 
 export async function loadWeatherRadar(options: { forceRefresh?: boolean } = {}): Promise<WeatherRadarPayload> {
+  return clientDataLayer.request(
+    "weather-radar",
+    () => fetchWeatherRadar(options),
+    { force: options.forceRefresh },
+  );
+}
+
+async function fetchWeatherRadar(options: { forceRefresh?: boolean }): Promise<WeatherRadarPayload> {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Your secure session has expired. Sign in again.");
 

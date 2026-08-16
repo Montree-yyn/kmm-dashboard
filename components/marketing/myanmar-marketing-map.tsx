@@ -12,6 +12,7 @@ import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { cn } from "../../lib/utils";
 import { getMapEngine } from "../../lib/maps/datasets";
 import { useLocale } from "../../src/hooks/useLocale";
+import { chartTheme } from "../common/charts/chartTheme";
 import { MyanmarMarketingMapMapLibre } from "./myanmar-marketing-map-maplibre";
 
 type Showroom = {
@@ -160,25 +161,25 @@ const MAP_STYLE = {
     {
       id: "kmm-background",
       type: "background",
-      paint: { "background-color": "#F8FAFC" },
+      paint: { "background-color": chartTheme.marketing.noData },
     },
     {
       id: "myanmar-state-fill",
       type: "fill",
       source: "states",
-      paint: { "fill-color": "#FFFFFF", "fill-opacity": 1 },
+      paint: { "fill-color": chartTheme.surface, "fill-opacity": 1 },
     },
     {
       id: "township-heatmap",
       type: "fill",
       source: "townships",
-      paint: { "fill-color": "#FFFFFF", "fill-opacity": 0.98 },
+      paint: { "fill-color": chartTheme.surface, "fill-opacity": 0.98 },
     },
     {
       id: "myanmar-state-line",
       type: "line",
       source: "states",
-      paint: { "line-color": "#CBD5E1", "line-width": 1 },
+      paint: { "line-color": chartTheme.grid, "line-width": 1 },
     },
     {
       id: "myanmar-township-line",
@@ -186,7 +187,7 @@ const MAP_STYLE = {
       source: "townships",
       minzoom: 4,
       paint: {
-        "line-color": "#E5E7EB",
+        "line-color": chartTheme.grid,
         "line-opacity": 0.75,
         "line-width": 0.45,
       },
@@ -205,8 +206,8 @@ const MAP_STYLE = {
         "text-padding": 8,
       },
       paint: {
-        "text-color": "#4B5563",
-        "text-halo-color": "#FFFFFF",
+        "text-color": chartTheme.text,
+        "text-halo-color": chartTheme.surface,
         "text-halo-width": 1,
       },
     },
@@ -224,8 +225,8 @@ const MAP_STYLE = {
         "text-padding": 5,
       },
       paint: {
-        "text-color": "#4B5563",
-        "text-halo-color": "#FFFFFF",
+        "text-color": chartTheme.text,
+        "text-halo-color": chartTheme.surface,
         "text-halo-width": 1,
       },
     },
@@ -799,7 +800,7 @@ function LegacyMyanmarMarketingMap({
       if (feature.properties.TS_PCODE && metric)
         pairs.push(feature.properties.TS_PCODE, metric.fill);
     });
-    pairs.push("#FFFFFF");
+    pairs.push(chartTheme.surface);
     map.setPaintProperty("township-heatmap", "fill-color", pairs as never);
   };
 
@@ -1005,7 +1006,7 @@ function LegacyMyanmarMarketingMap({
   return (
     <div
       className={cn(
-        "kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[#F8FAFC]",
+        "kmm-marketing-map relative h-full w-full min-w-0 overflow-hidden bg-[var(--surface-subtle)]",
         className,
       )}
     >

@@ -15,7 +15,7 @@ test("Booking KPIs remain backed by the existing selectors", async () => {
   assert.match(page, /getOpenBookingUnit\(data\.booking, filters\)/);
   assert.match(page, /getBookingValue\(data\.booking, filters\)/);
   assert.match(page, /getDepositAmount\(data\.booking, filters\)/);
-  assert.match(page, /getAverageBookingAge\(data\.booking, filters\)/);
+  assert.match(page, /getAverageBookingAge\(data\.booking, filters, asOf\)/);
   assert.match(page, /getBookingConversionRate\(data\.booking, filters\)/);
 
   for (const title of [
@@ -42,8 +42,11 @@ test("operational Booking KPIs preserve already-adapted date metadata", async ()
   assert.match(service, /getOperationalBusiness\(bookingRows: BookingRow\[\], stockRows: StockRow\[\]/);
   assert.match(service, /const booking = bookingRows;/);
   assert.doesNotMatch(service, /bookingRows\.map\(adaptBookingRow\)/);
-  assert.match(route, /getOperationalBusiness\(booking, stock\)/);
-  assert.match(client, /getOperationalBusiness\(booking, stock\)/);
+  // The API/client pass a company-timezone asOf (parsed by the shared
+  // asOfDate helper) into the shared boundary so booking age is never
+  // measured against a frozen default date.
+  assert.match(route, /getOperationalBusiness\(booking, stock, \{\}, \{ asOf: asOfDate\(asOf\) \}\)/);
+  assert.match(client, /getOperationalBusiness\(booking, stock, \{\}, \{ asOf: asOfDate\(asOf\) \}\)/);
   assert.match(service, /raw DB row -> adapter boundary/);
 });
 
@@ -110,9 +113,9 @@ test("Booking status and branch risk use only observed, same-unit comparisons", 
   ]);
   assert.match(page, /const statusSegments = statusBreakdown\.map/);
   assert.match(page, /businessStatusColor\(item\.label, index\)/);
-  assert.match(chartData, /status === "delivered"[\s\S]*?#35363A/);
-  assert.match(chartData, /status === "cancelled"[\s\S]*?#9B948A/);
-  assert.match(chartData, /status === "open"[\s\S]*?#F56600/);
+  assert.match(chartData, /status === "delivered"[\s\S]*?chartTheme\.status\.positive/);
+  assert.match(chartData, /status === "cancelled"[\s\S]*?chartTheme\.status\.negative/);
+  assert.match(chartData, /status === "open"[\s\S]*?chartTheme\.status\.warning/);
   assert.match(page, /<PercentStackedBar segments=\{statusSegments\}/);
   assert.match(page, /t\("chart\.bookingStatusDescription"\)/);
   assert.match(page, /function BranchRiskComparison/);

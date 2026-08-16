@@ -15,6 +15,8 @@ interface Env {
   KAI_MAX_TOKENS?: string;
   KAI_TEMPERATURE?: string;
   TAVILY_API_KEY?: string;
+  /** Optional override for the report-only CSP value (e.g. "" to disable). */
+  CSP_REPORT_ONLY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -127,32 +129,81 @@ async function serveRemoteBasemapPmtiles(request: Request) {
 // dangerouslyAllowSVG: true in next.config.js and uncomment below:
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
+// Hardening headers applied to every response that leaves this worker
+// (HTML, JSON APIs, image-optimizer output and binary PMTiles chunks).
+// HSTS only takes effect over HTTPS — local dev on http://localhost is
+// unaffected, per the HTTP specification.
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Frame-Options": "SAMEORIGIN",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+};
+
+// Initial Content-Security-Policy-Report-Only baseline. Report-only never
+// blocks the browser — it only sends violation reports — so the app keeps
+// working while the policy is tuned from real traffic. Override per
+// environment with the CSP_REPORT_ONLY binding ("" disables).
+//
+// Draft allowances reflect the app's known surfaces: Next.js inline
+// bootstrap script + MapLibre blob worker ('unsafe-inline', blob:), inline
+// chart/map styles, weather (Open-Meteo, RainViewer), Firebase token
+// refresh (identitytoolkit/securetoken), and Protomaps glyph/sprite assets.
+const DEFAULT_CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' blob:",
+  "style-src 'self' 'unsafe-inline' blob:",
+  "img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://tilecache.rainviewer.com https://protomaps.github.io",
+  "font-src 'self' data:",
+  "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.open-meteo.com https://api.rainviewer.com https://protomaps.github.io",
+  "worker-src 'self' blob:",
+  "frame-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
+function withSecurityHeaders(response: Response, env?: Env): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    if (!headers.has(name)) headers.set(name, value);
+  }
+  const csp = env?.CSP_REPORT_ONLY ?? DEFAULT_CSP_REPORT_ONLY;
+  if (csp) headers.set("Content-Security-Policy-Report-Only", csp);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    let response: Response;
 
     if (url.pathname === PMTILES_PATH) {
-      return serveRangeAsset(request, env);
+      response = await serveRangeAsset(request, env);
+    } else if (url.pathname === BASEMAP_PMTILES_PATH) {
+      response = await serveRemoteBasemapPmtiles(request);
+    } else if (url.pathname === "/_vinext/image") {
+      if (!env?.ASSETS) {
+        response = new Response("Static asset binding unavailable", { status: 503 });
+      } else {
+        const assets = env.ASSETS;
+        const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
+        response = await handleImageOptimization(request, {
+          fetchAsset: (path) => assets.fetch(new Request(new URL(path, request.url))),
+          transformImage: async (body, { width, format, quality }) => {
+            const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
+            return result.response();
+          },
+        }, allowedWidths);
+      }
+    } else {
+      response = await handler.fetch(request, env, ctx);
     }
 
-    if (url.pathname === BASEMAP_PMTILES_PATH) {
-      return serveRemoteBasemapPmtiles(request);
-    }
-
-    if (url.pathname === "/_vinext/image") {
-      if (!env?.ASSETS) return new Response("Static asset binding unavailable", { status: 503 });
-      const assets = env.ASSETS;
-      const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(request, {
-        fetchAsset: (path) => assets.fetch(new Request(new URL(path, request.url))),
-        transformImage: async (body, { width, format, quality }) => {
-          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
-          return result.response();
-        },
-      }, allowedWidths);
-    }
-
-    return handler.fetch(request, env, ctx);
+    // Every response — HTML, JSON APIs, image-optimizer output and binary
+    // PMTiles chunks — leaves the worker with the hardening headers applied.
+    return withSecurityHeaders(response, env);
   },
 };
 

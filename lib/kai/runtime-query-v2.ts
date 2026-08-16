@@ -65,10 +65,11 @@ type PlanRow = { intent: string; query_logic: string };
 type ResponseRow = { intent: string; response_structure: string };
 type Plan = {
   version: 2;
-  source: "sales_transactions" | "booking_transactions" | "stock_transactions" | "business_targets" | "salesperson_master" | "company_branches" | "company_master";
+  source: "sales_transactions" | "booking_transactions" | "stock_transactions" | "business_targets" | "salesperson_master" | "company_branches" | "company_master" | "agriculture";
   operation: string;
   group_by?: string;
   threshold?: number;
+  limit?: number;
   mode?: string;
   target_metric?: TargetMetric;
   company_entity?: CompanyMasterEntity;
@@ -230,7 +231,7 @@ function parsePlan(raw: string, intent: string): Plan {
     const plan = JSON.parse(raw) as Partial<Plan>;
     if (
       plan.version !== 2 ||
-      !["sales_transactions", "booking_transactions", "stock_transactions", "business_targets", "salesperson_master", "company_branches", "company_master"].includes(String(plan.source)) ||
+      !["sales_transactions", "booking_transactions", "stock_transactions", "business_targets", "salesperson_master", "company_branches", "company_master", "agriculture"].includes(String(plan.source)) ||
       typeof plan.operation !== "string" ||
       (plan.target_metric !== undefined && !["SALES_UNITS", "SALES_REVENUE", "GP1"].includes(String(plan.target_metric))) ||
       (plan.company_entity !== undefined && !["profile", "currency", "localization", "fiscal_year", "working_calendar", "department", "holiday"].includes(String(plan.company_entity)))
@@ -252,6 +253,8 @@ function metricsForIntent(intent: string, questionRows: QuestionRow[], metrics: 
 function resolveIntent(question: string, context: RuntimeQueryContext): string | null {
   const q = question.toLowerCase();
   const has = (pattern: RegExp) => pattern.test(question);
+  const agriculture = resolveAgricultureIntent(question);
+  if (agriculture) return agriculture;
   const booking = has(/booking|ยอดจอง|รับจอง|ใบจอง|จอง/iu);
   const stock = has(/stock|สต็อก|คงเหลือ|รถค้าง|inventory/iu) || (has(/(?:\bTT\b|\bCH\b|\bEX\b|\bTP\b|\bIM\b|\bIMO\b|\bOT\b)/iu) && has(/เหลือ|กี่คัน/iu));
   const sales = has(/ยอดขาย|\bsales\b|ขายได้|ขาย/iu);
@@ -319,6 +322,19 @@ function resolveIntent(question: string, context: RuntimeQueryContext): string |
     return "SALES_CURRENT_MONTH";
   }
   return looksAmbiguous(question, namedBranches) ? "AMBIGUOUS_METRIC" : null;
+}
+
+function resolveAgricultureIntent(question: string): string | null {
+  const agriculture = /agri(?:culture|cultural)?|crop|พืช|เกษตร|เก็บเกี่ยว|harvest|ปฏิทินพืช|crop stage|ระยะพืช|เครื่องจักรเกษตร|machine opportunity|weather impact|ผลกระทบ.*อากาศ|ความเชื่อมั่น.*(?:เกษตร|พืช)|data confidence.*(?:agri|crop)/iu.test(question);
+  if (!agriculture) return null;
+  if (/opportunit|โอกาส|priority|จัดอันดับ|top|ranking/iu.test(question)) return "AGRI_TOP_OPPORTUNITIES";
+  if (/harvest.*soon|เก็บเกี่ยว.*เร็ว|ใกล้เก็บเกี่ยว|เก็บเกี่ยวเร็ว/iu.test(question)) return "AGRI_HARVEST_SOON";
+  if (/stage|ระยะ|ช่วงพืช|crop.*state/iu.test(question)) return "AGRI_CROP_STAGE";
+  if (/weather.*impact|impact.*weather|ผลกระทบ.*อากาศ|อากาศ.*กระทบ|risk.*crop|crop.*risk/iu.test(question)) return "AGRI_WEATHER_IMPACT";
+  if (/customer.*priority|priority.*customer|ลูกค้า.*สำคัญ|ลูกค้า.*เร่ง/iu.test(question)) return "AGRI_CUSTOMER_PRIORITY";
+  if (/machine.*demand|demand.*machine|ความต้องการ.*เครื่อง|เครื่องจักร.*ต้องการ/iu.test(question)) return "AGRI_MACHINE_DEMAND";
+  if (/calendar|ปฏิทิน|วันเก็บเกี่ยว|วันที่.*เก็บเกี่ยว|เก็บเกี่ยว.*วันที่|กำหนด.*เก็บเกี่ยว/iu.test(question)) return "AGRI_CALENDAR";
+  return "AGRI_DATA_CONFIDENCE";
 }
 
 function companyMasterIntent(question: string, sales: boolean, booking: boolean, stock: boolean, target: boolean) {
@@ -650,6 +666,9 @@ async function executePlan(
   const salesConstraints = ["sales_summary", "sales_gp", "sales_expense", "sales_ranking", "sales_compare", "sales_target"].includes(plan.operation)
     ? await resolveSalespersonForSales(database, constraints, context.companyId)
     : constraints;
+  const agricultureLocationId = plan.source === "agriculture" && plan.operation !== "agri_data_confidence"
+    ? await resolveAgricultureLocationId(database, question)
+    : undefined;
   if (plan.operation === "sales_summary") return salesSummary(database, salesConstraints, context.companyId);
   if (plan.operation === "sales_gp") return salesGp(database, salesConstraints, context.companyId);
   if (plan.operation === "sales_expense") return salesExpense(database, salesConstraints, context.companyId);
@@ -669,7 +688,122 @@ async function executePlan(
   if (plan.operation === "salesperson_master") return salespersonMaster(database, constraints, context.companyId);
   if (plan.operation === "branch_directory") return branchDirectory(context.companyDatabase, constraints, context.companyId);
   if (plan.operation === "company_master") return companyMaster(context.companyDatabase, plan.company_entity, context.companyId);
+  if (plan.operation === "agri_top_opportunities") return agricultureTopOpportunities(database, context.companyId, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_harvest_soon") return agricultureHarvestSoon(database, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_crop_stage") return agricultureCropStage(database, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_weather_impact") return agricultureWeatherImpact(database, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_customer_priority") return agricultureCustomerPriority(database, context.companyId, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_machine_demand") return agricultureMachineDemand(database, context.companyId, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_calendar") return agricultureCalendar(database, plan.limit ?? constraints.limit, agricultureLocationId);
+  if (plan.operation === "agri_data_confidence") return agricultureDataConfidence(database);
   throw new KaiRuntimeQueryError(`Unsupported executable operation for ${intent}.`, "knowledge_error");
+}
+
+async function resolveAgricultureLocationId(database: RuntimeQueryDatabase, question: string) {
+  const locations = await rows<Record<string, unknown>>(database, "SELECT location_id, canonical_name, alternate_names FROM agri_locations WHERE is_active = 1");
+  const normalizedQuestion = normalizeAgricultureLocationText(question);
+  const match = locations.find((row) => {
+    const names = [row.canonical_name, ...parseJsonStringArray(row.alternate_names)];
+    return names.some((name) => {
+      const normalizedName = normalizeAgricultureLocationText(String(name ?? ""));
+      return normalizedName.length >= 4 && normalizedQuestion.includes(normalizedName);
+    });
+  });
+  return match?.location_id ? String(match.location_id) : undefined;
+}
+
+function normalizeAgricultureLocationText(value: string) {
+  return value.toLocaleLowerCase().replace(/[\s\-_]/g, "");
+}
+
+function parseJsonStringArray(value: unknown) {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function agricultureTopOpportunities(database: RuntimeQueryDatabase, companyId: string, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND o.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT o.opportunity_id, l.canonical_name AS location_name, c.crop_code, c.crop_name, o.stage_code, o.opportunity_type, o.machine_category, o.opportunity_score, o.confidence_score, o.priority_score, o.window_start, o.window_end, o.reason_codes, o.recommended_action, o.model_version FROM agri_opportunities o LEFT JOIN agri_locations l ON l.location_id = o.location_id LEFT JOIN agri_crops c ON c.crop_id = o.crop_id WHERE o.company_id = ? AND o.status IN ('ACTIVE', 'EXPIRING') AND o.stage_code IS NOT NULL AND o.opportunity_score IS NOT NULL AND o.confidence_score >= 35${locationFilter} ORDER BY COALESCE(o.priority_score, -1) DESC, COALESCE(o.opportunity_score, -1) DESC LIMIT ?`,
+    locationId ? [companyId, locationId, Math.max(1, Math.min(50, limit))] : [companyId, Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified Agriculture opportunity records are available for the selected company.");
+  return { agricultureRows: records, agricultureKind: "opportunities", source: "OPERATIONS_DB.agri_opportunities" };
+}
+
+async function agricultureHarvestSoon(database: RuntimeQueryDatabase, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND c.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT c.calendar_record_id, l.canonical_name AS location_name, c.crop_year, cr.crop_code, cr.crop_name, c.stage_code, e.estimated_start_date, e.estimated_end_date, e.verification_level, e.confidence_score FROM agri_crop_calendars c JOIN agri_calendar_estimates e ON e.calendar_record_id = c.calendar_record_id LEFT JOIN agri_locations l ON l.location_id = c.location_id LEFT JOIN agri_crops cr ON cr.crop_id = c.crop_id WHERE c.stage_code = 'HARVEST' AND e.estimated_start_date IS NOT NULL AND c.verification_level IN ('V2', 'V3', 'V4') AND e.verification_level IN ('V2', 'V3', 'V4') AND e.confidence_score >= 50${locationFilter} ORDER BY e.estimated_start_date LIMIT ?`,
+    locationId ? [locationId, Math.max(1, Math.min(50, limit))] : [Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified township-specific harvest estimate is available. KAI will not invent an exact date from a regional baseline.");
+  return { agricultureRows: records, agricultureKind: "harvest_soon", source: "OPERATIONS_DB.agri_calendar_estimates" };
+}
+
+async function agricultureCropStage(database: RuntimeQueryDatabase, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND c.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT c.calendar_record_id, l.canonical_name AS location_name, cr.crop_code, cr.crop_name, c.stage_code, c.crop_year, c.verification_level, c.confidence_score FROM agri_crop_calendars c LEFT JOIN agri_locations l ON l.location_id = c.location_id LEFT JOIN agri_crops cr ON cr.crop_id = c.crop_id WHERE c.verification_level IN ('V2', 'V3', 'V4') AND c.confidence_score >= 50${locationFilter} ORDER BY l.canonical_name, cr.crop_code, c.crop_year DESC LIMIT ?`,
+    locationId ? [locationId, Math.max(1, Math.min(50, limit))] : [Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified current crop-stage record is available. KAI cannot infer a stage from weather or location name.");
+  return { agricultureRows: records, agricultureKind: "crop_stage", source: "OPERATIONS_DB.agri_crop_calendars" };
+}
+
+async function agricultureWeatherImpact(database: RuntimeQueryDatabase, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND s.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT s.state_id, l.canonical_name AS location_name, c.crop_code, c.crop_name, s.stage_code, s.weather_variable, s.state_status, s.observed_value, s.unit, s.quality_status, s.reason_codes FROM agri_crop_weather_state s LEFT JOIN agri_locations l ON l.location_id = s.location_id LEFT JOIN agri_crops c ON c.crop_id = s.crop_id WHERE s.state_status <> 'UNKNOWN' AND s.quality_status <> 'UNKNOWN'${locationFilter} ORDER BY s.calculated_at DESC LIMIT ?`,
+    locationId ? [locationId, Math.max(1, Math.min(50, limit))] : [Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No calibrated crop-weather impact state is available. Live weather alone is not treated as crop impact.");
+  return { agricultureRows: records, agricultureKind: "weather_impact", source: "OPERATIONS_DB.agri_crop_weather_state" };
+}
+
+async function agricultureCustomerPriority(database: RuntimeQueryDatabase, companyId: string, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND o.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT o.opportunity_id, o.customer_id, l.canonical_name AS location_name, c.crop_name, o.opportunity_score, o.confidence_score, o.recommended_action FROM agri_opportunities o LEFT JOIN agri_locations l ON l.location_id = o.location_id LEFT JOIN agri_crops c ON c.crop_id = o.crop_id WHERE o.company_id = ? AND o.customer_id IS NOT NULL AND o.status IN ('ACTIVE', 'EXPIRING') AND o.stage_code IS NOT NULL AND o.opportunity_score IS NOT NULL AND o.confidence_score >= 35${locationFilter} ORDER BY COALESCE(o.priority_score, -1) DESC LIMIT ?`,
+    locationId ? [companyId, locationId, Math.max(1, Math.min(50, limit))] : [companyId, Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified customer-linked Agriculture priority records are available for the selected company.");
+  return { agricultureRows: records, agricultureKind: "customer_priority", source: "OPERATIONS_DB.agri_opportunities" };
+}
+
+async function agricultureMachineDemand(database: RuntimeQueryDatabase, companyId: string, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND o.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT o.opportunity_id, l.canonical_name AS location_name, c.crop_name, o.machine_category, o.opportunity_type, o.opportunity_score, o.confidence_score, o.reason_codes FROM agri_opportunities o LEFT JOIN agri_locations l ON l.location_id = o.location_id LEFT JOIN agri_crops c ON c.crop_id = o.crop_id WHERE o.company_id = ? AND o.machine_category IS NOT NULL AND o.status IN ('ACTIVE', 'EXPIRING') AND o.stage_code IS NOT NULL AND o.opportunity_score IS NOT NULL AND o.confidence_score >= 35${locationFilter} ORDER BY COALESCE(o.priority_score, -1) DESC LIMIT ?`,
+    locationId ? [companyId, locationId, Math.max(1, Math.min(50, limit))] : [companyId, Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified machine-demand or contractor-capacity record is available for the selected company.");
+  return { agricultureRows: records, agricultureKind: "machine_demand", source: "OPERATIONS_DB.agri_opportunities" };
+}
+
+async function agricultureCalendar(database: RuntimeQueryDatabase, limit: number, locationId?: string) {
+  const locationFilter = locationId ? " AND c.location_id = ?" : "";
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT c.calendar_record_id, l.canonical_name AS location_name, cr.crop_code, cr.crop_name, c.stage_code, c.baseline_start_date, c.baseline_end_date, e.estimated_start_date, e.estimated_end_date, c.verification_level, c.confidence_score FROM agri_crop_calendars c LEFT JOIN agri_calendar_estimates e ON e.calendar_record_id = c.calendar_record_id AND e.verification_level IN ('V2', 'V3', 'V4') AND e.confidence_score >= 50 LEFT JOIN agri_locations l ON l.location_id = c.location_id LEFT JOIN agri_crops cr ON cr.crop_id = c.crop_id WHERE c.verification_level IN ('V2', 'V3', 'V4') AND c.confidence_score >= 50${locationFilter} ORDER BY l.canonical_name, cr.crop_code, c.stage_code LIMIT ?`,
+    locationId ? [locationId, Math.max(1, Math.min(50, limit))] : [Math.max(1, Math.min(50, limit))],
+  );
+  if (!records.length) return unavailableData("No verified Agriculture calendar record is available. Exact township dates are not inferred from a regional baseline.");
+  return { agricultureRows: records, agricultureKind: "calendar", source: "OPERATIONS_DB.agri_crop_calendars" };
+}
+
+async function agricultureDataConfidence(database: RuntimeQueryDatabase) {
+  const records = await rows<Record<string, unknown>>(database,
+    `SELECT confidence_grade, presence_status, COUNT(*) AS record_count FROM agri_crop_locations GROUP BY confidence_grade, presence_status ORDER BY confidence_grade, presence_status`,
+  );
+  const sourceRows = await rows<Record<string, unknown>>(database, `SELECT COUNT(*) AS source_count FROM agri_sources`);
+  const verified = records.filter((row) => String(row.presence_status ?? "") !== "UNKNOWN" && String(row.confidence_grade ?? "") !== "UNKNOWN");
+  if (!verified.length) return unavailableData("Agriculture data confidence is not available because no crop-location record has been verified.");
+  return { agricultureRows: records, verifiedRecordCount: verified.length, sourceCount: number(sourceRows[0]?.source_count), agricultureKind: "data_confidence", source: "OPERATIONS_DB.agri_crop_locations" };
 }
 
 /**
@@ -1226,6 +1360,7 @@ function unavailableData(reason: string): Record<string, unknown> {
 
 function formatResponse(intent: string, data: Record<string, unknown>) {
   if (data.available === false) return String(data.reason);
+  if ("agricultureRows" in data) return formatAgricultureResponse(intent, data);
   if ("expenseValue" in data) return data.expenseComplete
     ? `Period: ${periodLabel(data.period)}; Sales Expense: ${formatNumber(data.expenseValue)}`
     : `Period: ${periodLabel(data.period)}; Sales Expense: ไม่มีข้อมูล Expense ครบถ้วนสำหรับขอบเขตนี้`;
@@ -1287,6 +1422,26 @@ function formatResponse(intent: string, data: Record<string, unknown>) {
   if ("stockUnit" in data) return `Snapshot: ${String(data.snapshotDate ?? "N/A")}; Stock Unit: ${formatNumber(data.stockUnit)}; Stock Value: ${formatNumber(data.stockValue)}`;
   if ("total" in data && "thresholdDays" in data) return `${intent.startsWith("BOOKING") ? "Booking" : "Stock"} Aging ${formatAgeRange(data.ageRange, data.thresholdDays)} days; Snapshot: ${String(data.snapshotDate ?? data.referenceDate ?? "N/A")}; Total: ${formatNumber(data.total)}; Models: ${formatGroups(data.models)}`;
   return "ไม่มีข้อมูลสำหรับขอบเขตที่ระบุ";
+}
+
+function formatAgricultureResponse(intent: string, data: Record<string, unknown>) {
+  const rows = Array.isArray(data.agricultureRows) ? data.agricultureRows as Array<Record<string, unknown>> : [];
+  if (!rows.length) return "No verified Agriculture data is available for the selected scope.";
+  if (intent === "AGRI_DATA_CONFIDENCE") {
+    const groups = rows.map((row) => `${String(row.confidence_grade ?? "UNKNOWN")}/${String(row.presence_status ?? "UNKNOWN")}: ${formatNumber(row.record_count)}`).join("; ");
+    return `Agriculture confidence groups: ${groups}; verified records: ${formatNumber(data.verifiedRecordCount)}; sources: ${formatNumber(data.sourceCount)}`;
+  }
+  if (intent === "AGRI_CALENDAR" || intent === "AGRI_HARVEST_SOON") {
+    const values = rows.map((row) => `${String(row.location_name ?? "Unknown location")} · ${String(row.crop_name ?? "Unknown crop")} · ${String(row.stage_code ?? "Unknown stage")} · baseline ${String(row.baseline_start_date ?? "N/A")}–${String(row.baseline_end_date ?? "N/A")} · estimate ${String(row.estimated_start_date ?? "N/A")}–${String(row.estimated_end_date ?? "N/A")}`).join("; ");
+    return `Agriculture calendar records: ${values}; source: ${String(data.source ?? "OPERATIONS_DB")}`;
+  }
+  const values = rows.map((row) => {
+    const location = String(row.location_name ?? "Unknown location");
+    const crop = String(row.crop_name ?? row.crop_code ?? "Unknown crop");
+    const score = row.opportunity_score === undefined ? "" : ` · score ${formatNumber(row.opportunity_score)} · confidence ${formatNumber(row.confidence_score)}`;
+    return `${location} · ${crop}${row.stage_code ? ` · ${String(row.stage_code)}` : ""}${row.machine_category ? ` · ${String(row.machine_category)}` : ""}${score}`;
+  }).join("; ");
+  return `Agriculture ${intent.replace("AGRI_", "").toLowerCase()}: ${values}; source: ${String(data.source ?? "OPERATIONS_DB")}`;
 }
 
 function periodLabel(value: unknown) {

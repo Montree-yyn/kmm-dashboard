@@ -72,6 +72,7 @@ const SALESPERSON_REQUEST = /(salesperson|salesman|พนักงานขา�
 const SALES_REQUEST = /(ยอดขาย|พื้นที่ขาย|sales|ขายได้|ขาย(?:สูงสุด|ดีที่สุด|มากที่สุด|น้อยที่สุด|ดี|ไม่ดี|เพิ่ม|ลด)|\bgp\b|gross profit|กำไรขั้นต้น)/i;
 const BOOKING_REQUEST = /(booking|ยอดจอง|รับจอง)/i;
 const STOCK_REQUEST = /(stock|สต็อก|inventory|เหลือกี่คัน)/i;
+const AGRICULTURE_REQUEST = /agri(?:culture|cultural)?|crop|พืช|เกษตร|เก็บเกี่ยว|harvest|ปฏิทินพืช|crop stage|ระยะพืช|เครื่องจักรเกษตร|machine opportunity|weather impact|ผลกระทบ.*อากาศ|ความเชื่อมั่น.*(?:เกษตร|พืช)|data confidence.*(?:agri|crop)/iu;
 const EXECUTIVE_REQUEST = /(สรุปสถานการณ์|วิเคราะห์(?:ละเอียด)?|น่ากังวล|อะไรดีขึ้น|สินค้าไหน(?:ต้องเร่ง|ควรโฟกัส)|สาขาไหน(?:ต้องจับตา|ควรจับตา)|stock.*ขายช้า|booking.*เป็นอย่างไร|gp.*(?:ปัญหา|เป็นยังไง)|เทียบ.*target|ผู้บริหาร.*โฟกัส|ขอรายละเอียดเพิ่ม|ทำไม.*(?:ต้องเร่ง|stock|gp|ยอดขาย.*ลด)|สัปดาห์นี้.*โฟกัส|executive|management focus|what improved|what.*concern|stock.*slow|which product|which branch|why.*(?:stock|gp|sales.*down))/i;
 const BUSINESS_ASSESSMENT_REQUEST = /(จุดแข็ง|จุดอ่อน|ข้อได้เปรียบ|ข้อควรปรับปรุง|วิเคราะห์.*(?:ธุรกิจ|ภาพรวม)|business assessment|strengths?.*weakness|weakness(?:es)?.*strength|swot)/i;
 const BUSINESS_COMPARISON_REQUEST = /(?:(?:เปรียบเทียบ|เทียบ).*(?:ยอดขาย|booking|ยอดจอง|stock|สต็อก|gp|กำไร|สาขา|สินค้า)|compare.*(?:sales|booking|stock|gp|gross profit|branch|product))/i;
@@ -90,6 +91,7 @@ export const kmmBusinessTool: KaiTool = {
   async execute(context) {
     const security = getKmmSecurityRequestKind(context.message);
     if (security) return securityOutput(security, context.message);
+    if (AGRICULTURE_REQUEST.test(context.message)) return unavailableOutput("agriculture", context.message);
     if (SALESPERSON_REQUEST.test(context.message)) return unavailableOutput("salesperson", context.message);
     if (!context.businessAccess) return accessDeniedOutput(context.message);
     const companyCode = context.businessAccess.companyCode;
@@ -136,6 +138,7 @@ export const kmmBusinessTool: KaiTool = {
 
 export function isKmmBusinessQuestion(message: string) {
   if (isKmmSecurityRequest(message) || isTargetBusinessQuestion(message) || SALESPERSON_REQUEST.test(message)) return true;
+  if (AGRICULTURE_REQUEST.test(message)) return true;
   if (SALES_AREA_TREND_REQUEST.test(message)) return true;
   if (isExecutiveQuestion(message) || ALERT_REQUEST.test(message) || BRIEFING_REQUEST.test(message)) return true;
   if (/(stock market|ตลาดหุ้น)/i.test(message)) return false;
@@ -1136,12 +1139,14 @@ function securityOutput(kind: "sql" | "mutation" | "pii" | "authorization", mess
 function accessDeniedOutput(message: string): KaiToolOutput {
   return { answer: /[\u0e00-\u0e7f]/.test(message) ? "คุณไม่มีสิทธิ์เข้าถึง Business Intelligence ของบริษัทที่เลือก" : "You do not have permission to access Business Intelligence for the selected company.", data: { denied: true } };
 }
-function unavailableOutput(kind: "target" | "salesperson" | "business", message: string, companyCode = "company"): KaiToolOutput {
+function unavailableOutput(kind: "target" | "salesperson" | "business" | "agriculture", message: string, companyCode = "company"): KaiToolOutput {
   const thai = /[\u0e00-\u0e7f]/.test(message);
   const answer = kind === "target"
     ? (thai ? "ข้อมูล Target ยังไม่ได้เชื่อมต่อกับ KAI" : "Target data is not available in KAI yet.")
     : kind === "salesperson"
       ? (thai ? "KAI ยังไม่เปิดใช้ข้อมูลผลการปฏิบัติงานรายบุคคล เนื่องจากระบบสิทธิ์ระดับพนักงานยังอยู่ระหว่างการจัดเตรียม" : "Individual performance data is not enabled while employee-level permissions are being prepared.")
+      : kind === "agriculture"
+        ? (thai ? "ข้อมูลเกษตรที่ยืนยันแล้วไม่พร้อมใช้งานในช่องทางสำรองนี้ จึงไม่สรุปตัวเลขหรือวันเก็บเกี่ยวแทน" : "Verified Agriculture data is unavailable in this fallback channel, so KAI will not invent scores or harvest dates.")
       : (thai ? `KAI ไม่พบข้อมูล ${companyCode} สำหรับคำถามนี้` : `KAI could not find ${companyCode} data for this question.`);
   return { answer, data: { unavailable: kind, source: `${companyCode} Internal Data` } };
 }

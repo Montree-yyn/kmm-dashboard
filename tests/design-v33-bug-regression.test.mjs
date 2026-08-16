@@ -97,7 +97,7 @@ test("V3.3 header, search, charts, and text tokens preserve accessible behavior"
     read("components/common/charts/StandardLineChart.tsx"),
   ]);
 
-  assert.match(globals, /--text-tertiary: #6b6c70/);
+  assert.match(globals, /--text-tertiary: #9ca3af/);
   assert.match(header, /xl:hidden/);
   assert.match(header, /xl:flex/);
   assert.doesNotMatch(header, /common\.openNotifications/);

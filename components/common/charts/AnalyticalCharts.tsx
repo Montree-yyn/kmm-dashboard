@@ -1,4 +1,5 @@
 import { cn } from "../../../lib/utils";
+import { chartTheme } from "./chartTheme";
 
 export type StackedColumnSeries = {
   id: string;
@@ -30,19 +31,24 @@ const formatNumber = (value: number) =>
 
 const readableTextColor = (background: string) => {
   const hex = background.match(/^#([0-9a-f]{6})$/i)?.[1];
-  if (!hex) return "#FFFFFF";
+  if (!hex) return chartTheme.surface;
   const [red, green, blue] = [0, 2, 4].map((offset) =>
     Number.parseInt(hex.slice(offset, offset + 2), 16),
   );
   const luminance = (red * 299 + green * 587 + blue * 114) / 255000;
-  return luminance > 0.62 ? "#171718" : "#FFFFFF";
+  return luminance > 0.58 ? chartTheme.ink : chartTheme.surface;
 };
 
+const hexToRgb = (hex: string) =>
+  [0, 2, 4]
+    .map((offset) => Number.parseInt(hex.slice(offset + 1, offset + 3), 16))
+    .join(" ");
+
 const HEATMAP_TONE_RGB: Record<HeatmapTone, string> = {
-  healthy: "46 125 79",
-  current: "245 102 0",
-  watch: "201 133 0",
-  critical: "180 35 24",
+  healthy: hexToRgb(chartTheme.status.positive),
+  current: hexToRgb(chartTheme.product.core),
+  watch: hexToRgb(chartTheme.status.warning),
+  critical: hexToRgb(chartTheme.status.negative),
 };
 
 function ChartLegend({
@@ -162,8 +168,8 @@ export function PairedBarChart({
   rightLabel,
   leftShortLabel = leftLabel,
   rightShortLabel = rightLabel,
-  leftColor = "#35363A",
-  rightColor = "#F56600",
+  leftColor = chartTheme.previous,
+  rightColor = chartTheme.current,
   shortageLabel = "Shortage",
   surplusLabel = "Surplus",
   balancedLabel = "Balanced",
@@ -387,7 +393,7 @@ export function HeatmapMatrix({
               const strength = value > 0 ? 0.1 + Math.sqrt(value / max) * 0.72 : 0.035;
               const critical = columnIndex === criticalColumn;
               const tone = columnTones?.[columnIndex] ?? (critical ? "critical" : "current");
-              const textColor = strength > 0.52 ? "#FFFFFF" : "var(--text-primary)";
+              const textColor = strength > 0.52 ? chartTheme.surface : "var(--text-primary)";
               return (
                 <span
                   key={column}
@@ -410,7 +416,7 @@ export function HeatmapMatrix({
         <div className="mt-4 flex items-center gap-2 text-[10px] text-[var(--text-tertiary)]">
           <span>{lowerLabel}</span>
           {[0.12, 0.28, 0.46, 0.7].map((opacity) => (
-            <i key={opacity} className="h-2.5 flex-1 rounded-[3px]" style={{ backgroundColor: `rgba(245, 102, 0, ${opacity})` }} />
+            <i key={opacity} className="h-2.5 flex-1 rounded-[3px]" style={{ backgroundColor: `rgb(${hexToRgb(chartTheme.product.core)} / ${opacity})` }} />
           ))}
           <span>{higherLabel}</span>
         </div>
@@ -466,8 +472,8 @@ export function LollipopChart({
                 {thresholdPosition !== null && (
                   <span className="absolute inset-y-0 border-l border-dashed border-[var(--text-tertiary)]" style={{ left: `${thresholdPosition}%` }} />
                 )}
-                <span className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-[var(--brand-200)]" style={{ width: `${position}%` }} />
-                <span className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--brand-500)] shadow-[0_1px_3px_rgb(0_0_0/18%)]" style={{ left: `${position}%` }} />
+                <span className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-[color-mix(in_srgb,var(--chart-current)_24%,transparent)]" style={{ width: `${position}%` }} />
+                <span className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--chart-current)] shadow-[0_1px_3px_rgb(0_0_0/18%)]" style={{ left: `${position}%` }} />
               </div>
               <span className="kmm-tabular col-span-2 text-right text-xs font-semibold text-[var(--text-primary)] sm:col-span-1">
                 {formatValue(item.value)}{suffix}
@@ -534,7 +540,7 @@ export function CumulativeRankChart({
               <span className="kmm-tabular text-[var(--text-tertiary)]">{index + 1}</span>
               <span className="min-w-0 truncate font-medium text-[var(--text-secondary)]" title={item.label}>{item.label}</span>
               <div className="hidden h-2 rounded-full bg-[var(--surface-muted)] sm:block" aria-hidden="true">
-                <span className="block h-full rounded-full bg-[var(--brand-500)]" style={{ width: `${(item.value / max) * 100}%` }} />
+                <span className="block h-full rounded-full bg-[var(--chart-current)]" style={{ width: `${(item.value / max) * 100}%` }} />
               </div>
               <span className="kmm-tabular text-right font-semibold text-[var(--text-primary)]">{formatValue(item.value)}</span>
               <span className="kmm-tabular hidden text-right text-[var(--text-tertiary)] sm:block">{cumulativeShare.toFixed(0)}%</span>
@@ -588,7 +594,7 @@ export function BulletChart({
       </div>
       <div className="relative mt-8 h-12" aria-hidden="true">
         <div className="absolute inset-x-0 top-4 h-5 rounded-[6px] bg-[var(--surface-muted)]" />
-        <div className="absolute left-0 top-4 h-5 rounded-[6px] bg-[var(--brand-500)]" style={{ width: `${actualWidth}%` }} />
+        <div className="absolute left-0 top-4 h-5 rounded-[6px] bg-[var(--chart-current)]" style={{ width: `${actualWidth}%` }} />
         <div className="absolute top-1 h-11 w-0.5 -translate-x-1/2 bg-[var(--text-primary)]" style={{ left: `${targetPosition}%` }} />
         <span className="absolute top-0 -translate-x-1/2 text-[10px] font-semibold text-[var(--text-secondary)]" style={{ left: `${targetPosition}%` }}>{targetLabel}</span>
       </div>

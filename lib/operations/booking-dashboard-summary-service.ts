@@ -75,3 +75,4 @@ export function getBookingDashboardSummary(
     rowCount: buckets.reduce((total, bucket) => total + bucket.count, 0),
   };
 }
+

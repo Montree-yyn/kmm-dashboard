@@ -153,3 +153,4 @@ test("kmm:company-changed clears every cached entry", async () => {
     else globalThis.window = previousWindow;
   }
 });
+

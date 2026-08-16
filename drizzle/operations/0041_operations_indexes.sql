@@ -35,3 +35,4 @@ CREATE INDEX IF NOT EXISTS `booking_transactions_company_import_idx`
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `stock_transactions_company_import_idx`
   ON `stock_transactions` (`company_id`, `import_year`, `import_month`);
+

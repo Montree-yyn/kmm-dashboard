@@ -56,3 +56,4 @@ test("operations index migration 0042 is additive-only", async () => {
   assert.doesNotMatch(migration, /DROP TABLE|ALTER TABLE|INSERT INTO|UPDATE /);
   assert.doesNotMatch(migration, /statement-breakpoint/);
 });
+

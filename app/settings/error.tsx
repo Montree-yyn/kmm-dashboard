@@ -11,3 +11,4 @@ export default function Error({
 }) {
   return <RouteErrorBoundary error={error} reset={reset} />;
 }
+

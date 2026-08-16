@@ -119,3 +119,4 @@ export function getSalesDashboardSummary(
       .slice(0, 6),
   };
 }
+

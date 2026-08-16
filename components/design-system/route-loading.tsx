@@ -48,3 +48,4 @@ export function RouteLoading({ label = "Loading" }: { label?: string }) {
     </div>
   );
 }
+

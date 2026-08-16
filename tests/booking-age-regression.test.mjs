@@ -81,3 +81,4 @@ test("Dashboard, Booking and Stock pages measure age against the payload asOf vi
   assert.doesNotMatch(dashboard, /getOperationalBusiness\(data\.booking, data\.stock, \{[^}]*\}\)/);
   assert.doesNotMatch(stock, /getOperationalBusiness\(\[\], data\.stock, \{[^}]*\}\)\.stock/);
 });
+

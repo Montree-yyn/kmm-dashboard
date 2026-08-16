@@ -17,3 +17,4 @@
 
 CREATE INDEX IF NOT EXISTS `sales_transactions_company_date_idx`
   ON `sales_transactions` (`company_id`, `sale_date`);
+

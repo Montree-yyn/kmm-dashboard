@@ -39,3 +39,4 @@ export function getStockDashboardSummary(rows: StockAdapterRow[], filters: Opera
     })).filter((item) => item.values.some(Boolean)),
   };
 }
+

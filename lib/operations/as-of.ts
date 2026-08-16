@@ -10,3 +10,4 @@
 export function asOfDate(asOf: string): Date {
   return new Date(`${asOf}T00:00:00`);
 }
+

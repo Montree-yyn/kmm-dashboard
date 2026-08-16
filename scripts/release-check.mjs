@@ -11,6 +11,12 @@ const checks = [
     name: "TypeScript",
     run: () => runCommand(npxExecutable, ["tsc", "--noEmit"]),
   },
+  // Rendered HTML imports dist/server/index.js, so build must precede it in
+  // a clean release worktree instead of accidentally relying on stale dist.
+  {
+    name: "Build",
+    run: () => runCommand(npmExecutable, ["run", "build"]),
+  },
   {
     name: "Lint",
     run: () => runCommand(npmExecutable, ["run", "lint"]),
@@ -30,10 +36,6 @@ const checks = [
   {
     name: "Multi-company isolation tests",
     run: () => runCommand(process.execPath, ["--test", "tests/multi-company-isolation.test.mjs"]),
-  },
-  {
-    name: "Build",
-    run: () => runCommand(npmExecutable, ["run", "build"]),
   },
   {
     name: "Diff whitespace check",

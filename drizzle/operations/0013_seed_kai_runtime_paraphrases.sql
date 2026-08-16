@@ -1,4 +1,4 @@
-jlwuhd,  -- KAI Phase 1E runtime-test fix: exact question and alias coverage.
+-- KAI Phase 1E runtime-test fix: exact question and alias coverage.
 
 INSERT OR IGNORE INTO `kai_question_library`
 	(`question`, `intent`, `domain`, `required_metric`, `response_type`)

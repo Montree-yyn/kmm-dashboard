@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
+// Rendering imports the Firebase client but does not authenticate. Provide a
+// structurally valid, non-secret config so this test is hermetic in a clean
+// release worktree and never depends on a developer's ignored .env.local.
+process.env.NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyA12345678901234567890123456789012";
+process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "kmm-render-test.firebaseapp.com";
+process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = "kmm-render-test";
+process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "kmm-render-test.appspot.com";
+process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "123456789012";
+process.env.NEXT_PUBLIC_FIREBASE_APP_ID = "1:123456789012:web:rendercheck";
+
 const templateRoot = new URL("../", import.meta.url);
 const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
 

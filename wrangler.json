@@ -34,7 +34,8 @@
     {
       "binding": "OPERATIONS_DB",
       "database_name": "kmm-operations",
-      "database_id": "9e5658b5-151a-43a6-917e-596d3d825040"
+      "database_id": "9e5658b5-151a-43a6-917e-596d3d825040",
+      "migrations_dir": "drizzle/operations"
     }
   ]
 }

@@ -39,7 +39,8 @@ test("Commission C1 adds only a nullable local Operations D1 column", { skip: !o
   const legacy = JSON.parse(execFileSync("sqlite3", ["-json", operationsDb, "SELECT COUNT(*) AS rows, SUM(CASE WHEN commission IS NULL THEN 1 ELSE 0 END) AS null_commission FROM sales_transactions WHERE company_id = 'kmm-company'"], { encoding: "utf8" }))[0];
   assert.ok(Number(legacy.rows) > 0);
   assert.ok(Number(legacy.null_commission) >= 0 && Number(legacy.null_commission) <= Number(legacy.rows));
-  assert.match(read("drizzle/operations/0021_add_sales_commission.sql"), /ALTER TABLE `sales_transactions` ADD COLUMN `commission` text/i);
+  assert.match(read("drizzle/operations/0021_add_sales_commission.sql"), /independent[\s-]+production-commission lineage/i);
+  assert.match(read("drizzle/production-commission/0001_commission_prod_001.sql"), /ALTER TABLE `sales_transactions` ADD COLUMN `commission` text/i);
 });
 
 test("Commission mapping recognizes CPI Total without confusing Total Expense", () => {

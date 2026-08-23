@@ -65,7 +65,8 @@ test("D1 repository, shared business service, API, and page adapters are connect
   assert.match(organization, /getSalesKpis/);
   assert.match(organization, /loadLiveSalesData/);
   assert.match(organization, /allowFallback: false/);
-  assert.match(marketing, /getSalesKpis/);
+  assert.match(marketing, /isEngineUnitProduct/);
+  assert.match(marketing, /salesTransactionQuantity/);
   assert.match(client, /process\.env\.NODE_ENV === "production"/);
   assert.doesNotMatch(client, /NEXT_PUBLIC_SALES_LOCAL_FALLBACK/);
 });

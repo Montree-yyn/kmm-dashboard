@@ -48,6 +48,7 @@ import { validateImportRows } from "../../lib/data-hub/validate-import";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import { PageHeader } from "../design-system/page-header";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
 
@@ -498,16 +499,7 @@ export function SmartImportCenter() {
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1480px] p-4 sm:p-5 xl:p-6">
         <div className="space-y-5">
-          <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand-600)]">Data Hub · {selectedCompany?.code ?? "Company"}</p>
-              <h1 className="mt-1.5 text-[28px] font-semibold leading-tight tracking-tight sm:text-[30px]">{t("dataHub.smartImport")}</h1>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("dataHub.smartImportDescription")}</p>
-            </div>
-            <a href="#import-history" className="inline-flex min-h-11 items-center gap-2 self-start rounded-[var(--radius-control)] px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] sm:self-auto">
-              <History size={16} aria-hidden="true" />{t("dataHub.history")}
-            </a>
-          </header>
+          <PageHeader eyebrow={`Data Hub · ${selectedCompany?.code ?? "Company"}`} title={t("dataHub.smartImport")} description={t("dataHub.smartImportDescription")} action={<a href="#import-history" className="inline-flex min-h-11 items-center gap-2 self-start rounded-[var(--radius-control)] px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><History size={16} aria-hidden="true" />{t("dataHub.history")}</a>} />
 
           <details
             className="group overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]"

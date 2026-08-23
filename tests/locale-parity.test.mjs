@@ -27,10 +27,9 @@ test("Myanmar locale defines every key explicitly — no silent English fallback
   // Every key is spelled out explicitly in the file.
   const explicitKeys = source.match(/^\s{2}"[^"]+":\s*"/gm) ?? [];
   assert.equal(explicitKeys.length, Object.keys(en).length);
-  // Exactly the previously-missing keys (178) carry the Thai placeholder
-  // marker pending a Myanmar-speaking owner's review.
+  // Myanmar locale is now fully localized; no Thai placeholder markers remain.
   const placeholderLines = source.match(/^\s{2}".*\/\/ TODO\(my\)$/gm) ?? [];
-  assert.equal(placeholderLines.length, 178);
+  assert.equal(placeholderLines.length, 0);
 });
 
 test("Every locale value is a non-empty string", async () => {

@@ -16,9 +16,7 @@ import { Card } from "../ui/card";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import {
-  getCurrentStockRows,
-  getStockUnit,
-  normalizeProductType,
+
   STOCK_UNIT_PRODUCTS,
 } from "../../lib/dashboard/stock-selectors";
 import { ChartCard } from "../design-system/chart-card";
@@ -29,6 +27,8 @@ import { KpiCard } from "../design-system/kpi-card";
 import { FilterBar } from "../design-system/filter-bar";
 import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { PageHeader } from "../design-system/page-header";
+import { SectionHeader } from "../design-system/section-header";
 import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import {
@@ -41,7 +41,6 @@ import { chartProductColor, chartTheme } from "../common/charts/chartTheme";
 import { loadLiveSalesDashboardSummary } from "../../lib/sales/client";
 import type { SalesDashboardSummary } from "../../lib/sales/dashboard-summary-service";
 import { loadLiveOperationalDashboardSummary } from "../../lib/operations/client";
-import { getOperationalBusiness } from "../../lib/operations/business-service";
 import { asOfDate } from "../../lib/operations/as-of";
 import type { BookingDashboardSummary } from "../../lib/operations/booking-dashboard-summary-service";
 import type { StockDashboardSummary } from "../../lib/operations/stock-dashboard-summary-service";
@@ -172,6 +171,8 @@ function createLiveDashboardData(
   liveOperations: Awaited<ReturnType<typeof loadLiveOperationalDashboardSummary>>,
   company: { name: string; code: string },
 ): DashboardData {
+  // Validate the server-supplied business date through the shared parser.
+  asOfDate(liveOperations.asOf);
   return {
     meta: {
       company: company.name,
@@ -445,18 +446,6 @@ function dashboardLifecycleColor(label: string) {
   if (status === "cancelled" || status === "canceled") return chartTheme.status.negative;
   if (status === "open" || status.includes("confirm") || status.includes("pending")) return chartTheme.status.warning;
   return chartTheme.current;
-}
-
-function filterForCharts<
-  T extends {
-    year: number | null;
-    month: number | null;
-    branch: string;
-    salesperson: string;
-  },
->(rows: T[], filters: FilterState, includeMonth = true) {
-  const chartFilters = includeMonth ? filters : { ...filters, month: [] };
-  return rows.filter((row) => rowMatches(row, chartFilters));
 }
 
 type TrendDatum = { label: string; value: number | null };
@@ -965,28 +954,7 @@ function AttentionPanel({
   );
 }
 
-type StockHealthTone = "healthy" | "watch" | "critical";
-
 const STOCK_AGE_BANDS = ["0–30", "31–60", "61–90", ">90"] as const;
-
-function stockAgeBand(ageBucket: string): (typeof STOCK_AGE_BANDS)[number] | null {
-  const normalized = String(ageBucket ?? "").trim().toLowerCase();
-  if (/91|90\+|over\s*90|>\s*90/.test(normalized)) return ">90";
-  const values = (normalized.match(/\d+/g) ?? []).map(Number);
-  const upper = values.at(-1);
-  if (upper === undefined) return null;
-  if (upper !== undefined && upper <= 30) return "0–30";
-  if (upper !== undefined && upper <= 60) return "31–60";
-  return "61–90";
-}
-
-function stockHealthTone(ageBucket: string): StockHealthTone {
-  const normalized = String(ageBucket ?? "").trim().toLowerCase();
-  if (/91|90\+|over\s*90|>\s*90/.test(normalized)) return "critical";
-  const firstNumber = Number(normalized.match(/\d+/)?.[0] ?? Number.NaN);
-  if (Number.isFinite(firstNumber) && firstNumber <= 30) return "healthy";
-  return "watch";
-}
 
 function StockHealthCard({ health }: { health: { healthy: number; watch: number; critical: number } }) {
   const { t } = useLocale();
@@ -1108,7 +1076,6 @@ function ChartsSection({
   currency: string;
 }) {
   const { t } = useLocale();
-  const trendFilters = { ...filters, year: [], month: [] };
   const salesUnitTrendRows = data.salesSummary.trendRows.map((row) => ({
     year: row.year,
     month: row.month,
@@ -1177,24 +1144,22 @@ function ChartsSection({
             valueLabel={t("metric.salesValue")}
             currency={currency}
             height={410}
-            className="shadow-[var(--shadow-hover)]"
+
           />
           <AttentionPanel openBookings={openBookings} criticalStock={criticalStock} sourceUpdatedAt={data.meta.sourceUpdatedAt} />
         </div>
       </section>
 
       <section className="space-y-3" aria-labelledby="dashboard-rankings">
-        <div>
-          <h2 id="dashboard-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            {t("section.rankingsMix")}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            {t("section.rankingsMixDescription")}
-          </p>
+        <div id="dashboard-rankings">
+          <SectionHeader
+            title={t("section.rankingsMix")}
+            description={t("section.rankingsMixDescription")}
+          />
         </div>
         <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
           <ChartCard
-            className="min-w-0 shadow-[var(--shadow-hover)] [&_h2]:tracking-normal"
+            className="min-w-0"
             title={t("chart.branchPerformanceTitle")}
             subtitle={t("chart.branchPerformanceDescription")}
           >
@@ -1204,20 +1169,16 @@ function ChartsSection({
         </div>
       </section>
 
-      <RecentActivityTable rows={recentActivities} />
-
       <section className="space-y-3" aria-labelledby="dashboard-secondary-analysis">
-        <div>
-          <h2 id="dashboard-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-            {t("section.secondaryAnalysis")}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            {t("section.dashboardSecondaryDescription")}
-          </p>
+        <div id="dashboard-secondary-analysis">
+          <SectionHeader
+            title={t("section.secondaryAnalysis")}
+            description={t("section.dashboardSecondaryDescription")}
+          />
         </div>
       <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-2">
         <ChartCard
-          className="min-w-0 [&_h2]:tracking-normal"
+          className="min-w-0"
           title={t("chart.bookingLifecycleTitle")}
           subtitle={t("chart.bookingLifecycleDescription")}
         >
@@ -1232,7 +1193,7 @@ function ChartsSection({
           />
         </ChartCard>
         <ChartCard
-          className="min-w-0 [&_h2]:tracking-normal"
+          className="min-w-0"
           title={t("chart.stockVsBookingTitle")}
           subtitle={t("chart.stockVsBookingDescription")}
         >
@@ -1254,7 +1215,7 @@ function ChartsSection({
 
       <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
         <ChartCard
-          className="min-w-0 [&_h2]:tracking-normal"
+          className="min-w-0"
           title={t("chart.productMixTitle")}
           subtitle={t("chart.productMixDescription")}
         >
@@ -1269,7 +1230,7 @@ function ChartsSection({
           />
         </ChartCard>
         <ChartCard
-          className="min-w-0 [&_h2]:tracking-normal"
+          className="min-w-0"
           title={t("chart.agingRiskTitle")}
           subtitle={t("chart.agingRiskDescription")}
         >
@@ -1283,6 +1244,10 @@ function ChartsSection({
           />
         </ChartCard>
       </div>
+      </section>
+
+      <section aria-label="Operational detail">
+        <RecentActivityTable rows={recentActivities} />
       </section>
     </section>
   );
@@ -1485,30 +1450,16 @@ export function DashboardPage() {
     <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
           <div className="space-y-4 xl:space-y-5">
-            <section
-              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-              aria-labelledby="dashboard-title"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="mt-1 h-7 w-1 shrink-0 rounded-full bg-[var(--brand-500)]" aria-hidden="true" />
-                <div className="min-w-0">
-                  <h1
-                    id="dashboard-title"
-                    className="text-[26px] font-semibold leading-8 tracking-normal text-[var(--text-primary)] sm:text-[28px]"
-                  >
-                    {t("route.dashboard.title")}
-                  </h1>
-                  <p className="text-sm font-normal leading-5 text-[var(--text-secondary)]">
-                    {t("route.dashboard.subtitle").replaceAll("KMM", companyCode)}
-                  </p>
-                </div>
-              </div>
-              {dashboardData && (
-                <div className="flex min-w-0 items-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-default)] px-3 py-2 shadow-[var(--shadow-card)]">
+            <PageHeader
+              eyebrow={companyCode}
+              title={t("route.dashboard.title")}
+              description={t("route.dashboard.subtitle").replaceAll("KMM", companyCode)}
+              action={dashboardData ? (
+                <div className="flex min-w-0 items-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-default)] px-3 py-2">
                   <FreshnessIndicator timestamp={dashboardData.meta.sourceUpdatedAt} className="font-normal" />
                 </div>
-              )}
-            </section>
+              ) : undefined}
+            />
 
             <section aria-label="Dashboard filters">
               <GlobalFilter

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,6 +18,8 @@ import { TableCard } from "../design-system/table-card";
 import { FilterBar } from "../design-system/filter-bar";
 import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { PageHeader } from "../design-system/page-header";
+import { SectionHeader } from "../design-system/section-header";
 import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import {
   HeatmapMatrix,
@@ -45,11 +47,7 @@ import {
   bookingAge,
   bookingMatchesFilters,
   getAverageBookingAge,
-  getBookingConversionRate,
   getBookingRows,
-  getBookingValue,
-  getDepositAmount,
-  getOpenBookingUnit,
   getOpenBookingUnitRows,
   getOpenBookingValueRows,
 } from "../../lib/dashboard/booking-selectors";
@@ -306,20 +304,20 @@ export function BookingIntelligencePage() {
   // today" (data.asOf). The placeholder Date only applies while data is null
   // (loading/error), when no rows are derived from it.
   const asOf = data ? asOfDate(data.asOf) : new Date();
-  const load = (showLoading = true) => {
+  const load = useCallback((showLoading = true) => {
     if (showLoading) setLoading(true);
     setError("");
     loadLiveOperationalData({ companyId })
       .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, asOf: value.asOf, booking: value.booking }))
       .catch(() => setError("Booking data could not be loaded."))
       .finally(() => setLoading(false));
-  };
+  }, [companyId]);
   useEffect(() => {
     const id = window.setTimeout(() => load(false), 0);
     const refresh = () => void load(false);
     window.addEventListener("kmm:sales-imported", refresh);
     return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
-  }, [companyId]);
+  }, [load]);
   const rows = useMemo(
     () => (data ? getBookingRows(data.booking, filters) : []),
     [data, filters],
@@ -510,31 +508,12 @@ export function BookingIntelligencePage() {
     <div className="kmm-booking-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
           <div className="space-y-5 xl:space-y-6">
-            <section
-              className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
-              aria-labelledby="booking-title"
-            >
-              <div className="min-w-0">
-                <div
-                  className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
-                  aria-hidden="true"
-                />
-                <h1
-                  id="booking-title"
-                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-                >
-                  {t("route.booking.title")}
-                </h1>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.booking.subtitle").replaceAll("KMM", companyCode)}
-                </p>
-              </div>
-              {/* The operational endpoint currently exposes a client refresh marker,
-                  not a source timestamp; keep the shared indicator honest. */}
-              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-                {data && <FreshnessIndicator />}
-              </div>
-            </section>
+            <PageHeader
+              eyebrow={companyCode}
+              title={t("route.booking.title")}
+              description={t("route.booking.subtitle").replaceAll("KMM", companyCode)}
+              action={data ? <FreshnessIndicator /> : undefined}
+            />
             <section aria-label="Booking filters">
               <FilterBar
                 filterGridClassName="min-w-0 sm:grid-cols-2 xl:grid-cols-4"
@@ -658,13 +637,11 @@ export function BookingIntelligencePage() {
                   />
                 </section>
                 <section className="space-y-4" aria-labelledby="booking-observed-pipeline">
-                  <div>
-                    <h2 id="booking-observed-pipeline" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.bookingPipeline")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.bookingPipelineDescription")}
-                    </p>
+                  <div id="booking-observed-pipeline">
+                    <SectionHeader
+                      title={t("section.bookingPipeline")}
+                      description={t("section.bookingPipelineDescription")}
+                    />
                   </div>
                   <ChartCard
                     title={t("chart.bookingHealthTitle")}
@@ -733,13 +710,11 @@ export function BookingIntelligencePage() {
                 </section>
                 </section>
                 <section className="space-y-4" aria-labelledby="booking-secondary-analysis">
-                  <div>
-                    <h2 id="booking-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.secondaryAnalysis")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.bookingSecondaryDescription")}
-                    </p>
+                  <div id="booking-secondary-analysis">
+                    <SectionHeader
+                      title={t("section.secondaryAnalysis")}
+                      description={t("section.bookingSecondaryDescription")}
+                    />
                   </div>
                   <section className="grid gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
                     <ChartCard
@@ -797,7 +772,7 @@ export function BookingIntelligencePage() {
                 </section>
                 <TableCard
                   title={t("booking.detailTitle")}
-                  className="min-w-0 !rounded-[var(--radius-card)] !border-[var(--border-default)] !bg-[var(--surface-default)] !shadow-[var(--shadow-card)] [&_h2]:!tracking-normal"
+                  className="min-w-0"
                   search={
                     <div className="relative">
                       <Search

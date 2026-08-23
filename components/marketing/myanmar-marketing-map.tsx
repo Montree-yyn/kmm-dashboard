@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Map as MapLibreMap,
   Marker,
@@ -14,6 +14,7 @@ import { getMapEngine } from "../../lib/maps/datasets";
 import { useLocale } from "../../src/hooks/useLocale";
 import { chartTheme } from "../common/charts/chartTheme";
 import { MyanmarMarketingMapMapLibre } from "./myanmar-marketing-map-maplibre";
+import type { VillagePoint } from "../../lib/maps/geography";
 
 type Showroom = {
   id: string;
@@ -94,6 +95,9 @@ type FitPadding = { top: number; right: number; bottom: number; left: number };
 
 export type MyanmarMarketingMapProps = {
   visibleShowroomIds?: string[];
+  villagePoints?: readonly VillagePoint[];
+  showVillagePoints?: boolean;
+  onVillageClick?: (village: VillagePoint) => void;
   townshipMetrics?: Record<string, TownshipMetric>;
   productLabel?: string;
   mode?: "sales" | "population" | "activity";
@@ -365,15 +369,6 @@ function metricForLegacyFeature(
     metrics[normalizeLocation(feature.properties.TS)]
   );
 }
-
-const PRODUCT_ROWS: { key: keyof SalesByProduct; label: string }[] = [
-  { key: "tractor", label: "Tractor" },
-  { key: "combineHarvester", label: "Combine Harvester" },
-  { key: "excavator", label: "Excavator" },
-  { key: "transplanter", label: "Transplanter" },
-  { key: "drone", label: "MAX" },
-  { key: "other", label: "Other Engine Products" },
-];
 
 export type TownshipDebugStatus = {
   selectedFeatureId: string | number | null;
@@ -710,6 +705,7 @@ export function MyanmarTownshipDetailPanel({
           </div>
         </dl>
       </section>
+      <TownshipDebugPanel metric={metric} mapStatus={mapStatus} />
     </aside>
   );
 }
@@ -743,7 +739,7 @@ function LegacyMyanmarMarketingMap({
     setSelectedMetric(null);
   };
 
-  const logFitOnce = (
+  const logFitOnce = useCallback((
     map: MapLibreMap,
     camera: NonNullable<ReturnType<typeof fitMyanmar>>,
   ) => {
@@ -765,9 +761,9 @@ function LegacyMyanmarMarketingMap({
         visibleBounds[1][1] >= MYANMAR_BOUNDS[1][1],
     });
     fitLogRef.current = true;
-  };
+  }, []);
 
-  const runResizeThenFit = (map: MapLibreMap) => {
+  const runResizeThenFit = useCallback((map: MapLibreMap) => {
     requestAnimationFrame(() => {
       map.resize();
 
@@ -776,9 +772,9 @@ function LegacyMyanmarMarketingMap({
         if (camera) logFitOnce(map, camera);
       });
     });
-  };
+  }, [logFitOnce]);
 
-  const scheduleResizeThenFit = (map: MapLibreMap, debounce = true) => {
+  const scheduleResizeThenFit = useCallback((map: MapLibreMap, debounce = true) => {
     if (resizeTimerRef.current) window.clearTimeout(resizeTimerRef.current);
     if (!debounce) {
       runResizeThenFit(map);
@@ -788,14 +784,13 @@ function LegacyMyanmarMarketingMap({
       () => runResizeThenFit(map),
       120,
     );
-  };
+  }, [runResizeThenFit]);
 
   const applyMetrics = () => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
     const pairs: unknown[] = ["match", ["get", "TS_PCODE"]];
     townshipsRef.current.forEach((feature) => {
-      const key = normalizeLocation(feature.properties.TS);
       const metric = metricForLegacyFeature(metricsRef.current, feature);
       if (feature.properties.TS_PCODE && metric)
         pairs.push(feature.properties.TS_PCODE, metric.fill);
@@ -823,7 +818,7 @@ function LegacyMyanmarMarketingMap({
     const map = mapRef.current;
     if (!map?.loaded()) return;
     scheduleResizeThenFit(map, false);
-  }, [resetSignal]);
+  }, [resetSignal, scheduleResizeThenFit]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1001,7 +996,7 @@ function LegacyMyanmarMarketingMap({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [runResizeThenFit, scheduleResizeThenFit]);
 
   return (
     <div

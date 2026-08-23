@@ -5,6 +5,7 @@ import { CalendarDays, CloudRain, Leaf, RefreshCw, ShieldAlert, Sprout } from "l
 import { useCompany } from "../../../src/hooks/useCompany";
 import { useLocale } from "../../../src/hooks/useLocale";
 import { cn } from "../../../lib/utils";
+import { PageHeader } from "../../../components/design-system/page-header";
 import { loadAgricultureOverview } from "./agriculture.client";
 import { AgricultureCalendar } from "./AgricultureCalendar";
 import { AgricultureDataPage } from "./AgricultureDataPage";
@@ -166,10 +167,21 @@ export function WeatherAgriculturePage({ weatherPage }: { weatherPage: ReactNode
   return (
     <main className="min-h-[calc(100vh-72px)] w-full min-w-0 max-w-full overflow-x-clip bg-[var(--surface-canvas)] text-[var(--text-primary)]" data-weather-agriculture-page>
       <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-5 xl:p-6">
-        <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0"><div className="mb-2 h-1 w-9 rounded-full bg-[var(--brand-500)]" aria-hidden="true" /><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.025em] sm:text-[32px]">{t("route.weather.title")}</h1><p className="mt-1 text-sm text-[var(--text-secondary)]">{t("route.weather.subtitle")}</p></div>
-          <div className="flex flex-wrap items-center gap-2 text-xs"><span className={cn("inline-flex items-center gap-2 rounded-lg border bg-[var(--surface-default)] px-3 py-2.5", overview?.weather.availability === "LIVE" || overview?.weather.availability === "CACHED" ? "border-[var(--status-success-bg)]" : "border-[var(--border-default)]")}><span className={cn("size-2 rounded-full", overview?.weather.availability === "LIVE" ? "bg-[var(--status-success)]" : overview?.weather.availability === "CACHED" ? "bg-[var(--status-warning)]" : "bg-[var(--text-tertiary)]")} />{overview?.weather.fetchedAt ? `${copy.top.weatherUpdated} ${formatTime(overview.weather.fetchedAt)}` : copy.top.weatherUnavailable}</span><span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2.5 text-[var(--text-secondary)]"><ShieldAlert size={15} />{copy.top.agriculture}: {agricultureDataStatusLabel(overview?.dataStatus, language)}</span><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-default)] px-3 font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"><RefreshCw size={14} className={cn(loading && "animate-spin motion-reduce:animate-none")} />{loading ? copy.common.refreshing : copy.common.refresh}</button></div>
-        </header>
+        <PageHeader
+          title={t("route.weather.title")}
+          description={t("route.weather.subtitle")}
+          action={
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={cn("inline-flex items-center gap-2 rounded-[var(--radius-pill)] border bg-[var(--surface-default)] px-3 py-2", overview?.weather.availability === "LIVE" || overview?.weather.availability === "CACHED" ? "border-[var(--status-success-bg)]" : "border-[var(--border-default)]")}>
+                <span className={cn("size-2 rounded-full", overview?.weather.availability === "LIVE" ? "bg-[var(--status-success)]" : overview?.weather.availability === "CACHED" ? "bg-[var(--status-warning)]" : "bg-[var(--text-tertiary)]")} />
+                {overview?.weather.fetchedAt ? `${copy.top.weatherUpdated} ${formatTime(overview.weather.fetchedAt)}` : copy.top.weatherUnavailable}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2 text-[var(--text-secondary)]"><ShieldAlert size={15} />{copy.top.agriculture}: {agricultureDataStatusLabel(overview?.dataStatus, language)}</span>
+              <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60"><RefreshCw size={14} className={cn(loading && "animate-spin motion-reduce:animate-none")} />{loading ? copy.common.refreshing : copy.common.refresh}</button>
+            </div>
+          }
+          data-enterprise-page-header="weather"
+        />
 
         <nav className="mt-5 overflow-x-auto border-b border-[var(--border-default)]" aria-label={copy.top.sectionsAria} role="tablist">
           <div className="flex min-w-max gap-1">{tabs.map((tab) => { const Icon = tab.icon; const active = activeTab === tab.value; return <button key={tab.value} type="button" role="tab" aria-selected={active} onClick={() => setActiveTab(tab.value)} className={cn("relative inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-[var(--text-secondary)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]", active && "text-[var(--brand-600)] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[var(--brand-500)]") }><Icon size={16} aria-hidden="true" />{tabLabel(tab.value, language)}</button>; })}</div>

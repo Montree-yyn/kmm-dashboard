@@ -251,7 +251,7 @@ test("Marketing route renders the map-first territory workspace", async () => {
   assert.match(workspace, /h-\[calc\(100vh-72px\)\]/);
   assert.match(workspace, /aria-label="Right Intelligence Panel"/);
   assert.match(workspace, /Phase1TownshipPanel/);
-  assert.match(workspace, /aria-label="Strategic Focus placeholder"/);
+  assert.doesNotMatch(workspace, /aria-label="Strategic Focus placeholder"/);
   assert.match(
     workspace,
     /<MyanmarMarketingMap[\s\S]*?visibleShowroomIds=\{visibleShowroomIds\}[\s\S]*?townshipMetrics=\{mapped\.metrics\}/,
@@ -276,16 +276,25 @@ test("Marketing markers and the detail panel preserve a correct navigable viewpo
   );
 });
 
-test("MapLibre visual styling matches the legacy Marketing map", async () => {
+test("MapLibre visual styling keeps the sales territory map legible", async () => {
   const [maplibre, vectorMap] = await Promise.all([
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
   ]);
   assert.match(vectorMap, /overlayFillOpacity = 0\.98/);
-  assert.match(vectorMap, /"line-color": chartTheme\.grid/);
-  assert.match(vectorMap, /"line-width": 0\.9/);
+  assert.match(vectorMap, /boundaryColor = chartTheme\.grid/);
+  assert.match(vectorMap, /"line-color": boundaryColor/);
+  assert.match(vectorMap, /"line-width": boundaryWidth/);
+  assert.match(vectorMap, /"line-opacity": boundaryOpacity/);
   assert.match(vectorMap, /"line-cap": "round"/);
-  assert.match(maplibre, /"line-color": chartTheme\.grid/);
+  assert.match(maplibre, /SALES_MAP_COLORS/);
+  assert.match(maplibre, /stateBoundary: "#FF7A00"/);
+  assert.match(maplibre, /townshipBoundary: "#F2A15F"/);
+  assert.match(maplibre, /"line-color": SALES_MAP_COLORS\.stateBoundary/);
+  assert.match(maplibre, /"line-dasharray": \[3\.5, 3\]/);
+  assert.match(maplibre, /boundaryColor=\{SALES_MAP_COLORS\.townshipBoundary\}/);
+  assert.match(maplibre, /boundaryOpacity=\{0\.42\}/);
+  assert.match(maplibre, /boundaryWidth=\{0\.55\}/);
   assert.match(maplibre, /Noto Sans Medium/);
   assert.match(maplibre, /Noto Sans Regular/);
   assert.match(
@@ -316,12 +325,12 @@ test("Marketing uses the KME Protomaps basemap beneath the PMTiles overlay", asy
   assert.match(kmeBasemap, /tuneMarketingBasemapLayers/);
   assert.match(kmeBasemap, /roads_labels_major/);
   assert.match(kmeBasemap, /water_river/);
-  assert.doesNotMatch(maplibre, /openfreemap|developmentBasemap|baseStyle=\{/i);
+  assert.doesNotMatch(maplibre, /createSalesTerritoryBasemapStyle|SALES_TERRITORY_BASE_STYLE/);
   assert.match(maplibre, /overlayFillOpacity=\{0\.5\}/);
   assert.match(vectorMap, /createMarketingBasemapStyle/);
   assert.match(
     vectorMap,
-    /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return chartTheme\.marketing\.noData/,
+    /if \(!Object\.keys\(fillColorsByCanonicalId\)\.length\) return fillNoDataColor/,
   );
   assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /failMap/);
@@ -350,7 +359,7 @@ test("Marketing visual polish keeps the basemap visible and markers prominent", 
   assert.doesNotMatch(vectorMap, /MapLibre recoverable resource error/);
   assert.match(vectorMap, /getFillOpacityExpression/);
   assert.match(vectorMap, /viewportBounds/);
-  assert.match(vectorMap, /"line-opacity": 0\.5/);
+  assert.match(vectorMap, /boundaryOpacity = 0\.5/);
   assert.match(css, /background: #ffffff/);
   assert.match(css, /border: 2px solid #ff7a00/);
   assert.match(css, /z-index: 5/);
@@ -378,7 +387,12 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(maplibre, /initialMetricFromMode/);
   assert.match(maplibre, /return "salesUnit"/);
   assert.match(maplibre, /metric\.salesUnit/);
-  assert.match(vectorMap, /colorPairs\.push\(chartTheme\.marketing\.noData\)/);
+  assert.match(maplibre, /#FAD7B5/);
+  assert.match(maplibre, /#FFB25F/);
+  assert.match(maplibre, /#F68A24/);
+  assert.match(maplibre, /#E65C12/);
+  assert.match(maplibre, /#B93612/);
+  assert.match(vectorMap, /colorPairs\.push\(fillNoDataColor\)/);
 });
 
 test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover highlight, and top-township layer", async () => {
@@ -390,7 +404,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover h
   assert.match(maplibre, /jenksNaturalBreaks/);
   assert.match(maplibre, /Natural Breaks \(Jenks\)/);
   assert.match(maplibre, /quantileBreaks/);
-  assert.match(maplibre, /const CHOROPLETH_COLORS = chartTheme\.marketing\.heatScale/);
+  assert.match(maplibre, /const CHOROPLETH_COLORS = SALES_MAP_COLORS\.heatScale/);
   assert.match(maplibre, /EXECUTIVE_METRICS/);
   assert.match(maplibre, /metric\.gpPercent/);
   assert.match(maplibre, /legendRange/);
@@ -458,8 +472,8 @@ test("Marketing Sprint 1 removes KPI strip and reserves decision workspace shell
   assert.match(workspace, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
   assert.match(workspace, /ไม่พบข้อมูลตามตัวกรองที่เลือก/);
   assert.match(workspace, /metric\.responsibleShowroom \?\? waiting/);
-  assert.match(workspace, /Strategic Focus/);
-  assert.match(workspace, /Coming in Phase 2/);
+  assert.doesNotMatch(workspace, /Strategic Focus/);
+  assert.doesNotMatch(workspace, /Coming in Phase 2/);
   assert.doesNotMatch(workspace, /<ExecutiveKpiStrip/);
 });
 
@@ -626,10 +640,8 @@ test("Localization foundation defaults to Thai and exposes English and Myanmar s
   assert.match(header, /value="en"/);
   assert.match(header, /value="my"/);
   assert.match(header, /route\.marketing\.title/);
-  assert.match(
-    await read("components/marketing/marketing-intelligence-page.tsx"),
-    /t\("period\.rolling12Months"\)/,
-  );
+  assert.match(english, /"period\.rolling12Months": "Rolling 12 Months"/);
+  assert.match(thai, /"period\.rolling12Months": "ย้อนหลัง 12 เดือน"/);
   assert.match(maplibre, /metricLabel\(activeMetric, t\)/);
   assert.match(panel, /t\("panel\.salesPerformance"\)/);
 });
@@ -825,4 +837,54 @@ test("Marketing keeps one desktop detail panel and preserves a fullscreen/mobile
   assert.match(workspace, /Salesman/);
   assert.match(panel, /onCollapse\?:/);
   assert.match(workspace, /Last Visit/);
+});
+
+
+test("Map Architecture V2 is PCode-ready while village rendering stays optional", async () => {
+  const [geography, maplibre, sharedMap] = await Promise.all([
+    read("lib/maps/geography.ts"),
+    read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
+    read("components/marketing/myanmar-marketing-map.tsx"),
+  ]);
+  assert.match(geography, /"state_region"/);
+  assert.match(geography, /"district"/);
+  assert.match(geography, /"township"/);
+  assert.match(geography, /"village_tract"/);
+  assert.match(geography, /"village"/);
+  assert.match(geography, /pcode\?: string \| null/);
+  assert.match(geography, /parentPcode\?: string \| null/);
+  assert.match(sharedMap, /villagePoints\?: readonly VillagePoint\[\]/);
+  assert.match(maplibre, /villagePoints = \[\]/);
+  assert.match(maplibre, /if \(!villagePoints\.length\)/);
+  assert.match(maplibre, /VILLAGE_MIN_ZOOM = 10/);
+  assert.match(maplibre, /minzoom: 12/);
+});
+
+test("Map Architecture V2 preserves showroom coordinates and township sales geography sources", async () => {
+  const [showroomsRaw, intelligence, geography] = await Promise.all([
+    read("public/maps/kmm-showrooms.json"),
+    read("components/marketing/marketing-intelligence-page.tsx"),
+    read("lib/marketing/township-geography.ts"),
+  ]);
+  const showrooms = JSON.parse(showroomsRaw);
+  const byId = Object.fromEntries(showrooms.map((row) => [row.id, row.coordinates]));
+  assert.deepEqual(byId["KMM-MAWLAMYINE"], [97.58796586144803, 16.551014829832265]);
+  assert.deepEqual(byId["KMM-MYAWADDY"], [98.40899139590378, 16.697570801389162]);
+  assert.deepEqual(byId["KMM-HPAAN"], [97.67833921863583, 16.850519686471458]);
+  assert.deepEqual(byId["KMM-THARYARWADDY"], [95.7850121824317, 17.637161998340396]);
+  assert.deepEqual(byId["KMM-NATTALIN"], [95.54490214925025, 18.4418173872767]);
+  assert.deepEqual(byId["KMM-NAWNGHKIO"], [96.80052978171858, 22.331490123697]);
+  assert.match(intelligence, /resolveTownship\(row\.township, row\.stateRegion\)/);
+  assert.match(intelligence, /salesUnits\.set\(resolved\.key/);
+  assert.match(geography, /const canonicalLocationId = candidates\[0\]\.township_id/);
+});
+
+
+test("Village importer rejects non-commercial providers and invalid geometry without touching township data", async () => {
+  const geography = await read("lib/maps/geography.ts");
+  assert.match(geography, /commercialUseAllowed/);
+  assert.match(geography, /PROVIDER_COMMERCIAL_USE_NOT_ALLOWED/);
+  assert.match(geography, /MISSING_COORDINATES/);
+  assert.match(geography, /INVALID_COORDINATES/);
+  assert.match(geography, /mm-village-/);
 });

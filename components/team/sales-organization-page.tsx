@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BarChart3, BadgeDollarSign, Building2, CalendarDays, ChevronDown, CircleDollarSign, Percent, RefreshCw, RotateCcw, Search, UserRound, UsersRound, X } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -17,6 +17,7 @@ import { ExportButton } from "../design-system/export-button";
 import { FilterBar } from "../design-system/filter-bar";
 import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
+import { PageHeader } from "../design-system/page-header";
 import { SectionHeader } from "../design-system/section-header";
 import { TableCard } from "../design-system/table-card";
 import { useLocale } from "../../src/hooks/useLocale";
@@ -591,7 +592,7 @@ export function SalesOrganizationPage() {
   const companyCode = selectedCompany?.code ?? "KMM";
   const currency = selectedCompany?.currency ?? "MMK";
   const [filters, setFilters] = useState<FilterState>(defaultFilters); const [data, setData] = useState<DashboardData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null); const [rankBy, setRankBy] = useState<RankingMetric>("salesValue"); const [rankingView, setRankingView] = useState<RankingView>("table");
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -629,13 +630,13 @@ export function SalesOrganizationPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [companyId]);
   useEffect(() => {
     queueMicrotask(() => { void loadData(); });
     const refresh = () => { void loadData(); };
     window.addEventListener("kmm:sales-imported", refresh);
     return () => window.removeEventListener("kmm:sales-imported", refresh);
-  }, [companyId]);
+  }, [loadData]);
   const employeeDirectory = useMemo(() => makeEmployeeDirectory(data?.employees ?? [], data?.employeeMasterAvailable === true), [data]);
   const inactiveNames = useMemo(() => new Set((data?.sales ?? []).filter((row) => isInactiveEmployeeName(row.salesperson)).map((row) => normalizeEmployeeBaseName(row.salesperson))), [data]);
   const filteredSales = useMemo(() => (data?.sales ?? []).filter((row) => matchesFilters(row, filters)), [data, filters]);
@@ -709,21 +710,20 @@ export function SalesOrganizationPage() {
     <div className="kmm-sales-organization-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
           <div className="space-y-5 xl:space-y-6">
-            <section aria-labelledby="sales-organization-title">
-              <div
-                className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
-                aria-hidden="true"
-              />
-              <h1
-                id="sales-organization-title"
-                className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-              >
-                {t("route.team.title")}
-              </h1>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-                {t("route.team.subtitle").replaceAll("KMM", companyCode)}
-              </p>
-            </section>
+            <PageHeader
+              title={t("route.team.title")}
+              description={t("route.team.subtitle").replaceAll("KMM", companyCode)}
+              action={
+                data ? (
+                  <div className="rounded-[var(--radius-pill)] border border-[var(--border-subtle)] bg-[var(--surface-default)] px-3 py-2 text-right shadow-[var(--shadow-card)]">
+                    <p className="text-[11px] font-medium text-[var(--text-tertiary)]">Selected period</p>
+                    <p className="kmm-tabular text-sm font-semibold text-[var(--text-primary)]">{periodTitle}</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">{periodRange}</p>
+                  </div>
+                ) : undefined
+              }
+              data-enterprise-page-header="team"
+            />
 
             <section aria-label="Sales organization filters">
               <TeamFilters
@@ -767,7 +767,7 @@ export function SalesOrganizationPage() {
               <>
                 <section
                   aria-label="Organization KPI Overview"
-                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:gap-3 2xl:gap-4"
+                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 xl:gap-3 2xl:gap-4"
                 >
                   <KpiCard
                     variant="executive"
@@ -828,13 +828,6 @@ export function SalesOrganizationPage() {
                     unit={currency}
                     icon={<BarChart3 size={18} strokeWidth={1.8} />}
                     subtitle="Total Sales / Active Salespeople"
-                  />
-                  <KpiCard
-                    variant="executive"
-                    title="Selected Period"
-                    value={periodTitle}
-                    icon={<CalendarDays size={18} strokeWidth={1.8} />}
-                    subtitle={periodRange}
                   />
                 </section>
 

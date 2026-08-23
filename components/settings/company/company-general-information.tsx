@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ImagePlus, Trash2, Upload } from "lucide-react";
 import type { ChangeEvent, RefObject } from "react";
 import type {
@@ -42,9 +43,12 @@ export function CompanyGeneralInformation({
           <div>
             <div className="grid aspect-square place-items-center overflow-hidden rounded-[var(--radius-card)] border border-dashed border-[var(--border-default)] bg-[var(--surface-subtle)]">
               {company.logoUrl ? (
-                <img
+                <Image
                   src={company.logoUrl}
                   alt={`${company.companyName} logo`}
+                  width={180}
+                  height={180}
+                  unoptimized
                   className="h-full w-full object-contain p-4"
                 />
               ) : (

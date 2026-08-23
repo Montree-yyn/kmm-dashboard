@@ -37,7 +37,7 @@ test("Sales page follows the Golden Reference shell and KPI hierarchy", async ()
     page,
     /kmm-sales-page min-h-\[calc\(100vh-72px\)\] bg-\[var\(--surface-canvas\)\]/,
   );
-  assert.match(page, /<h1[\s\S]*?id="sales-title"/);
+  assert.match(page, /<PageHeader[\s\S]*?title={t\("route.sales.title"\)}/);
   assert.match(page, /import \{ KpiCard \}/);
   assert.match(page, /<KpiCard[\s\S]*?variant="executive"/);
   assert.doesNotMatch(page, /function SalesExecutiveKpiCard/);

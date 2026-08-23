@@ -15,6 +15,7 @@ export function LoadingSkeleton({ variant = "chart", label = "Loading" }: Loadin
       aria-busy="true"
       aria-label={label}
       data-loading-variant={variant}
+      data-enterprise-component="loading-state"
     >
       {skeleton}
     </div>

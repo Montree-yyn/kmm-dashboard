@@ -84,7 +84,7 @@ const conditionIcons: Record<WeatherCondition, LucideIcon> = {
   Thunderstorms: CloudLightning,
 };
 
-export function WeatherPage() {
+export function WeatherPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, language } = useLocale();
   const copy = weatherCopy(language);
   const [scope, setScope] = useState<Scope>("all");
@@ -159,6 +159,7 @@ export function WeatherPage() {
     <div className="min-h-[calc(100vh-72px)] w-full min-w-0 max-w-full overflow-x-clip bg-[var(--surface-canvas)] text-[var(--text-primary)]" data-weather-page>
       <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-5 xl:p-6">
         <div className="space-y-6">
+          {!embedded && (
           <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]" aria-hidden="true" />
@@ -193,6 +194,26 @@ export function WeatherPage() {
               {loading ? copy.refreshing : copy.refreshLiveWeather}
             </button>
           </header>
+          )}
+          {embedded && (
+            <div className="flex flex-wrap items-center justify-end gap-2" data-weather-embedded-controls>
+              <span className={cn(
+                "inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em]",
+                liveLocations.length && cacheStatus !== "stale"
+                  ? "border-[var(--status-success-bg)] bg-[var(--status-success-bg)] text-[var(--status-success)]"
+                  : liveLocations.length
+                    ? "border-[var(--status-warning-bg)] bg-[var(--status-warning-bg)] text-[var(--status-warning)]"
+                    : "border-[var(--brand-100)] bg-[var(--brand-50)] text-[var(--brand-600)]",
+              )}>
+                <Activity size={12} aria-hidden="true" />
+                {liveLocations.length ? (cacheStatus === "stale" ? copy.statusStale : copy.statusLive) : copy.statusConnecting}
+              </span>
+              <button type="button" onClick={() => void loadWeather(true)} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] disabled:cursor-wait disabled:opacity-60" aria-label={copy.refreshAria}>
+                <RefreshCw className={cn(loading && "animate-spin motion-reduce:animate-none")} size={14} aria-hidden="true" />
+                {loading ? copy.refreshing : copy.refreshLiveWeather}
+              </button>
+            </div>
+          )}
 
           <section className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:justify-between sm:p-5" aria-label={copy.scopeAria}>
             <div className="flex items-start gap-3">

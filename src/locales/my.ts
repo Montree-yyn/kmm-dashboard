@@ -5,7 +5,7 @@ import en from "./en";
 // never a silent English fallback (roadmap task 1.3).
 //
 // Keys that still carry Thai placeholder text (pending a Myanmar-speaking
-// owner's review) are marked inline with `// TODO(my)` — translate them
+// Myanmar copy is localized below; business terms intentionally retain familiar English where useful.
 // to Burmese; the placeholder keeps the surface non-English meanwhile.
 const my: Record<keyof typeof en, string> = {
   "app.title": "KMM အမှုဆောင် ဒက်ရှ်ဘုတ်",
@@ -52,7 +52,7 @@ const my: Record<keyof typeof en, string> = {
   "route.expense.subtitle": "KMM Financial Intelligence",
   "route.team.title": "Sales Organization",
   "route.team.subtitle": "KMM Organization Intelligence",
-  "page.dataHubSubtitle": "ศูนย์ข้อมูลระดับองค์กร", // TODO(my)
+  "page.dataHubSubtitle": "လုပ်ငန်းအဆင့် ဒေတာစင်တာ",
   "common.all": "အားလုံး",
   "common.copy": "ကူးယူရန်",
   "common.currentSnapshot": "လက်ရှိ အခြေအနေ",
@@ -65,24 +65,24 @@ const my: Record<keyof typeof en, string> = {
   "common.notAvailable": "N/A",
   "common.selectedPeriod": "ရွေးချယ်ထားသော ကာလ",
   "common.units": "စီးရေ",
-  "common.days": "วัน", // TODO(my)
-  "common.records": "รายการ", // TODO(my)
-  "common.periods": "ช่วงข้อมูลที่พบ", // TODO(my)
-  "common.model": "รุ่นสินค้า", // TODO(my)
-  "common.payment": "ประเภทการชำระเงิน", // TODO(my)
-  "common.stock": "สต็อก", // TODO(my)
-  "common.booking": "ยอดจอง", // TODO(my)
-  "common.category": "รายการ", // TODO(my)
-  "common.value": "จำนวน", // TODO(my)
-  "common.contribution": "สัดส่วนผลงาน", // TODO(my)
-  "common.averageAge": "อายุเฉลี่ย", // TODO(my)
-  "common.conversion": "อัตราส่งมอบ", // TODO(my)
-  "common.lowerConcentration": "กระจุกตัวน้อย", // TODO(my)
-  "common.higherConcentration": "กระจุกตัวมาก", // TODO(my)
-  "common.date": "วันที่", // TODO(my)
-  "common.activity": "รายการ", // TODO(my)
-  "common.owner": "ผู้รับผิดชอบ", // TODO(my)
-  "common.status": "สถานะ", // TODO(my)
+  "common.days": "ရက်",
+  "common.records": "မှတ်တမ်းများ",
+  "common.periods": "တွေ့ရှိသော ဒေတာကာလများ",
+  "common.model": "ထုတ်ကုန်မော်ဒယ်",
+  "common.payment": "ငွေပေးချေမှုအမျိုးအစား",
+  "common.stock": "စတော့",
+  "common.booking": "ဘွတ်ကင်",
+  "common.category": "အမျိုးအစား",
+  "common.value": "တန်ဖိုး",
+  "common.contribution": "ပါဝင်ပံ့ပိုးမှုအချိုး",
+  "common.averageAge": "ပျမ်းမျှအသက်",
+  "common.conversion": "ပို့ဆောင်ပြီးမြောက်မှုနှုန်း",
+  "common.lowerConcentration": "စုစည်းမှုနည်း",
+  "common.higherConcentration": "စုစည်းမှုများ",
+  "common.date": "ရက်စွဲ",
+  "common.activity": "လုပ်ဆောင်ချက်",
+  "common.owner": "တာဝန်ခံ",
+  "common.status": "အခြေအနေ",
   "common.openNavigation": "မီနူး ဖွင့်ရန်",
   "common.openNotifications": "အသိပေးချက်များ ဖွင့်ရန်",
   "common.openProfileMenu": "Profile မီနူး ဖွင့်ရန်",
@@ -110,162 +110,162 @@ const my: Record<keyof typeof en, string> = {
   "common.activeFilters": "အသုံးပြုထားသော Filters",
   "common.clearAll": "အားလုံး ရှင်းရန်",
   "common.viewRefreshed": "Data အပ်ဒိတ်ချိန်",
-  "common.freshnessUnavailable": "ไม่พบเวลาปรับปรุงข้อมูล", // TODO(my)
-  "filter.year": "ปี", // TODO(my)
-  "filter.month": "เดือน", // TODO(my)
-  "filter.branch": "สาขา", // TODO(my)
-  "filter.salesperson": "พนักงานขาย", // TODO(my)
-  "filter.productGroup": "กลุ่มสินค้า", // TODO(my)
-  "filter.productType": "ประเภทสินค้า", // TODO(my)
-  "filter.bookingStatus": "สถานะการจอง", // TODO(my)
-  "filter.allProducts": "สินค้าทั้งหมด", // TODO(my)
-  "metric.grossProfit": "กำไรขั้นต้น", // TODO(my)
-  "metric.stockUnit": "จำนวนสินค้าคงคลัง", // TODO(my)
-  "metric.stockValue": "มูลค่าสินค้าคงคลัง", // TODO(my)
-  "metric.depositReceived": "เงินมัดจำที่ได้รับ", // TODO(my)
-  "metric.averageBookingAge": "อายุการจองเฉลี่ย", // TODO(my)
-  "metric.bookingConversionRate": "อัตราส่งมอบจากยอดจอง", // TODO(my)
-  "metric.stockCoverage": "ความเพียงพอของสต็อก", // TODO(my)
-  "metric.agedStock": "สต็อกค้างเกิน 90 วัน", // TODO(my)
-  "metric.averageStockAge": "อายุสต็อกเฉลี่ย", // TODO(my)
-  "metric.stockGap": "ส่วนต่างสต็อก", // TODO(my)
-  "metric.averageSellingPrice": "ราคาขายเฉลี่ย (ASP)", // TODO(my)
-  "dashboard.selectOneYearForYoy": "เลือก 1 ปีเพื่อเทียบกับปีก่อน", // TODO(my)
-  "dashboard.compareWith": "เทียบกับ", // TODO(my)
-  "dashboard.bookingValue": "มูลค่ายอดจอง", // TODO(my)
-  "dashboard.deposit": "เงินมัดจำ", // TODO(my)
-  "settings.searchPlaceholder": "ค้นหาการตั้งค่า…", // TODO(my)
-  "settings.searchLabel": "ค้นหาการตั้งค่า", // TODO(my)
-  "settings.clearSearch": "ล้างคำค้นหา", // TODO(my)
-  "settings.noResults": "ไม่พบการตั้งค่าที่ค้นหา", // TODO(my)
-  "settings.noResultsHint": "ลองใช้คำค้นหาอื่น", // TODO(my)
-  "settings.open": "เปิด", // TODO(my)
-  "settings.active": "พร้อมใช้งาน", // TODO(my)
-  "settings.companyTitle": "จัดการบริษัท", // TODO(my)
-  "settings.companyDescription": "ข้อมูลบริษัท · สาขา · แผนก · ปีบัญชี", // TODO(my)
-  "settings.usersTitle": "จัดการผู้ใช้งาน", // TODO(my)
-  "settings.usersDescription": "ผู้ใช้งาน · โปรไฟล์ · สิทธิ์เข้าถึง", // TODO(my)
-  "settings.rolesTitle": "บทบาทและสิทธิ์", // TODO(my)
-  "settings.rolesDescription": "บทบาท · สิทธิ์ · การอนุมัติ", // TODO(my)
-  "settings.aiTitle": "ตั้งค่า AI", // TODO(my)
-  "settings.aiDescription": "โมเดล AI · หน่วยความจำ · คำสั่ง · ตัวแทนอัตโนมัติ", // TODO(my)
-  "settings.dashboardTitle": "ตั้งค่าแดชบอร์ด", // TODO(my)
-  "settings.dashboardDescription": "วิดเจ็ต · การจัดวาง · KPI", // TODO(my)
-  "settings.themeTitle": "ธีมและภาษา", // TODO(my)
-  "settings.themeDescription": "ธีม · โหมดมืด · โหมดสว่าง · ภาษา", // TODO(my)
-  "settings.backupTitle": "สำรองข้อมูล", // TODO(my)
-  "settings.backupDescription": "สำรองอัตโนมัติ · กู้คืน · ตารางเวลา", // TODO(my)
-  "settings.auditTitle": "ประวัติการใช้งาน", // TODO(my)
-  "settings.auditDescription": "ประวัติ · กิจกรรม · ความปลอดภัย", // TODO(my)
-  "section.salesTrajectory": "แนวโน้มยอดขาย", // TODO(my)
-  "section.salesTrajectoryDescription": "ติดตามแนวโน้มยอดขายและสถานะเทียบเป้าหมายตามตัวกรองที่เลือก", // TODO(my)
-  "section.bookingPipeline": "ภาพรวมการจอง", // TODO(my)
-  "section.bookingPipelineDescription": "ติดตามสถานะ อายุการจอง และภาระงานของแต่ละสาขา", // TODO(my)
-  "section.stockRisk": "ความเสี่ยงและความเพียงพอของสต็อก", // TODO(my)
-  "section.stockRiskDescription": "ติดตามอายุสินค้าคงคลังและความเพียงพอเมื่อเทียบกับยอดจอง", // TODO(my)
-  "chart.salesTrendTitle": "แนวโน้มยอดขาย", // TODO(my)
-  "chart.salesTrendDescription": "เปรียบเทียบผลการขายตามปี ช่วงเวลา และตัวชี้วัด", // TODO(my)
-  "chart.bookingHealthTitle": "ภาพรวมอายุยอดจอง", // TODO(my)
-  "chart.bookingHealthDescription": "จำนวนและมูลค่ายอดจองคงค้าง แยกตามอายุการจอง", // TODO(my)
-  "chart.stockHealthTitle": "ภาพรวมอายุสต็อก", // TODO(my)
-  "chart.stockHealthDescription": "อายุสินค้าคงเหลือ นับจากวันที่รับเข้า", // TODO(my)
-  "section.rankingsMix": "อันดับและสัดส่วนยอดขาย", // TODO(my)
-  "section.rankingsMixDescription": "วิเคราะห์ผลงานตามสาขา พนักงานขาย กลุ่มสินค้า และรุ่นสินค้า", // TODO(my)
-  "section.secondaryAnalysis": "วิเคราะห์เชิงลึก", // TODO(my)
-  "section.dashboardSecondaryDescription": "ติดตามสถานะการจอง ความเพียงพอของสต็อก และสัดส่วนสินค้าเพื่อใช้ตัดสินใจ", // TODO(my)
-  "section.stockCoverage": "ความเพียงพอของสต็อก", // TODO(my)
-  "section.stockCoverageDescription": "เปรียบเทียบสินค้าคงคลังกับยอดจองคงค้างในแต่ละรุ่น", // TODO(my)
-  "section.branchPerformance": "สถานะสินค้ารายสาขา", // TODO(my)
-  "section.branchPerformanceDescription": "เปรียบเทียบจำนวนสินค้า ยอดจองคงค้าง มูลค่า และอายุสต็อกของแต่ละสาขา", // TODO(my)
-  "section.stockSecondaryDescription": "วิเคราะห์สัดส่วนสินค้า อายุสต็อกรายรุ่น และรายการที่ควรติดตาม", // TODO(my)
-  "section.bookingSecondaryDescription": "วิเคราะห์ยอดจองตามสินค้า รุ่น พนักงานขาย การชำระเงิน และอายุการจอง", // TODO(my)
-  "section.transactions": "รายการขาย", // TODO(my)
-  "section.transactionsDescription": "รายละเอียดจากข้อมูลต้นทางตามตัวกรองที่เลือก", // TODO(my)
-  "chart.branchPerformanceTitle": "ผลงานรายสาขา", // TODO(my)
-  "chart.branchPerformanceDescription": "เรียงอันดับสาขาตามจำนวนขาย", // TODO(my)
-  "chart.bookingLifecycleTitle": "สถานะยอดจองรายเดือน", // TODO(my)
-  "chart.bookingLifecycleDescription": "แยกจำนวนรายการรายเดือนตามสถานะจากข้อมูลต้นทาง", // TODO(my)
-  "chart.stockVsBookingTitle": "สต็อกเทียบยอดจอง", // TODO(my)
-  "chart.stockVsBookingDescription": "เปรียบเทียบสินค้าคงคลังกับยอดจองคงค้าง", // TODO(my)
-  "chart.productMixTitle": "สัดส่วนยอดขายตามกลุ่มสินค้า", // TODO(my)
-  "chart.productMixDescription": "สัดส่วนจำนวนขายของแต่ละกลุ่มสินค้า", // TODO(my)
-  "chart.agingRiskTitle": "ความเสี่ยงจากอายุสต็อก", // TODO(my)
-  "chart.agingRiskDescription": "การกระจุกตัวของสินค้าคงคลัง แยกตามกลุ่มสินค้าและช่วงอายุ", // TODO(my)
-  "chart.stockProductAnalysisTitle": "สัดส่วนสินค้าคงคลัง", // TODO(my)
-  "chart.stockProductAnalysisDescription": "สัดส่วนจำนวนสินค้าคงคลังของแต่ละกลุ่มสินค้า", // TODO(my)
-  "chart.agedModelTitle": "รุ่นสินค้าที่มีอายุสต็อกสูงสุด", // TODO(my)
-  "chart.agedModelDescription": "อายุสต็อกเฉลี่ย โดยเส้นประคือเกณฑ์ความเสี่ยง 90 วัน", // TODO(my)
-  "chart.stockAgingMatrixTitle": "การกระจุกตัวของอายุสต็อก", // TODO(my)
-  "chart.stockAgingMatrixDescription": "แสดงจำนวนสินค้าของแต่ละรุ่น แยกตามช่วงอายุสต็อก", // TODO(my)
-  "chart.bookingStatusTitle": "สัดส่วนสถานะการจอง", // TODO(my)
-  "chart.bookingStatusDescription": "จำนวนและสัดส่วนยอดจองในแต่ละสถานะตามตัวกรองที่เลือก", // TODO(my)
-  "chart.branchBookingRiskTitle": "ความเสี่ยงยอดจองรายสาขา", // TODO(my)
-  "chart.branchBookingRiskDescription": "ยอดจองคงค้างรายสาขา โดยสีแดงคือรายการวิกฤตเกิน 90 วัน", // TODO(my)
-  "chart.bookingBreakdownTitle": "5 อันดับยอดจอง", // TODO(my)
-  "chart.bookingBreakdownDescription": "เลือกวิเคราะห์ตามกลุ่มสินค้า รุ่น พนักงานขาย หรือประเภทการชำระเงิน", // TODO(my)
-  "chart.bookingAgingMatrixTitle": "การกระจุกตัวของอายุการจอง", // TODO(my)
-  "chart.bookingAgingMatrixDescription": "แสดงยอดจองคงค้างของแต่ละรุ่น แยกตามช่วงอายุการจอง", // TODO(my)
-  "chart.managementFollowUpTitle": "รายการที่ผู้บริหารควรติดตาม", // TODO(my)
-  "chart.managementFollowUpDescription": "ข้อเสนอแนะจากข้อมูลตามตัวกรองปัจจุบัน", // TODO(my)
-  "chart.salesByBranchTitle": "ยอดขายรายสาขา", // TODO(my)
-  "chart.salesByBranchDescription": "เรียงอันดับสาขาตามจำนวนขาย", // TODO(my)
-  "chart.salespersonConcentrationTitle": "การกระจุกตัวของผลงานพนักงานขาย", // TODO(my)
-  "chart.salespersonConcentrationDescription": "เรียงอันดับจำนวนขายพร้อมสัดส่วนสะสม", // TODO(my)
-  "chart.salesProductGroupTitle": "สัดส่วนยอดขายตามกลุ่มสินค้า", // TODO(my)
-  "chart.salesProductGroupDescription": "สัดส่วนจำนวนขายของแต่ละกลุ่มสินค้า", // TODO(my)
-  "chart.topModelTitle": "รุ่นสินค้าขายดี", // TODO(my)
-  "chart.topModelDescription": "เรียงอันดับรุ่นสินค้าตามจำนวนขาย", // TODO(my)
-  "status.healthy": "ปกติ", // TODO(my)
-  "status.watch": "เฝ้าระวัง", // TODO(my)
-  "status.atRisk": "เสี่ยง", // TODO(my)
-  "status.critical": "วิกฤต", // TODO(my)
-  "status.open": "รอดำเนินการ", // TODO(my)
-  "status.delivered": "ส่งมอบแล้ว", // TODO(my)
-  "status.cancelled": "ยกเลิก", // TODO(my)
-  "booking.depositNotSplit": "ยังไม่มีข้อมูลเงินมัดจำแยกตามช่วงอายุการจอง", // TODO(my)
-  "booking.escalate": "เร่งติดตาม", // TODO(my)
-  "booking.noCriticalFollowUp": "ไม่พบยอดจองคงค้างเกิน 90 วันตามตัวกรองปัจจุบัน", // TODO(my)
-  "dashboard.attentionTitle": "ประเด็นที่ต้องติดตาม", // TODO(my)
-  "dashboard.attentionDescription": "รายการตามบริษัทและตัวกรองปัจจุบัน", // TODO(my)
-  "dashboard.liveScope": "ข้อมูลปัจจุบัน", // TODO(my)
-  "dashboard.openBookingsReview": "ยอดจองคงค้างที่ต้องติดตาม", // TODO(my)
-  "dashboard.bookingUnitsInScope": "คันในขอบเขตข้อมูล", // TODO(my)
-  "dashboard.agedStockReview": "สต็อกค้างเกิน 90 วัน", // TODO(my)
-  "dashboard.stockUnitsReview": "คันที่ควรตรวจสอบ", // TODO(my)
-  "dashboard.sourceFreshness": "เวลาปรับปรุงข้อมูล", // TODO(my)
-  "dashboard.updatedAt": "ปรับปรุงเมื่อ", // TODO(my)
-  "dashboard.stockHealthTitle": "สถานะอายุสต็อก", // TODO(my)
-  "dashboard.stockHealthDescription": "จำนวนสินค้าคงคลัง แยกตามช่วงอายุ", // TODO(my)
-  "dashboard.quickActionsTitle": "เมนูลัด", // TODO(my)
-  "dashboard.quickActionsDescription": "ดำเนินงานต่อในบริษัทปัจจุบัน", // TODO(my)
-  "dashboard.uploadData": "อัปโหลดข้อมูล", // TODO(my)
-  "dashboard.exportActivity": "ส่งออกรายการ", // TODO(my)
-  "dashboard.askKai": "ถาม KAI", // TODO(my)
-  "dashboard.checkDataQuality": "ตรวจคุณภาพข้อมูล", // TODO(my)
-  "dashboard.recentActivityTitle": "รายการดำเนินงานล่าสุด", // TODO(my)
-  "dashboard.recentActivityDescription": "ข้อมูลยอดขาย การจอง และการตลาดล่าสุดตามตัวกรองปัจจุบัน", // TODO(my)
-  "dashboard.noRecentActivity": "ไม่พบรายการล่าสุดตามตัวกรองที่เลือก", // TODO(my)
-  "sales.targetNotConfigured": "ยังไม่ได้กำหนดเป้าหมาย", // TODO(my)
-  "sales.targetMet": "ทำได้ตามเป้าหมาย", // TODO(my)
-  "sales.belowTarget": "ต่ำกว่าเป้าหมาย", // TODO(my)
-  "sales.targetProgress": "ความคืบหน้าเทียบเป้าหมาย", // TODO(my)
-  "sales.monthlyUnitPlan": "เป้าหมายจำนวนขายรายเดือน", // TODO(my)
-  "sales.target": "เป้าหมาย", // TODO(my)
-  "sales.actual": "ผลงานจริง", // TODO(my)
-  "sales.remaining": "ยอดที่เหลือจากเป้าหมาย", // TODO(my)
-  "sales.transactionTableTitle": "รายละเอียดรายการขาย", // TODO(my)
-  "sales.transactionTableDescription": "ข้อมูลรายการขายจากต้นทางตามตัวกรองที่เลือก", // TODO(my)
-  "booking.toDelivered": "ยอดจอง → ส่งมอบ", // TODO(my)
-  "stock.coverageFormula": "สต็อก ÷ ยอดจอง", // TODO(my)
-  "stock.openBookingUnits": "คันที่ยังรอส่งมอบ", // TODO(my)
-  "stock.filteredInventory": "ของสินค้าตามตัวกรอง", // TODO(my)
-  "stock.noOpenBooking": "ไม่มียอดจองคงค้าง", // TODO(my)
-  "stock.noFilteredStock": "ไม่พบสินค้าตามตัวกรอง", // TODO(my)
-  "stock.validMsrp": "เฉพาะกลุ่มสินค้าที่มีราคามาตรฐาน (MSRP)", // TODO(my)
-  "stock.trendWithheld": "ยังไม่แสดงแนวโน้มสต็อก เพราะต้องมีข้อมูลอย่างน้อย 8 ช่วงเวลาจึงจะวิเคราะห์ได้อย่างน่าเชื่อถือ", // TODO(my)
-  "stock.ninetyDayThreshold": "เกณฑ์ความเสี่ยง 90 วัน", // TODO(my)
-  "stock.detailTitle": "รายละเอียดสินค้าคงคลัง", // TODO(my)
-  "booking.detailTitle": "รายละเอียดยอดจอง", // TODO(my)
+  "common.freshnessUnavailable": "ဒေတာအပ်ဒိတ်အချိန် မတွေ့ပါ",
+  "filter.year": "နှစ်",
+  "filter.month": "လ",
+  "filter.branch": "ရုံးခွဲ",
+  "filter.salesperson": "အရောင်းဝန်ထမ်း",
+  "filter.productGroup": "ထုတ်ကုန်အုပ်စု",
+  "filter.productType": "ထုတ်ကုန်အမျိုးအစား",
+  "filter.bookingStatus": "ဘွတ်ကင်အခြေအနေ",
+  "filter.allProducts": "ထုတ်ကုန်အားလုံး",
+  "metric.grossProfit": "အကြမ်းအမြတ်",
+  "metric.stockUnit": "စတော့အရေအတွက်",
+  "metric.stockValue": "စတော့တန်ဖိုး",
+  "metric.depositReceived": "လက်ခံရရှိသော စပေါ်ငွေ",
+  "metric.averageBookingAge": "ပျမ်းမျှဘွတ်ကင်အသက်",
+  "metric.bookingConversionRate": "ဘွတ်ကင်မှ ပို့ဆောင်ပြီးမြောက်မှုနှုန်း",
+  "metric.stockCoverage": "စတော့လုံလောက်မှု",
+  "metric.agedStock": "ရက် ၉၀ ကျော် စတော့",
+  "metric.averageStockAge": "ပျမ်းမျှစတော့အသက်",
+  "metric.stockGap": "စတော့ကွာဟချက်",
+  "metric.averageSellingPrice": "ပျမ်းမျှရောင်းဈေး (ASP)",
+  "dashboard.selectOneYearForYoy": "ယခင်နှစ်နှင့် နှိုင်းယှဉ်ရန် ၁ နှစ်ရွေးပါ",
+  "dashboard.compareWith": "နှိုင်းယှဉ်ရန်",
+  "dashboard.bookingValue": "ဘွတ်ကင်တန်ဖိုး",
+  "dashboard.deposit": "စပေါ်ငွေ",
+  "settings.searchPlaceholder": "ဆက်တင်များ ရှာရန်…",
+  "settings.searchLabel": "ဆက်တင်များ ရှာရန်",
+  "settings.clearSearch": "ရှာဖွေမှု ရှင်းရန်",
+  "settings.noResults": "ရှာဖွေသော ဆက်တင် မတွေ့ပါ",
+  "settings.noResultsHint": "အခြားစကားလုံးဖြင့် ရှာကြည့်ပါ",
+  "settings.open": "ဖွင့်ရန်",
+  "settings.active": "အသုံးပြုနိုင်သည်",
+  "settings.companyTitle": "ကုမ္ပဏီ စီမံခန့်ခွဲမှု",
+  "settings.companyDescription": "ကုမ္ပဏီအချက်အလက် · ရုံးခွဲ · ဌာန · ဘဏ္ဍာရေးနှစ်",
+  "settings.usersTitle": "အသုံးပြုသူ စီမံခန့်ခွဲမှု",
+  "settings.usersDescription": "အသုံးပြုသူ · ပရိုဖိုင် · ဝင်ရောက်ခွင့်",
+  "settings.rolesTitle": "အခန်းကဏ္ဍနှင့် ခွင့်ပြုချက်",
+  "settings.rolesDescription": "အခန်းကဏ္ဍ · ခွင့်ပြုချက် · အတည်ပြုမှု",
+  "settings.aiTitle": "AI ဆက်တင်",
+  "settings.aiDescription": "AI မော်ဒယ် · မှတ်ဉာဏ် · ညွှန်ကြားချက် · အလိုအလျောက် Agent",
+  "settings.dashboardTitle": "Dashboard ဆက်တင်",
+  "settings.dashboardDescription": "Widget · Layout · KPI",
+  "settings.themeTitle": "Theme နှင့် ဘာသာစကား",
+  "settings.themeDescription": "Theme · Dark Mode · Light Mode · ဘာသာစကား",
+  "settings.backupTitle": "ဒေတာအရန်သိမ်းခြင်း",
+  "settings.backupDescription": "အလိုအလျောက် Backup · Restore · အချိန်ဇယား",
+  "settings.auditTitle": "အသုံးပြုမှုမှတ်တမ်း",
+  "settings.auditDescription": "မှတ်တမ်း · လုပ်ဆောင်ချက် · လုံခြုံရေး",
+  "section.salesTrajectory": "အရောင်းလမ်းကြောင်း",
+  "section.salesTrajectoryDescription": "ရွေးထားသော filter အလိုက် အရောင်းလမ်းကြောင်းနှင့် ပန်းတိုင်အခြေအနေကို စောင့်ကြည့်ပါ",
+  "section.bookingPipeline": "ဘွတ်ကင် Pipeline အနှစ်ချုပ်",
+  "section.bookingPipelineDescription": "ရုံးခွဲတစ်ခုချင်းစီ၏ အခြေအနေ၊ ဘွတ်ကင်အသက်နှင့် အလုပ်ပမာဏကို စောင့်ကြည့်ပါ",
+  "section.stockRisk": "စတော့အန္တရာယ်နှင့် လုံလောက်မှု",
+  "section.stockRiskDescription": "စတော့အသက်နှင့် ဘွတ်ကင်နှိုင်းယှဉ်လုံလောက်မှုကို စောင့်ကြည့်ပါ",
+  "chart.salesTrendTitle": "အရောင်းလမ်းကြောင်း",
+  "chart.salesTrendDescription": "နှစ်၊ ကာလနှင့် KPI အလိုက် အရောင်းရလဒ်ကို နှိုင်းယှဉ်ပါ",
+  "chart.bookingHealthTitle": "ဘွတ်ကင်အသက်အနှစ်ချုပ်",
+  "chart.bookingHealthDescription": "ဘွတ်ကင်အသက်အလိုက် လက်ကျန်ဘွတ်ကင်အရေအတွက်နှင့် တန်ဖိုး",
+  "chart.stockHealthTitle": "စတော့အသက်အနှစ်ချုပ်",
+  "chart.stockHealthDescription": "လက်ခံရရှိသည့်နေ့မှ စတော့အသက်",
+  "section.rankingsMix": "အဆင့်နှင့် အရောင်းအချိုး",
+  "section.rankingsMixDescription": "ရုံးခွဲ၊ အရောင်းဝန်ထမ်း၊ ထုတ်ကုန်အုပ်စုနှင့် မော်ဒယ်အလိုက် စွမ်းဆောင်ရည် ခွဲခြမ်းပါ",
+  "section.secondaryAnalysis": "အသေးစိတ်ခွဲခြမ်းမှု",
+  "section.dashboardSecondaryDescription": "ဆုံးဖြတ်ချက်အတွက် ဘွတ်ကင်အခြေအနေ၊ စတော့လုံလောက်မှုနှင့် ထုတ်ကုန်အချိုးကို စောင့်ကြည့်ပါ",
+  "section.stockCoverage": "စတော့လုံလောက်မှု",
+  "section.stockCoverageDescription": "မော်ဒယ်တစ်ခုချင်းစီ၏ စတော့နှင့် လက်ကျန်ဘွတ်ကင်ကို နှိုင်းယှဉ်ပါ",
+  "section.branchPerformance": "ရုံးခွဲအလိုက် စတော့အခြေအနေ",
+  "section.branchPerformanceDescription": "ရုံးခွဲတစ်ခုချင်းစီ၏ စတော့အရေအတွက်၊ လက်ကျန်ဘွတ်ကင်၊ တန်ဖိုးနှင့် စတော့အသက်ကို နှိုင်းယှဉ်ပါ",
+  "section.stockSecondaryDescription": "ထုတ်ကုန်အချိုး၊ မော်ဒယ်အလိုက် စတော့အသက်နှင့် စောင့်ကြည့်ရမည့်အချက်များကို ခွဲခြမ်းပါ",
+  "section.bookingSecondaryDescription": "ထုတ်ကုန်၊ မော်ဒယ်၊ အရောင်းဝန်ထမ်း၊ ငွေပေးချေမှုနှင့် ဘွတ်ကင်အသက်အလိုက် ခွဲခြမ်းပါ",
+  "section.transactions": "အရောင်းမှတ်တမ်းများ",
+  "section.transactionsDescription": "ရွေးထားသော filter အလိုက် မူရင်းဒေတာအသေးစိတ်",
+  "chart.branchPerformanceTitle": "ရုံးခွဲအလိုက် စွမ်းဆောင်ရည်",
+  "chart.branchPerformanceDescription": "ရောင်းချအရေအတွက်အလိုက် ရုံးခွဲအဆင့်စီ",
+  "chart.bookingLifecycleTitle": "လစဉ်ဘွတ်ကင်အခြေအနေ",
+  "chart.bookingLifecycleDescription": "မူရင်းဒေတာအခြေအနေအလိုက် လစဉ်မှတ်တမ်းအရေအတွက်",
+  "chart.stockVsBookingTitle": "စတော့နှင့် ဘွတ်ကင်",
+  "chart.stockVsBookingDescription": "စတော့နှင့် လက်ကျန်ဘွတ်ကင်ကို နှိုင်းယှဉ်ပါ",
+  "chart.productMixTitle": "ထုတ်ကုန်အုပ်စုအလိုက် အရောင်းအချိုး",
+  "chart.productMixDescription": "ထုတ်ကုန်အုပ်စုတစ်ခုချင်းစီ၏ အရောင်းအရေအတွက်အချိုး",
+  "chart.agingRiskTitle": "စတော့အသက်အန္တရာယ်",
+  "chart.agingRiskDescription": "ထုတ်ကုန်အုပ်စုနှင့် အသက်ကာလအလိုက် စတော့စုစည်းမှု",
+  "chart.stockProductAnalysisTitle": "စတော့ထုတ်ကုန်အချိုး",
+  "chart.stockProductAnalysisDescription": "ထုတ်ကုန်အုပ်စုတစ်ခုချင်းစီ၏ စတော့အရေအတွက်အချိုး",
+  "chart.agedModelTitle": "စတော့အသက်အမြင့်ဆုံး မော်ဒယ်များ",
+  "chart.agedModelDescription": "ပျမ်းမျှစတော့အသက်၊ ပျက်မျဉ်းသည် ရက် ၉၀ အန္တရာယ်သတ်မှတ်ချက်",
+  "chart.stockAgingMatrixTitle": "စတော့အသက်စုစည်းမှု",
+  "chart.stockAgingMatrixDescription": "မော်ဒယ်တစ်ခုချင်းစီ၏ စတော့အရေအတွက်ကို အသက်ကာလအလိုက် ပြပါ",
+  "chart.bookingStatusTitle": "ဘွတ်ကင်အခြေအနေအချိုး",
+  "chart.bookingStatusDescription": "ရွေးထားသော filter အလိုက် အခြေအနေတစ်ခုချင်းစီ၏ ဘွတ်ကင်အရေအတွက်နှင့် အချိုး",
+  "chart.branchBookingRiskTitle": "ရုံးခွဲအလိုက် ဘွတ်ကင်အန္တရာယ်",
+  "chart.branchBookingRiskDescription": "ရုံးခွဲအလိုက် လက်ကျန်ဘွတ်ကင်၊ အနီရောင်သည် ရက် ၉၀ ကျော် အရေးကြီးမှတ်တမ်း",
+  "chart.bookingBreakdownTitle": "ထိပ်တန်း ဘွတ်ကင် ၅ ခု",
+  "chart.bookingBreakdownDescription": "ထုတ်ကုန်အုပ်စု၊ မော်ဒယ်၊ အရောင်းဝန်ထမ်း သို့မဟုတ် ငွေပေးချေမှုအမျိုးအစားအလိုက် ခွဲခြမ်းပါ",
+  "chart.bookingAgingMatrixTitle": "ဘွတ်ကင်အသက်စုစည်းမှု",
+  "chart.bookingAgingMatrixDescription": "မော်ဒယ်တစ်ခုချင်းစီ၏ လက်ကျန်ဘွတ်ကင်ကို အသက်ကာလအလိုက် ပြပါ",
+  "chart.managementFollowUpTitle": "စီမံခန့်ခွဲမှု စောင့်ကြည့်ရမည့်အချက်များ",
+  "chart.managementFollowUpDescription": "လက်ရှိ filter ဒေတာမှ အကြံပြုချက်များ",
+  "chart.salesByBranchTitle": "ရုံးခွဲအလိုက် အရောင်း",
+  "chart.salesByBranchDescription": "ရောင်းချအရေအတွက်အလိုက် ရုံးခွဲအဆင့်စီ",
+  "chart.salespersonConcentrationTitle": "အရောင်းဝန်ထမ်း စွမ်းဆောင်ရည်စုစည်းမှု",
+  "chart.salespersonConcentrationDescription": "ရောင်းချအရေအတွက်အဆင့်နှင့် စုစုပေါင်းအချိုး",
+  "chart.salesProductGroupTitle": "ထုတ်ကုန်အုပ်စုအလိုက် အရောင်းအချိုး",
+  "chart.salesProductGroupDescription": "ထုတ်ကုန်အုပ်စုတစ်ခုချင်းစီ၏ အရောင်းအရေအတွက်အချိုး",
+  "chart.topModelTitle": "အရောင်းကောင်း မော်ဒယ်များ",
+  "chart.topModelDescription": "ရောင်းချအရေအတွက်အလိုက် မော်ဒယ်အဆင့်စီ",
+  "status.healthy": "ကောင်းမွန်",
+  "status.watch": "စောင့်ကြည့်ရန်",
+  "status.atRisk": "အန္တရာယ်ရှိ",
+  "status.critical": "အရေးကြီး",
+  "status.open": "စောင့်ဆိုင်းဆောင်ရွက်",
+  "status.delivered": "ပို့ဆောင်ပြီး",
+  "status.cancelled": "ပယ်ဖျက်ပြီး",
+  "booking.depositNotSplit": "ဘွတ်ကင်အသက်ကာလအလိုက် စပေါ်ငွေခွဲခြားဒေတာ မရှိသေးပါ",
+  "booking.escalate": "အမြန်လိုက်နာရန်",
+  "booking.noCriticalFollowUp": "လက်ရှိ filter တွင် ရက် ၉၀ ကျော် လက်ကျန်ဘွတ်ကင် မတွေ့ပါ",
+  "dashboard.attentionTitle": "စောင့်ကြည့်ရန် အချက်များ",
+  "dashboard.attentionDescription": "လက်ရှိကုမ္ပဏီနှင့် filter အလိုက် စာရင်း",
+  "dashboard.liveScope": "လက်ရှိဒေတာ",
+  "dashboard.openBookingsReview": "စောင့်ကြည့်ရမည့် လက်ကျန်ဘွတ်ကင်",
+  "dashboard.bookingUnitsInScope": "ဒေတာအတွင်း စီးရေ",
+  "dashboard.agedStockReview": "ရက် ၉၀ ကျော် စတော့",
+  "dashboard.stockUnitsReview": "စစ်ဆေးသင့်သော စီးရေ",
+  "dashboard.sourceFreshness": "ဒေတာအပ်ဒိတ်အချိန်",
+  "dashboard.updatedAt": "အပ်ဒိတ်လုပ်ချိန်",
+  "dashboard.stockHealthTitle": "စတော့အသက်အခြေအနေ",
+  "dashboard.stockHealthDescription": "အသက်ကာလအလိုက် စတော့အရေအတွက်",
+  "dashboard.quickActionsTitle": "အမြန်လုပ်ဆောင်ချက်များ",
+  "dashboard.quickActionsDescription": "လက်ရှိကုမ္ပဏီတွင် ဆက်လက်လုပ်ဆောင်ရန်",
+  "dashboard.uploadData": "ဒေတာတင်ရန်",
+  "dashboard.exportActivity": "စာရင်းထုတ်ရန်",
+  "dashboard.askKai": "KAI ကိုမေးရန်",
+  "dashboard.checkDataQuality": "ဒေတာအရည်အသွေး စစ်ရန်",
+  "dashboard.recentActivityTitle": "နောက်ဆုံးလုပ်ဆောင်ချက်များ",
+  "dashboard.recentActivityDescription": "လက်ရှိ filter အလိုက် နောက်ဆုံးအရောင်း၊ ဘွတ်ကင်နှင့် မားကတ်တင်းဒေတာ",
+  "dashboard.noRecentActivity": "ရွေးထားသော filter အတွက် နောက်ဆုံးမှတ်တမ်း မတွေ့ပါ",
+  "sales.targetNotConfigured": "ပန်းတိုင် မသတ်မှတ်ရသေးပါ",
+  "sales.targetMet": "ပန်းတိုင် ပြည့်မီသည်",
+  "sales.belowTarget": "ပန်းတိုင်အောက်",
+  "sales.targetProgress": "ပန်းတိုင်နှင့် နှိုင်းယှဉ်တိုးတက်မှု",
+  "sales.monthlyUnitPlan": "လစဉ်အရောင်းအရေအတွက် ပန်းတိုင်",
+  "sales.target": "ပန်းတိုင်",
+  "sales.actual": "အမှန်တကယ်ရလဒ်",
+  "sales.remaining": "ပန်းတိုင်သို့ လိုအပ်သေးသောပမာဏ",
+  "sales.transactionTableTitle": "အရောင်းမှတ်တမ်းအသေးစိတ်",
+  "sales.transactionTableDescription": "ရွေးထားသော filter အလိုက် မူရင်းအရောင်းဒေတာ",
+  "booking.toDelivered": "ဘွတ်ကင် → ပို့ဆောင်",
+  "stock.coverageFormula": "စတော့ ÷ ဘွတ်ကင်",
+  "stock.openBookingUnits": "ပို့ဆောင်ရန် စောင့်နေသော စီးရေ",
+  "stock.filteredInventory": "filter အလိုက် စတော့",
+  "stock.noOpenBooking": "လက်ကျန်ဘွတ်ကင် မရှိပါ",
+  "stock.noFilteredStock": "filter အလိုက် စတော့ မတွေ့ပါ",
+  "stock.validMsrp": "စံဈေး (MSRP) ရှိသော ထုတ်ကုန်အုပ်စုများသာ",
+  "stock.trendWithheld": "ယုံကြည်စိတ်ချရသော လမ်းကြောင်းခွဲခြမ်းရန် အနည်းဆုံး ၈ ကာလလိုအပ်သောကြောင့် စတော့လမ်းကြောင်းကို မပြသသေးပါ",
+  "stock.ninetyDayThreshold": "ရက် ၉၀ အန္တရာယ်သတ်မှတ်ချက်",
+  "stock.detailTitle": "စတော့အသေးစိတ်",
+  "booking.detailTitle": "ဘွတ်ကင်အသေးစိတ်",
   "language.thai": "ไทย",
   "language.english": "English",
   "language.myanmar": "မြန်မာ",
@@ -302,9 +302,9 @@ const my: Record<keyof typeof en, string> = {
   "comparison.samePeriodLastYear": "ယမန်နှစ် အလားတူကာလ",
   "comparison.previousYear": "ယခင်နှစ်",
   "comparison.custom": "စိတ်ကြိုက် နှိုင်းယှဉ်မှု",
-  "comparison.shortage": "ขาด", // TODO(my)
-  "comparison.surplus": "เกิน", // TODO(my)
-  "comparison.balanced": "พอดี", // TODO(my)
+  "comparison.shortage": "လိုအပ်ချက်",
+  "comparison.surplus": "ပိုလျှံ",
+  "comparison.balanced": "မျှတ",
   "legend.title": "အရောင် ရှင်းလင်းချက်",
   "legend.veryLow": "အလွန်နိမ့်",
   "legend.low": "နိမ့်",

@@ -277,7 +277,7 @@ function resolveIntent(question: string, context: RuntimeQueryContext): string |
   const companyMaster = companyMasterIntent(question, sales, booking, stock, target);
   if (companyMaster) return companyMaster;
   if (isBranchDirectoryQuestion(question, sales, booking, stock, target)) return "BRANCH_DIRECTORY_QUERY";
-  if (isSalespersonMasterQuestion(question, salesperson, sales, booking)) return "SALESPERSON_MASTER_QUERY";
+  if (isSalespersonMasterQuestion(question, salesperson)) return "SALESPERSON_MASTER_QUERY";
   if (target) {
     return targetIntent(targetMetricForQuestion(question), has(/ขาดเป้า|\bgap\b/iu) ? "gap" : has(/ได้กี่เปอร์เซ็นต์|achievement/iu) ? "achievement" : "target");
   }
@@ -391,7 +391,7 @@ function isBookingStatusBreakdown(question: string) {
     && /breakdown|distribution|summary|แยก|สรุป|อันดับ|ranking/iu.test(question);
 }
 
-function isSalespersonMasterQuestion(question: string, salesperson: boolean, _sales: boolean, _booking: boolean) {
+function isSalespersonMasterQuestion(question: string, salesperson: boolean) {
   // "พนักงานขาย" naturally contains the Thai verb "ขาย".  Treat it as a
   // master request when no actual Sales/Booking metric is named.
   const metricRequest = /ยอดขาย|sales\s*(?:value|revenue|target|gp|expense|ranking)|booking|ยอดจอง|จอง/iu.test(question);

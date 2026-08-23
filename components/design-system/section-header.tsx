@@ -8,9 +8,9 @@ type SectionHeaderProps = {
 
 export function SectionHeader({ title, description, action }: SectionHeaderProps) {
   return (
-    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end" data-enterprise-component="section-header">
       <div>
-        <h2 className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[var(--text-primary)]">{title}</h2>
+        <h2 className="text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--text-primary)]">{title}</h2>
         {description && <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>}
       </div>
       {action}

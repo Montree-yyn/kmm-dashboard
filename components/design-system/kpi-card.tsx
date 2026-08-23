@@ -46,9 +46,9 @@ const trendIcon = {
 };
 
 const legacyComparisonTone: Record<LegacyComparisonDirection, string> = {
-  positive: "text-[#16A34A]",
-  negative: "text-[#DC2626]",
-  neutral: "text-[#6B7280]",
+  positive: "text-[var(--status-success)]",
+  negative: "text-[var(--status-danger)]",
+  neutral: "text-[var(--text-secondary)]",
 };
 
 function KpiSparkline({ values, featured }: { values: number[]; featured: boolean }) {
@@ -83,43 +83,44 @@ function LegacyKpiCard({
   return (
     <Card
       className={cn(
-        "h-full min-h-[168px] rounded-2xl border-[#E8EAED] bg-white p-4 shadow-[0_8px_24px_rgba(31,41,55,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(31,41,55,0.07)] 2xl:p-5",
+        "h-full min-h-[168px] rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--text-disabled)] hover:shadow-[var(--shadow-hover)]",
         className,
       )}
       data-kpi-card="true"
+      data-enterprise-component="kpi-card"
       data-kpi-state={loading ? "loading" : empty ? "empty" : "ready"}
       aria-busy={loading || undefined}
     >
       <div className="flex h-full min-h-[136px] flex-col">
         <div className="min-h-10">
-          <p className="max-h-10 overflow-hidden text-[15px] font-semibold leading-5 text-[#4B5563]">
+          <p className="max-h-10 overflow-hidden text-sm font-semibold leading-5 text-[var(--text-secondary)]">
             {title}
           </p>
         </div>
         <div className="flex min-h-12 flex-1 items-center">
           {loading ? (
             <div
-              className="h-10 w-28 animate-pulse rounded-lg bg-[#E9EBEE] motion-reduce:animate-none"
+              className="h-10 w-28 animate-pulse rounded-[var(--radius-control)] bg-[var(--surface-muted)] motion-reduce:animate-none"
               aria-label={`Loading ${title}`}
             />
           ) : empty ? (
-            <strong className="text-[20px] font-semibold leading-none text-[#9CA3AF]">
+            <strong className="text-xl font-semibold leading-none text-[var(--text-tertiary)]">
               No data available
             </strong>
           ) : (
             <div className="flex min-w-0 items-baseline gap-2">
-              <strong className="shrink-0 text-[38px] font-semibold leading-none tracking-[-0.035em] text-[#1F2937]">
+              <strong className="shrink-0 text-[34px] font-semibold leading-none tracking-[-0.025em] text-[var(--text-primary)]">
                 {value}
               </strong>
               {unit && (
-                <span className="whitespace-nowrap text-sm font-semibold leading-none text-[#6B7280]">
+                <span className="whitespace-nowrap text-sm font-semibold leading-none text-[var(--text-secondary)]">
                   {unit}
                 </span>
               )}
             </div>
           )}
         </div>
-        <div className="min-h-11 text-xs font-medium leading-4 text-[#9CA3AF]">
+        <div className="min-h-11 text-xs font-medium leading-4 text-[var(--text-tertiary)]">
           {comparison ? (
             <>
               <p
@@ -187,6 +188,7 @@ export function KpiCard({
         className,
       )}
       data-kpi-card="true"
+      data-enterprise-component="kpi-card"
       data-kpi-status={status}
       data-kpi-state={loading ? "loading" : empty ? "empty" : "ready"}
       data-kpi-featured={featured || undefined}

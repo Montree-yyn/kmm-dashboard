@@ -214,7 +214,7 @@ const report = {
     rows: impactRows.length,
     salesValue: total(impactRows, (row) => row.finalReceived),
     gp: total(impactRows, (row) => row.gp1),
-    engineUnits: total(impactRows.filter((row) => ["01-TT", "02-CH", "03-TP", "04-EX"].includes(stable(row.productType))), (row) => 1),
+    engineUnits: total(impactRows.filter((row) => ["01-TT", "02-CH", "03-TP", "04-EX"].includes(stable(row.productType))), () => 1),
     byMonth: monthBy(impactRows),
     byBranch: by(impactRows, "branch"),
     bySalesperson: by(impactRows, "salespersonCode"),

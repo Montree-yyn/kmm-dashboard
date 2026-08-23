@@ -73,32 +73,37 @@ test("validation accepts a clean batch and blocks malformed rows", async () => {
   assert.equal(duplicate.duplicateRows, 1);
 });
 
-test("Data Hub renders approval, status recovery and the v1.2 history contract", async () => {
-  const page = await read("components/data-hub/data-hub-page.tsx");
-  for (const step of ["Upload", "Preview", "Validate", "Approve", "Import", "Dashboard Update", "Completed"]) assert.match(page, new RegExp(`"${step}"`));
-  for (const status of ["Ready", "Uploading", "Validating", "Warning", "Importing", "Success", "Failed", "Rollback"]) assert.match(page, new RegExp(`label: "${status}"`));
-  for (const column of ["File Name", "Module", "Rows", "Success", "Warning", "Error", "Imported By", "Date Time", "Duration", "Rollback"]) assert.match(page, new RegExp(`"${column}"`));
-  assert.match(page, /Download Error Report/);
-  assert.match(page, /Approve import/);
-  assert.match(page, /recordSessionImportFailure/);
-  assert.match(page, /formatDuration/);
-  assert.match(page, /aria-live="polite"/);
-  assert.match(page, /focus-visible:ring-2/);
+test("Data Hub renders the governed Smart Import approval and history contract", async () => {
+  const [page, center] = await Promise.all([
+    read("components/data-hub/data-hub-page.tsx"),
+    read("components/data-hub/smart-import-center.tsx"),
+  ]);
+  assert.match(page, /<SmartImportCenter \/>/);
+  assert.match(center, /PreviewTable/);
+  assert.match(center, /validateImportRows/);
+  assert.match(center, /Approve incremental append/);
+  assert.match(center, /Approve &amp; import/);
+  assert.match(center, /HistoryDisclosure/);
+  assert.match(center, /Import history/);
+  assert.match(center, /status: "idle" \| "reading" \| "ready" \| "warning" \| "blocked" \| "importing" \| "success"/);
+  assert.match(center, /aria-busy=/);
+  assert.match(center, /focus-visible:ring-2/);
 });
 
-test("Data Mapping auto-detects aliases, saves per module, and maps rows before validation", async () => {
-  const [mapping, page] = await Promise.all([
+test("Data Mapping auto-detects aliases and maps rows before validation in Smart Import", async () => {
+  const [mapping, center] = await Promise.all([
     read("lib/data-hub/column-mapping.ts"),
-    read("components/data-hub/data-hub-page.tsx"),
+    read("components/data-hub/smart-import-center.tsx"),
   ]);
   for (const alias of ["sale date", "sales date", "model name", "salesman", "sl name", "price"]) {
     assert.match(mapping, new RegExp(`"${alias}"`));
   }
   assert.match(mapping, /localStorage/);
   assert.match(mapping, /applyColumnMappings/);
-  assert.match(page, /Data Mapping/);
-  assert.match(page, /mappedFile\.headers/);
-  assert.match(page, /file: mappedFile/);
+  assert.match(center, /createColumnMappings/);
+  assert.match(center, /applyColumnMappings/);
+  assert.match(center, /mappedFile\.headers/);
+  assert.match(center, /file: state\.mappedFile/);
 });
 
 test("Data Mapping transforms detected Excel columns into canonical import rows", async () => {

@@ -24,16 +24,16 @@ export function ChartCard({ title, subtitle, legend, action, toolbar, children, 
   const descriptionId = titleId + "-description";
   const state = loading ? "loading" : error ? "error" : empty ? "empty" : "ready";
   return (
-    <Card className={cn("rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5", className)} style={minHeight ? { minHeight } : undefined} role="region" aria-labelledby={titleId} aria-describedby={subtitle ? descriptionId : undefined} data-card-state={state}>
+    <Card className={cn("rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)]", className)} style={minHeight ? { minHeight } : undefined} role="region" aria-labelledby={titleId} aria-describedby={subtitle ? descriptionId : undefined} data-card-state={state} data-enterprise-component="chart-card">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 id={titleId} className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[var(--text-primary)]">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold leading-tight tracking-[-0.01em] text-[var(--text-primary)]">{title}</h2>
           {subtitle && <p id={descriptionId} className="mt-1 text-sm text-[var(--text-secondary)]">{subtitle}</p>}
         </div>
         {(toolbar || action) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{toolbar}{action}</div>}
       </header>
-      {legend && <div className="mt-4" role="group" aria-label={`${title} legend`}>{legend}</div>}
-      <div className="mt-5" aria-busy={loading || undefined}>
+      {legend && <div className="mt-3" role="group" aria-label={`${title} legend`}>{legend}</div>}
+      <div className="mt-4" aria-busy={loading || undefined}>
         {loading ? <LoadingSkeleton variant="chart" label={`Loading ${title}`} /> : error ? <ErrorState message={error} /> : empty ? <EmptyState /> : children}
       </div>
     </Card>

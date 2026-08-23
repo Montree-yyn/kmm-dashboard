@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,16 +18,16 @@ import { TableCard } from "../design-system/table-card";
 import { FilterBar } from "../design-system/filter-bar";
 import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { PageHeader } from "../design-system/page-header";
+import { SectionHeader } from "../design-system/section-header";
 import { cn } from "../../lib/utils";
 import { PRODUCT_GROUPS } from "../../lib/dashboard/product-groups";
 import { getOpenBookingUnitRows } from "../../lib/dashboard/booking-selectors";
 import {
-  getAgedStock,
-  getAverageStockAge,
+
   getCurrentStockRows,
   getStockByProduct,
   getStockUnitRows,
-  getStockValue,
   getStockValueRows,
   normalizeProductType,
 } from "../../lib/dashboard/stock-selectors";
@@ -191,20 +191,20 @@ export function StockIntelligencePage() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"age" | "date" | "value">("age");
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError("");
     loadLiveOperationalData({ companyId })
       .then((value) => setData({ meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1"] }, asOf: value.asOf, stock: value.stock, booking: value.booking }))
       .catch(() => setError("Stock data could not be loaded."))
       .finally(() => setLoading(false));
-  };
+  }, [companyId]);
   useEffect(() => {
     const id = window.setTimeout(load, 0);
     const refresh = () => load();
     window.addEventListener("kmm:sales-imported", refresh);
     return () => { window.clearTimeout(id); window.removeEventListener("kmm:sales-imported", refresh); };
-  }, [companyId]);
+  }, [load]);
   const rows = useMemo(
     () =>
       getCurrentStockRows(
@@ -384,31 +384,12 @@ export function StockIntelligencePage() {
     <div className="kmm-stock-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
           <div className="space-y-5 xl:space-y-6">
-            <section
-              className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
-              aria-labelledby="stock-title"
-            >
-              <div className="min-w-0">
-                <div
-                  className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
-                  aria-hidden="true"
-                />
-                <h1
-                  id="stock-title"
-                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-                >
-                  {t("route.stock.title")}
-                </h1>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.stock.subtitle").replaceAll("KMM", companyCode)}
-                </p>
-              </div>
-              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-                {/* Operational data currently exposes a client refresh marker,
-                    not a source timestamp, so do not present it as provenance. */}
-                {data && <FreshnessIndicator />}
-              </div>
-            </section>
+            <PageHeader
+              eyebrow={companyCode}
+              title={t("route.stock.title")}
+              description={t("route.stock.subtitle").replaceAll("KMM", companyCode)}
+              action={data ? <FreshnessIndicator /> : undefined}
+            />
             <section aria-label="Stock filters">
               <FilterBar
                 filterGridClassName="min-w-0 sm:grid-cols-2 xl:grid-cols-4"
@@ -547,13 +528,11 @@ export function StockIntelligencePage() {
                   />
                 </section>
                 <section className="space-y-4" aria-labelledby="stock-risk-overview">
-                  <div>
-                    <h2 id="stock-risk-overview" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.stockRisk")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.stockRiskDescription")}
-                    </p>
+                  <div id="stock-risk-overview">
+                    <SectionHeader
+                      title={t("section.stockRisk")}
+                      description={t("section.stockRiskDescription")}
+                    />
                   </div>
                   <ChartCard
                     title={t("chart.stockHealthTitle")}
@@ -629,13 +608,11 @@ export function StockIntelligencePage() {
                   </ChartCard>
                 </section>
                 <section className="space-y-4" aria-labelledby="stock-coverage-analysis">
-                  <div>
-                    <h2 id="stock-coverage-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.stockCoverage")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.stockCoverageDescription")}
-                    </p>
+                  <div id="stock-coverage-analysis">
+                    <SectionHeader
+                      title={t("section.stockCoverage")}
+                      description={t("section.stockCoverageDescription")}
+                    />
                   </div>
                   <ChartCard
                     title={t("chart.stockVsBookingTitle")}
@@ -664,13 +641,11 @@ export function StockIntelligencePage() {
                   </ChartCard>
                 </section>
                 <section aria-labelledby="stock-branch-performance" className="space-y-4">
-                  <div>
-                    <h2 id="stock-branch-performance" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.branchPerformance")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.branchPerformanceDescription")}
-                    </p>
+                  <div id="stock-branch-performance">
+                    <SectionHeader
+                      title={t("section.branchPerformance")}
+                      description={t("section.branchPerformanceDescription")}
+                    />
                   </div>
                   <div className="grid gap-4 md:grid-cols-3">
                     {branchCards.map((branch) => {
@@ -783,13 +758,11 @@ export function StockIntelligencePage() {
                   </div>
                 </section>
                 <section className="space-y-4" aria-labelledby="stock-secondary-analysis">
-                  <div>
-                    <h2 id="stock-secondary-analysis" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.secondaryAnalysis")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.stockSecondaryDescription")}
-                    </p>
+                  <div id="stock-secondary-analysis">
+                    <SectionHeader
+                      title={t("section.secondaryAnalysis")}
+                      description={t("section.stockSecondaryDescription")}
+                    />
                   </div>
                   <section className="grid gap-5 xl:grid-cols-2">
                   <ChartCard

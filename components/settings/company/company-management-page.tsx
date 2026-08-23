@@ -45,6 +45,7 @@ import {
   companySections,
 } from "./company-navigation";
 import { CompanyOverview } from "./company-overview";
+import { PageHeader } from "../../design-system/page-header";
 import { useCompany } from "../../../src/hooks/useCompany";
 
 type ToastState = {
@@ -323,15 +324,7 @@ export function CompanyManagementPage() {
               <ArrowLeft size={17} aria-hidden="true" />
               Settings
             </button>
-            <p className="mt-2 text-xs font-semibold uppercase text-[var(--brand-600)]">
-              Settings / Company Management
-            </p>
-            <h1 className="mt-1 text-[28px] font-semibold leading-tight text-[var(--text-primary)] sm:text-[30px]">
-              Company Management
-            </h1>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
-              Configure the company profile, operating structure, and enterprise defaults.
-            </p>
+            <PageHeader eyebrow="Settings / Company Management" title="Company Management" description="Configure the company profile, operating structure, and enterprise defaults." />
           </div>
           <div className="flex items-center gap-2 self-start rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-3 py-2">
             <span className="size-2 rounded-full bg-[var(--status-success)]" />
@@ -513,7 +506,7 @@ function CompanyShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-[#F7F8FA] text-[#111827]">
+    <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <div className="mx-auto max-w-[1480px] px-4 pt-4 sm:px-5 sm:pt-5 xl:px-6 xl:pt-6">
         <div className="max-w-xl">
           <SettingsSearch

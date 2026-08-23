@@ -173,7 +173,7 @@ test("Final Audit: 62 sampled executable answers exactly match Local D1", { skip
   assert.equal(conversion.intent, "BOOKING_CONVERSION_QUERY"); assert.equal(conversion.data.total, Number(expectedConversion.total)); assert.equal(conversion.data.delivered, Number(expectedConversion.delivered)); checked += 1;
 
   const stock = stockRows(operationsDb);
-  for (const [question, intent, filter, key] of [
+  for (const [question, intent, filter] of [
     ["Stock ปัจจุบันมีกี่คัน", "STOCK_CURRENT", () => true, "summary"],
     ["Stock ปัจจุบันมูลค่าเท่าไหร่", "STOCK_VALUE_CURRENT", () => true, "summary"],
     ["KMM01 Combine Stock", "STOCK_CURRENT", (row) => row.branch === "KMM01" && selectors.normalizeProductType(row) === "CH", "summary"],

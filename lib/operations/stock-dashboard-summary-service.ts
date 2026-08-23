@@ -1,5 +1,5 @@
 import { getFilteredCurrentStockRows, getOperationalBusiness } from "./business-service";
-import { normalizeProductType, STOCK_UNIT_PRODUCTS, type StockRow } from "../dashboard/stock-selectors";
+import { normalizeProductType, STOCK_UNIT_PRODUCTS } from "../dashboard/stock-selectors";
 import type { OperationalFilters, StockAdapterRow } from "./types";
 
 const AGE_BANDS = ["0–30", "31–60", "61–90", ">90"] as const;

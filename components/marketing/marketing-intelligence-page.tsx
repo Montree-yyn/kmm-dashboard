@@ -24,41 +24,23 @@ import {
   ChevronDown,
   CircleDollarSign,
   MapPin,
-  Maximize2,
   Package2,
   Percent,
-  RefreshCw,
-  RotateCcw,
-  Search,
   SlidersHorizontal,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { ChartCard } from "../design-system/chart-card";
-import { ErrorState } from "../design-system/error-state";
-import { ExportButton } from "../design-system/export-button";
-import { FilterBar } from "../design-system/filter-bar";
-import { KpiCard } from "../design-system/kpi-card";
 import { LoadingSkeleton } from "../design-system/loading-skeleton";
-import { TableCard } from "../design-system/table-card";
-import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import { chartTheme } from "../common/charts/chartTheme";
-import { MapFullscreenDialog } from "../common/map/MapFullscreenDialog";
 import {
-  OPERATIONAL_SHOWROOMS,
-  normalizeLocation,
   operationalShowroomForBranch,
   productGroup,
 } from "../../lib/marketing/location-mapping";
 import {
-  PROJECT_TIMEZONE,
+
   defaultExecutiveGisFilters,
-  formatPeriodLabel,
   rangeFromYearMonthSelections,
-  resolveComparison,
-  resolvePeriod,
   rowInDateRange,
   rowInYearMonthSelection,
   type ComparisonMode,
@@ -72,12 +54,9 @@ import {
 } from "../../lib/marketing/township-geography";
 import { cn } from "../../lib/utils";
 import {
-  getEngineUnitSalesRows,
-  getSalesKpis,
   isEngineUnitProduct,
   salesTransactionQuantity,
 } from "../../lib/sales/business-service";
-import { useLocale } from "../../src/hooks/useLocale";
 import { clientDataLayer } from "../../lib/client-data-layer";
 import townshipMaster from "../../data/master-townships.json";
 
@@ -139,12 +118,6 @@ const SHOWROOMS = [
   { id: "KMM-NATTALIN", name: "Nattalin" },
   { id: "KMM-NAWNGHKIO", name: "Naung Cho" },
 ] as const;
-const REGIONS = [
-  { label: "Kayin State", source: "Kayin" },
-  { label: "Mon State", source: "Mon" },
-  { label: "Bago West", source: "Bago (West)" },
-  { label: "Shan State", source: "Shan (North)" },
-];
 const COLORS = chartTheme.marketing.heatScale;
 const ZERO_SALES_COLOR = chartTheme.marketing.zero;
 const NO_DATA_COLOR = chartTheme.marketing.noData;
@@ -323,8 +296,6 @@ const defaults: Filters = {
   branch: [],
   showroom: [],
 };
-const sum = <T,>(rows: T[], getter: (row: T) => number) =>
-  rows.reduce((total, row) => total + getter(row), 0);
 const count = (value: number) =>
   Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 const compact = (value: number) =>
@@ -357,10 +328,6 @@ const formatComparisonGrowth = (
 };
 const isComplete = (row: MarketingRow) =>
   Boolean(row.date && row.activity.trim());
-const selectedMonths = (filters: Filters) =>
-  filters.month
-    .map((month) => MONTHS.indexOf(month) + 1)
-    .filter((month) => month > 0);
 const productLabel = (product: Product) =>
   product === "All"
     ? "ทั้งหมด"
@@ -405,30 +372,6 @@ function aggregateTownshipSales(
   });
   return totals;
 }
-function currentMatch(
-  row: {
-    year: number | null;
-    month: number | null;
-    branch: string;
-  },
-  filters: Filters,
-) {
-  const years = filters.year.map(Number).filter(Number.isFinite);
-  const months = selectedMonths(filters);
-  return (
-    (!years.length || (row.year !== null && years.includes(row.year))) &&
-    (!months.length || (row.month !== null && months.includes(row.month))) &&
-    (!filters.branch.length || filters.branch.includes(row.branch))
-  );
-}
-function cutoff(filters: Filters, data: Data) {
-  const years = filters.year.map(Number).filter(Number.isFinite);
-  const year = years.length
-    ? Math.max(...years)
-    : Math.max(...data.sales.map((row) => row.year ?? 0));
-  const months = selectedMonths(filters);
-  return { year, month: months.length ? Math.max(...months) : 12 };
-}
 function quantile(sorted: number[], ratio: number) {
   return (
     sorted[
@@ -460,370 +403,6 @@ function heatColor(value: number, values: number[], zeroColor: string = NO_DATA_
             ? 3
             : 4
   ];
-}
-function MultiSelect({
-  label,
-  options,
-  values,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const visible = options.filter((item) =>
-    item.toLowerCase().includes(query.toLowerCase()),
-  );
-  const summary =
-    values.length === 0
-      ? "All"
-      : values.length === 1
-        ? values[0]
-        : `${values.length} selected`;
-  return (
-    <div className="relative min-w-0">
-      <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.12em] text-[#8A8E96]">
-        {label}
-      </label>
-      <button
-        type="button"
-        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-3 text-left text-sm font-semibold text-[#1F2937]"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="truncate">{summary}</span>
-        <ChevronDown size={16} className="text-[#9CA3AF]" />
-      </button>
-      {open && (
-        <Card className="absolute left-0 right-0 top-[72px] z-50 p-2 shadow-xl">
-          <div className="relative mb-2">
-            <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]"
-            />
-            <input
-              className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] pl-9 pr-3 text-sm"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${label.toLowerCase()}`}
-            />
-          </div>
-          <div className="max-h-52 space-y-1 overflow-y-auto">
-            {visible.map((item) => (
-              <label
-                key={item}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-[#4B5563] hover:bg-[#FFF7EF]"
-              >
-                <input
-                  type="checkbox"
-                  className="accent-[#FF7A00]"
-                  checked={values.includes(item)}
-                  onChange={() =>
-                    onChange(
-                      values.includes(item)
-                        ? values.filter((value) => value !== item)
-                        : [...values, item],
-                    )
-                  }
-                />
-                {item}
-              </label>
-            ))}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-function MarketingFilters({
-  filters,
-  options,
-  onChange,
-  onReset,
-  onRefresh,
-  onExport,
-}: {
-  filters: Filters;
-  options: Filters;
-  onChange: (key: keyof Filters, values: string[]) => void;
-  onReset: () => void;
-  onRefresh: () => void;
-  onExport: () => void;
-}) {
-  return (
-    <FilterBar
-      actions={
-        <>
-          <Button variant="outline" className="h-11" onClick={onReset}>
-            <RotateCcw size={16} />
-            Reset
-          </Button>
-          <Button variant="outline" className="h-11" onClick={onRefresh}>
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
-          <ExportButton onClick={onExport} />
-        </>
-      }
-    >
-      <MultiSelect
-        label="Year"
-        options={options.year}
-        values={filters.year}
-        onChange={(value) => onChange("year", value)}
-      />
-      <MultiSelect
-        label="Month"
-        options={options.month}
-        values={filters.month}
-        onChange={(value) => onChange("month", value)}
-      />
-      <MultiSelect
-        label="Region / Branch"
-        options={options.branch}
-        values={filters.branch}
-        onChange={(value) => onChange("branch", value)}
-      />
-      <MultiSelect
-        label="Showroom"
-        options={options.showroom}
-        values={filters.showroom}
-        onChange={(value) => onChange("showroom", value)}
-      />
-    </FilterBar>
-  );
-}
-function ProductSelect({
-  product,
-  onChange,
-  className,
-}: {
-  product: Product;
-  onChange: (product: Product) => void;
-  className?: string;
-}) {
-  return (
-    <select
-      value={product}
-      onChange={(event) => onChange(event.target.value as Product)}
-      className={cn(
-        "h-10 min-w-48 rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-semibold text-[#1F2937] outline-none focus:border-[#FFB46E]",
-        className,
-      )}
-      aria-label="Product type"
-    >
-      <option value="All">All Products</option>
-      <option value="TT">TT Tractor</option>
-      <option value="CH">CH Combine Harvester</option>
-      <option value="EX">EX Excavator</option>
-      <option value="TP">TP Transplanter</option>
-    </select>
-  );
-}
-function HeatmapModeToggle({
-  mode,
-  onChange,
-}: {
-  mode: Mode;
-  onChange: (mode: Mode) => void;
-}) {
-  return (
-    <div className="inline-flex h-9 shrink-0 rounded-lg border border-[#E5E7EB] bg-white p-0.5">
-      <button
-        type="button"
-        onClick={() => onChange("sales")}
-        className={cn(
-          "rounded-md px-2.5 text-[13px] font-semibold",
-          mode === "sales" ? "bg-[#FFF1E5] text-[#E86F00]" : "text-[#6B7280]",
-        )}
-      >
-        Sales
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("population")}
-        className={cn(
-          "rounded-md px-2.5 text-[13px] font-semibold",
-          mode === "population"
-            ? "bg-[#FFF1E5] text-[#E86F00]"
-            : "text-[#6B7280]",
-        )}
-      >
-        Population
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("activity")}
-        className={cn(
-          "rounded-md px-2.5 text-[13px] font-semibold",
-          mode === "activity"
-            ? "bg-[#FFF1E5] text-[#E86F00]"
-            : "text-[#6B7280]",
-        )}
-      >
-        Activity
-      </button>
-    </div>
-  );
-}
-function HeatmapLegend({ mode }: { mode: Mode }) {
-  const label =
-    mode === "sales"
-      ? "Sales Unit"
-      : mode === "population"
-        ? "Engine Population"
-        : "Marketing Activities";
-  return (
-    <div className="pointer-events-none absolute bottom-4 left-4 rounded-xl border border-[#E5E7EB] bg-white/95 px-3 py-2 text-xs text-[#4B5563] shadow-[0_8px_24px_rgba(31,41,55,0.08)]">
-      <p className="font-semibold">{label}</p>
-      <div className="mt-2 flex h-2 w-32 overflow-hidden rounded-full">
-        {COLORS.map((color) => (
-          <i
-            key={color}
-            className="flex-1"
-            style={{ backgroundColor: color }}
-          />
-        ))}
-      </div>
-      <div className="mt-1 flex justify-between text-[10px] text-[#9CA3AF]">
-        <span>Very Low</span>
-        <span>Very High</span>
-      </div>
-    </div>
-  );
-}
-function ExecutiveGisControls({
-  filters,
-  onChange,
-}: {
-  filters: ExecutiveGisFilters;
-  onChange: (next: ExecutiveGisFilters) => void;
-}) {
-  const { t } = useLocale();
-  const applyPeriod = (periodMode: PeriodMode) => {
-    const current = resolvePeriod(periodMode, filters.dateTo, filters);
-    const comparison = resolveComparison(filters.comparisonMode, current, {
-      dateFrom: filters.comparisonDateFrom,
-      dateTo: filters.comparisonDateTo,
-    });
-    onChange({
-      ...filters,
-      periodMode,
-      dateFrom: current.dateFrom,
-      dateTo: current.dateTo,
-      comparisonDateFrom: comparison.dateFrom,
-      comparisonDateTo: comparison.dateTo,
-    });
-  };
-  const applyComparison = (comparisonMode: ComparisonMode) => {
-    const comparison = resolveComparison(comparisonMode, filters, {
-      dateFrom: filters.comparisonDateFrom,
-      dateTo: filters.comparisonDateTo,
-    });
-    onChange({
-      ...filters,
-      comparisonMode,
-      comparisonDateFrom: comparison.dateFrom,
-      comparisonDateTo: comparison.dateTo,
-    });
-  };
-  return (
-    <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-[#E8EAED] bg-white/95 px-2.5 py-1.5 shadow-[0_6px_18px_rgba(31,41,55,0.035)]">
-      <label className="text-[11px] font-semibold text-[#6B7280]">
-        {t("period.time")}{" "}
-        <select
-          value={filters.periodMode}
-          onChange={(event) => applyPeriod(event.target.value as PeriodMode)}
-          className="ml-1.5 h-7 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-bold text-[#1F2937]"
-        >
-          <option value="this-month">{t("period.thisMonth")}</option>
-          <option value="previous-month">{t("period.previousMonth")}</option>
-          <option value="this-quarter">{t("period.thisQuarter")}</option>
-          <option value="previous-quarter">
-            {t("period.previousQuarter")}
-          </option>
-          <option value="this-year">{t("period.thisYear")}</option>
-          <option value="ytd">{t("period.ytd")}</option>
-          <option value="rolling-12-months">
-            {t("period.rolling12Months")}
-          </option>
-          <option value="custom">{t("period.customDateRange")}</option>
-        </select>
-      </label>
-      <label className="text-[11px] font-semibold text-[#6B7280]">
-        {t("period.compare")}{" "}
-        <select
-          value={filters.comparisonMode}
-          onChange={(event) =>
-            applyComparison(event.target.value as ComparisonMode)
-          }
-          className="ml-1.5 h-7 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-bold text-[#1F2937]"
-        >
-          <option value="none">{t("comparison.none")}</option>
-          <option value="previous-period">
-            {t("comparison.previousPeriod")}
-          </option>
-          <option value="same-period-last-year">
-            {t("comparison.samePeriodLastYear")}
-          </option>
-          <option value="previous-year">{t("comparison.previousYear")}</option>
-          <option value="custom">{t("comparison.custom")}</option>
-        </select>
-      </label>
-      <label className="text-[11px] font-semibold text-[#6B7280]">
-        {t("period.from")}{" "}
-        <input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(event) =>
-            onChange({
-              ...filters,
-              periodMode: "custom",
-              dateFrom: event.target.value,
-            })
-          }
-          className="ml-1.5 h-7 rounded-lg border border-[#E5E7EB] px-2 text-xs"
-        />
-      </label>
-      <label className="text-[11px] font-semibold text-[#6B7280]">
-        {t("period.to")}{" "}
-        <input
-          type="date"
-          value={filters.dateTo}
-          onChange={(event) => {
-            const current = {
-              dateFrom: filters.dateFrom,
-              dateTo: event.target.value,
-            };
-            const comparison = resolveComparison(
-              filters.comparisonMode,
-              current,
-              {
-                dateFrom: filters.comparisonDateFrom,
-                dateTo: filters.comparisonDateTo,
-              },
-            );
-            onChange({
-              ...filters,
-              periodMode: "custom",
-              dateTo: event.target.value,
-              comparisonDateFrom: comparison.dateFrom,
-              comparisonDateTo: comparison.dateTo,
-            });
-          }}
-          className="ml-1.5 h-7 rounded-lg border border-[#E5E7EB] px-2 text-xs"
-        />
-      </label>
-      <p className="ml-auto text-[11px] font-semibold text-[#9CA3AF]">
-        {formatPeriodLabel(filters)}
-        {filters.comparisonMode !== "none"
-          ? ` vs ${formatPeriodLabel({ dateFrom: filters.comparisonDateFrom, dateTo: filters.comparisonDateTo })}`
-          : ""}
-      </p>
-    </div>
-  );
 }
 type MultiSelectOption = { value: string; label: string; shortLabel?: string };
 type MultiSelectLayout = "list" | "month-grid";
@@ -928,22 +507,22 @@ function FilterTrigger({
       onClick={onClick}
       onKeyDown={onKeyDown}
       className={cn(
-        "inline-flex h-14 min-w-[132px] shrink-0 items-center gap-2.5 rounded-xl border bg-[var(--surface-default)] px-3 text-left shadow-[var(--shadow-card)] transition-[border-color,background-color] duration-[160ms] ease-[var(--ease-state)] hover:border-[var(--brand-300)] hover:bg-[var(--brand-50)] focus-visible:border-[var(--brand-500)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none max-sm:h-11",
+        "inline-flex h-11 min-w-[116px] shrink-0 items-center gap-2 rounded-[10px] border bg-[var(--surface-default)] px-2.5 text-left shadow-[0_1px_2px_rgba(31,41,55,0.04)] transition-[border-color,background-color,box-shadow] duration-[160ms] ease-[var(--ease-state)] hover:border-[var(--brand-300)] hover:bg-[var(--brand-50)] hover:shadow-[0_4px_12px_rgba(31,41,55,0.05)] focus-visible:border-[var(--brand-500)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
         open
           ? "border-2 border-[var(--brand-500)] bg-[var(--surface-default)]"
           : "border-[var(--border-default)]",
         className,
       )}
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--surface-muted)] text-[var(--brand-700)]">
-        <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+      <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--surface-muted)] text-[var(--brand-700)]">
+        <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-medium leading-4 text-[var(--text-secondary)]">
+        <span className="block text-[10px] font-medium leading-3.5 text-[var(--text-secondary)]">
           {label}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-semibold leading-5 text-[var(--text-primary)]">
+          <span className="truncate text-[13px] font-semibold leading-[18px] text-[var(--text-primary)]">
             {value}
           </span>
           {overflowCount && overflowCount > 0 ? (
@@ -1528,7 +1107,7 @@ function MetricSelector({
         onKeyDown={handleTriggerKeyDown}
         popoverId={popoverId}
         popupRole="listbox"
-        className="min-w-[142px]"
+        className="min-w-[120px]"
       />
       <FilterPopover
         id={popoverId}
@@ -1643,7 +1222,7 @@ function ComparisonToolbarControl({
       disabled={disabled}
       onClick={() => onChange(!compareMode)}
       className={cn(
-        "kmm-compare-control inline-flex h-14 min-w-[176px] shrink-0 items-center gap-2.5 rounded-xl border px-3 text-left outline-none shadow-[var(--shadow-card)] transition-[border-color,background-color] duration-[160ms] ease-[var(--ease-state)] focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none max-sm:h-11",
+        "kmm-compare-control inline-flex h-11 min-w-[156px] shrink-0 items-center gap-2 rounded-[10px] border px-2.5 text-left outline-none shadow-[0_1px_2px_rgba(31,41,55,0.04)] transition-[border-color,background-color,box-shadow] duration-[160ms] ease-[var(--ease-state)] focus-visible:ring-2 focus-visible:ring-[var(--brand-focus)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none",
         compareMode
           ? "border-[var(--brand-600)] bg-[var(--brand-500)] text-white hover:bg-[var(--brand-600)]"
           : "border-[var(--border-default)] bg-[var(--surface-default)] text-[var(--text-primary)] hover:border-[var(--brand-300)] hover:bg-[var(--brand-50)]",
@@ -1651,28 +1230,28 @@ function ComparisonToolbarControl({
     >
       <span
         className={cn(
-          "grid size-8 shrink-0 place-items-center rounded-lg",
+          "grid size-7 shrink-0 place-items-center rounded-lg",
           compareMode ? "bg-white/18 text-white" : "bg-[var(--surface-muted)] text-[var(--brand-700)]",
         )}
       >
-        <MapPin size={16} strokeWidth={1.8} aria-hidden="true" />
+        <MapPin size={15} strokeWidth={1.8} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
         <span
           className={cn(
-            "block text-[11px] font-medium leading-4",
+            "block text-[10px] font-medium leading-3.5",
             compareMode ? "text-white/80" : "text-[var(--text-secondary)]",
           )}
         >
           เปรียบเทียบพื้นที่
         </span>
-        <span className="mt-0.5 block text-sm font-semibold leading-5">
+        <span className="block text-[13px] font-semibold leading-[18px]">
           {compareMode ? "เปิดใช้งาน" : disabled ? "รอข้อมูล" : "ปิดอยู่"}
         </span>
       </span>
       <span
         className={cn(
-          "rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-4",
+          "rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-4",
           compareMode
             ? "bg-white/20 text-white"
             : "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
@@ -1802,7 +1381,7 @@ function DecisionToolbar({
   return (
     <section
       aria-label="Decision Toolbar"
-      className="kmm-decision-toolbar flex min-h-[72px] shrink-0 flex-wrap items-center gap-2.5 overflow-visible border-b border-[var(--border-default)] bg-[var(--surface-default)] px-3.5 py-2 shadow-[var(--shadow-card)] xl:flex-nowrap xl:overflow-x-auto xl:px-5 max-sm:min-h-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:py-2"
+      className="kmm-decision-toolbar flex min-h-[58px] shrink-0 flex-wrap items-center gap-2 overflow-visible border-b border-[var(--border-default)] bg-[var(--surface-default)] px-3.5 py-1.5 shadow-[0_1px_0_rgba(31,41,55,0.04)] xl:flex-nowrap xl:overflow-x-auto xl:px-5 max-sm:min-h-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:py-1.5"
     >
       <ApplyMultiSelect
         label="ปี"
@@ -1822,7 +1401,7 @@ function DecisionToolbar({
         activeDropdown={activeDropdown}
         onActiveDropdownChange={setActiveDropdown}
         popoverWidth={232}
-        triggerClassName="min-w-[132px]"
+        triggerClassName="min-w-[116px]"
         showSelectAll={false}
       />
       <ApplyMultiSelect
@@ -1852,7 +1431,7 @@ function DecisionToolbar({
         activeDropdown={activeDropdown}
         onActiveDropdownChange={setActiveDropdown}
         popoverWidth={316}
-        triggerClassName="min-w-[144px]"
+        triggerClassName="min-w-[124px]"
         layout="month-grid"
       />
       <ApplyMultiSelect
@@ -1873,7 +1452,7 @@ function DecisionToolbar({
         activeDropdown={activeDropdown}
         onActiveDropdownChange={setActiveDropdown}
         popoverWidth={300}
-        triggerClassName="min-w-[174px]"
+        triggerClassName="min-w-[154px]"
       />
       <MetricSelector
         options={metricOptions}
@@ -1888,243 +1467,6 @@ function DecisionToolbar({
         onChange={onCompareModeChange}
       />
     </section>
-  );
-}
-function Metric({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: ReactNode;
-  accent?: boolean;
-}) {
-  if (
-    [
-      "Sales Value",
-      "Gross Profit",
-      "Branch Sales / Cost",
-      "Top Salesperson",
-    ].includes(label)
-  )
-    return null;
-  if (label === "Top Product")
-    return (
-      <div className="col-span-2 border-t border-[#EEF0F3] pt-3">
-        <p className="text-[11px] font-medium text-[#9CA3AF]">
-          Marketing Cost vs Sales Unit
-        </p>
-        {value}
-      </div>
-    );
-  return (
-    <div>
-      <p className="text-[11px] font-medium text-[#9CA3AF]">{label}</p>
-      <p
-        className={cn(
-          "mt-1 text-sm font-semibold",
-          accent ? "text-[#E86F00]" : "text-[#1F2937]",
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-function Bars({
-  rows,
-  unit = "",
-}: {
-  rows: {
-    label: string;
-    value: number;
-  }[];
-  unit?: string;
-}) {
-  if (unit === " Unit") return <TopTownshipTable rows={rows} />;
-  const ranked = [...rows].sort((a, b) => b.value - a.value).slice(0, 10);
-  const maxValue = Math.max(...ranked.map((row) => Number(row.value) || 0), 0);
-  const totalValue = ranked.reduce(
-    (total, row) => total + (Number(row.value) || 0),
-    0,
-  );
-  return ranked.length ? (
-    <div className="space-y-3">
-      {ranked.map((row) => {
-        const value = Number(row.value) || 0;
-        const width = maxValue > 0 ? (value / maxValue) * 100 : 0;
-        const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
-        return (
-          <div
-            key={row.label}
-            className="grid grid-cols-[minmax(72px,1fr)_minmax(0,2fr)_auto] items-center gap-3"
-          >
-            <span className="truncate text-xs font-semibold text-[#4B5563]">
-              {row.label}
-            </span>
-            <div className="h-2 rounded-full bg-[#F3F4F6]">
-              <div
-                className="h-full rounded-full bg-[var(--chart-current)]"
-                style={{ width: `${width}%` }}
-              />
-            </div>
-            <span className="text-xs font-bold text-[#4B5563]">
-              {count(value)}
-              {unit}
-              {unit ? "" : ` (${percentage.toFixed(0)}%)`}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  ) : (
-    <p className="py-10 text-center text-sm text-[#9CA3AF]">
-      No mapped township data
-    </p>
-  );
-}
-function Trend({ rows }: { rows: MarketingRow[] }) {
-  const [metric, setMetric] = useState<"unit" | "value">("unit");
-  const series = [2026, 2025, 2024, 2023, 2022].map((year, index) => ({
-    id: String(year),
-    year,
-    label: String(year),
-    kind:
-      index === 0
-        ? ("current" as const)
-        : index === 1
-          ? ("previous" as const)
-          : ("older" as const),
-    values: MONTHS.map((_, month) => {
-      const monthRows = rows.filter(
-        (row) => row.year === year && row.month === month + 1,
-      );
-      if (!monthRows.length) return null;
-      return metric === "unit"
-        ? monthRows.length
-        : monthRows.reduce((total, row) => total + row.expense, 0);
-    }),
-  }));
-  return (
-    <PremiumTrendChart
-      title="Marketing Trend"
-      subtitle="Compare marketing performance by year, period and metric."
-      labels={MONTHS}
-      unit={metric === "unit" ? "Activities" : "MMK"}
-      formatValue={metric === "unit" ? count : compact}
-      defaultSeriesIds={["2026", "2025"]}
-      onMetricChange={(value) => setMetric(value as "unit" | "value")}
-      series={series}
-    />
-  );
-}
-function ShowroomChart({
-  months,
-}: {
-  months: {
-    label: string;
-    cost: number;
-    unit: number;
-  }[];
-}) {
-  const maxCost = Math.max(...months.map((month) => month.cost), 1);
-  const maxUnit = Math.max(...months.map((month) => month.unit), 1);
-  const points = months
-    .map(
-      (month, index) =>
-        `${28 + index * 46},${84 - (month.unit / maxUnit) * 60}`,
-    )
-    .join(" ");
-  return (
-    <svg
-      className="mt-2 h-24 w-full"
-      viewBox="0 0 300 108"
-      preserveAspectRatio="none"
-      role="img"
-    >
-      <title>Monthly marketing cost and sales unit comparison</title>
-      {months.map((month, index) => (
-        <g key={month.label}>
-          <title>{`${month.label}: Marketing Cost ${count(month.cost)} MMK, Sales Unit ${count(month.unit)}`}</title>
-          <rect
-            x={18 + index * 46}
-            y={84 - (month.cost / maxCost) * 60}
-            width="20"
-            height={(month.cost / maxCost) * 60}
-            rx="3"
-            fill={chartTheme.current}
-            opacity="0.9"
-          />
-          <text
-            x={28 + index * 46}
-            y="102"
-            textAnchor="middle"
-            fontSize="9"
-            fill={chartTheme.text}
-          >
-            {month.label}
-          </text>
-        </g>
-      ))}
-      <polyline
-        points={points}
-        fill="none"
-        stroke={chartTheme.previous}
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      {months.map((month, index) => (
-        <circle
-          key={month.label}
-          cx={28 + index * 46}
-          cy={84 - (month.unit / maxUnit) * 60}
-          r="2.5"
-          fill={chartTheme.surface}
-          stroke={chartTheme.previous}
-          strokeWidth="1.5"
-        />
-      ))}
-    </svg>
-  );
-}
-function TopTownshipTable({
-  rows,
-}: {
-  rows: {
-    label: string;
-    value: number;
-  }[];
-}) {
-  const ranked = [...rows]
-    .filter((row) => row.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
-  const max = Math.max(...ranked.map((row) => row.value), 1);
-  return ranked.length ? (
-    <div className="space-y-3">
-      {ranked.map((row, index) => (
-        <div
-          key={row.label}
-          className="grid grid-cols-[18px_minmax(110px,1.6fr)_minmax(0,1fr)_auto] items-center gap-2 text-xs"
-        >
-          <span className="font-semibold text-[#9CA3AF]">{index + 1}</span>
-          <span className="min-w-0 whitespace-normal break-words font-semibold leading-4 text-[#4B5563]">
-            {row.label}
-          </span>
-          <div className="h-2 rounded-full bg-[#F3F4F6]">
-            <div
-              className="h-full rounded-full bg-[var(--chart-current)]"
-              style={{ width: `${(row.value / max) * 100}%` }}
-            />
-          </div>
-          <span className="font-bold text-[#1F2937]">{count(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <p className="py-10 text-center text-sm text-[#9CA3AF]">
-      No mapped township data
-    </p>
   );
 }
 function Phase1TownshipPanel({
@@ -2387,7 +1729,7 @@ function Phase1TownshipPanel({
           <section className="kmm-intelligence-section kmm-intelligence-performance">
             <h3 className="kmm-intelligence-heading">Current Performance</h3>
             {!metric.hasFilteredSalesData && (
-              <p className="mt-2 rounded-xl border border-dashed border-[#D1D5DB] bg-white p-4 text-center text-sm font-semibold text-[#6B7280]">
+              <p className="mt-2 rounded-xl border border-dashed border-[var(--border-default)] bg-white p-4 text-center text-sm font-semibold text-[var(--text-secondary)]">
                 ไม่พบข้อมูลตามตัวกรองที่เลือก
               </p>
             )}
@@ -2412,7 +1754,7 @@ function Phase1TownshipPanel({
                   >
                     {row.value}
                   </b>
-                  <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#8A8E96]">
+                  <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                     {row.label === "Unit"
                       ? "Sales Unit"
                       : row.label === "Value"
@@ -2535,17 +1877,17 @@ function Phase1TownshipPanel({
           {metric.hasFilteredSalesData && (
             <>
               <section>
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#9CA3AF]">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                   Product Mix
                 </h3>
                 {mix.length ? (
                   <>
                     <p className="mt-2 text-xs">
-                      <span className="font-semibold text-[#8A8E96]">
+                      <span className="font-semibold text-[var(--text-tertiary)]">
                         Top Product
                       </span>
                       <br />
-                      <b className="text-[#1F2937]">
+                      <b className="text-[var(--text-primary)]">
                         {leadingMix?.label} ·{" "}
                         {Math.round(
                           ((leadingMix?.unit ?? 0) / metric.salesUnit) * 100,
@@ -2557,7 +1899,7 @@ function Phase1TownshipPanel({
                       {mix.map((row) => (
                         <div key={row.key} className="text-xs">
                           <div className="flex justify-between gap-2">
-                            <span className="font-semibold text-[#4B5563]">
+                            <span className="font-semibold text-[var(--text-secondary)]">
                               {row.label}
                             </span>
                             <b>
@@ -2565,7 +1907,7 @@ function Phase1TownshipPanel({
                               {Math.round((row.unit / metric.salesUnit) * 100)}%
                             </b>
                           </div>
-                          <div className="mt-1 h-1 rounded-full bg-[#F3F4F6]">
+                          <div className="mt-1 h-1 rounded-full bg-[var(--surface-muted)]">
                             <div
                               className="h-full rounded-full bg-[var(--chart-current)]"
                               style={{ width: `${(row.unit / maxMix) * 100}%` }}
@@ -2576,18 +1918,18 @@ function Phase1TownshipPanel({
                     </div>
                   </>
                 ) : (
-                  <p className="mt-2 rounded-lg bg-[#FAFBFC] p-3 text-xs font-semibold">
+                  <p className="mt-2 rounded-lg bg-[var(--surface-subtle)] p-3 text-xs font-semibold">
                     ไม่มีข้อมูลยอดขายแยกตามสินค้า
                   </p>
                 )}
               </section>
               <section>
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#9CA3AF]">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                   Township Benchmark
                 </h3>
                 {benchmark ? (
-                  <div className="mt-2 rounded-lg border border-[#EEF0F3] p-3 text-xs">
-                    <p className="font-semibold text-[#1F2937]">
+                  <div className="mt-2 rounded-lg border border-[var(--border-subtle)] p-3 text-xs">
+                    <p className="font-semibold text-[var(--text-primary)]">
                       อันดับ #{benchmark.rank} จาก {benchmark.count} Township
                     </p>
                     <p className="mt-1 font-bold text-[#E86F00]">
@@ -2613,13 +1955,13 @@ function Phase1TownshipPanel({
                     </p>
                   </div>
                 ) : (
-                  <p className="mt-2 rounded-lg bg-[#FAFBFC] p-3 text-xs font-semibold">
+                  <p className="mt-2 rounded-lg bg-[var(--surface-subtle)] p-3 text-xs font-semibold">
                     ไม่มีข้อมูลเปรียบเทียบ Township
                   </p>
                 )}
               </section>
               <section>
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#9CA3AF]">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                   ประเด็นสำคัญ <span className="normal-case">Key Insights</span>
                 </h3>
                 {insights.length ? (
@@ -2629,7 +1971,7 @@ function Phase1TownshipPanel({
                         key={insight.category}
                         className="border-l-2 border-[#FFB46E] pl-2 text-xs"
                       >
-                        <b className="block text-[#4B5563]">
+                        <b className="block text-[var(--text-secondary)]">
                           {insight.category}
                         </b>
                         <span>{insight.text}</span>
@@ -2637,7 +1979,7 @@ function Phase1TownshipPanel({
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2 rounded-lg bg-[#FAFBFC] p-3 text-xs font-semibold">
+                  <p className="mt-2 rounded-lg bg-[var(--surface-subtle)] p-3 text-xs font-semibold">
                     ไม่มีประเด็นเพิ่มเติมจากข้อมูลที่เลือก
                   </p>
                 )}
@@ -2727,7 +2069,7 @@ function ComparisonMatrix({
           <tr>
             <th
               scope="col"
-              className="w-24 border-b border-[#EEF0F3] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[#8A8E96]"
+              className="w-24 border-b border-[var(--border-subtle)] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]"
             >
               Metric
             </th>
@@ -2735,7 +2077,7 @@ function ComparisonMatrix({
               <th
                 key={township.id}
                 scope="col"
-                className="min-w-24 border-b border-[#EEF0F3] px-3 py-3 align-top"
+                className="min-w-24 border-b border-[var(--border-subtle)] px-3 py-3 align-top"
               >
                 <span
                   className="grid size-6 place-items-center rounded-full bg-[#E86F00] text-xs font-bold text-white"
@@ -2744,12 +2086,12 @@ function ComparisonMatrix({
                   {index + 1}
                 </span>
                 <span
-                  className="mt-1 block max-w-24 truncate text-xs font-bold text-[#1F2937]"
+                  className="mt-1 block max-w-24 truncate text-xs font-bold text-[var(--text-primary)]"
                   title={township.township}
                 >
                   {township.township}
                 </span>
-                <span className="mt-0.5 block max-w-24 truncate text-[10px] font-semibold text-[#8A8E96]">
+                <span className="mt-0.5 block max-w-24 truncate text-[10px] font-semibold text-[var(--text-tertiary)]">
                   {township.stateRegion}
                 </span>
               </th>
@@ -2763,7 +2105,7 @@ function ComparisonMatrix({
                 <th
                   scope="rowgroup"
                   colSpan={selectedTownships.length + 1}
-                  className="border-b border-[#EEF0F3] bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#9CA3AF]"
+                  className="border-b border-[var(--border-subtle)] bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-tertiary)]"
                 >
                   {group.title}
                 </th>
@@ -2771,11 +2113,11 @@ function ComparisonMatrix({
               {group.rows.map((row) => (
                 <tr
                   key={`${group.title}-${row.label}`}
-                  className="border-b border-[#F3F4F6] last:border-b-0"
+                  className="border-b border-[var(--border-subtle)] last:border-b-0"
                 >
                   <th
                     scope="row"
-                    className="px-3 py-2.5 font-bold text-[#4B5563]"
+                    className="px-3 py-2.5 font-bold text-[var(--text-secondary)]"
                   >
                     {row.label}
                   </th>
@@ -2882,7 +2224,7 @@ function ComparisonPanel({
               type="button"
               onClick={onClear}
               disabled={selectedCount === 0}
-              className="text-xs font-bold text-[#E86F00] hover:text-[#C2410C] disabled:text-[#D1D5DB]"
+              className="text-xs font-bold text-[#E86F00] hover:text-[#C2410C] disabled:text-[var(--text-disabled)]"
               aria-disabled={selectedCount === 0}
             >
               ล้างทั้งหมด
@@ -2901,15 +2243,15 @@ function ComparisonPanel({
           </p>
         )}
         {selectedCount === 0 ? (
-          <section className="rounded-xl bg-[#FAFBFC] p-4 text-xs leading-5">
-            <h3 className="font-bold text-[#1F2937]">
+          <section className="rounded-xl bg-[var(--surface-subtle)] p-4 text-xs leading-5">
+            <h3 className="font-bold text-[var(--text-primary)]">
               เลือกอย่างน้อย 2 Township เพื่อเริ่มเปรียบเทียบ
             </h3>
             <p className="mt-1">คลิกพื้นที่บนแผนที่เพื่อเพิ่มรายการ</p>
           </section>
         ) : (
           <section>
-            <p className="mb-2 text-xs font-bold text-[#6B7280]">
+            <p className="mb-2 text-xs font-bold text-[var(--text-secondary)]">
               {selectedCount === 1
                 ? "เลือกอีก 1 Township เพื่อเริ่มเปรียบเทียบ"
                 : "Township ที่เลือก"}
@@ -2928,12 +2270,12 @@ function ComparisonPanel({
                   </span>
                   <span className="min-w-0">
                     <span
-                      className="block max-w-40 truncate text-xs font-bold text-[#1F2937]"
+                      className="block max-w-40 truncate text-xs font-bold text-[var(--text-primary)]"
                       title={township.township}
                     >
                       {township.township}
                     </span>
-                    <span className="block max-w-40 truncate text-[10px] font-semibold text-[#8A8E96]">
+                    <span className="block max-w-40 truncate text-[10px] font-semibold text-[var(--text-tertiary)]">
                       {township.stateRegion}
                     </span>
                   </span>
@@ -3018,7 +2360,7 @@ function ComparisonPanel({
   );
 }
 export function MarketingIntelligencePage() {
-  const [filters, setFilters] = useState<Filters>(defaults);
+  const [filters] = useState<Filters>(defaults);
   const [selectedProducts, setSelectedProducts] = useState<ProductGroup[]>([
     "TT",
     "CH",
@@ -3029,19 +2371,19 @@ export function MarketingIntelligencePage() {
   const [gisFilters, setGisFilters] = useState<ExecutiveGisFilters>(() =>
     defaultExecutiveGisFilters(),
   );
+  const initializedAllYearsRef = useRef(false);
   const [selectedCanonicalId, setSelectedCanonicalId] =
     useState<CanonicalTownshipId | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedComparisonTownshipIds, setSelectedComparisonTownshipIds] =
     useState<CanonicalTownshipId[]>([]);
   const [comparisonMessage, setComparisonMessage] = useState("");
-  const [mapFocused, setMapFocused] = useState(false);
-  const [mapResetSignal, setMapResetSignal] = useState(0);
+  const [mapResetSignal] = useState(0);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const fetchMarketingData = async (): Promise<Data> => {
+  const fetchMarketingData = useCallback(async (): Promise<Data> => {
     const response = await fetch(`/dashboard-data.json?ts=${Date.now()}`, {
       cache: "no-store",
     });
@@ -3050,8 +2392,8 @@ export function MarketingIntelligencePage() {
         `Unable to load dashboard-data.json (${response.status})`,
       );
     return (await response.json()) as Data;
-  };
-  const load = async () => {
+  }, []);
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -3071,33 +2413,13 @@ export function MarketingIntelligencePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchMarketingData]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void load();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
-  const options = useMemo<Filters>(
-    () => ({
-      year: data
-        ? Array.from(
-            new Set(data.marketing.map((row) => String(row.year ?? ""))),
-          )
-            .filter(Boolean)
-            .sort()
-            .reverse()
-        : ["2026"],
-      month: MONTHS,
-      branch: data
-        ? Array.from(new Set(data.marketing.map((row) => row.branch)))
-            .filter(Boolean)
-            .sort()
-        : [],
-      showroom: SHOWROOMS.map((showroom) => showroom.name),
-    }),
-    [data],
-  );
+  }, [load]);
   const supportedYearOptions = useMemo(() => {
     const years = Array.from(
       new Set(
@@ -3110,6 +2432,28 @@ export function MarketingIntelligencePage() {
       .map(String);
     return years;
   }, [data]);
+  useEffect(() => {
+    if (initializedAllYearsRef.current || supportedYearOptions.length === 0) return;
+    initializedAllYearsRef.current = true;
+    setGisFilters((current) => {
+      const selectedMonths = current.selectedMonths.length
+        ? current.selectedMonths
+        : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+      const range = rangeFromYearMonthSelections(supportedYearOptions, selectedMonths);
+      return {
+        ...current,
+        selectedYears: supportedYearOptions,
+        selectedMonths,
+        periodMode: "custom",
+        dateFrom: range.dateFrom,
+        dateTo: range.dateTo,
+        comparisonMode: "none",
+        comparisonDateFrom: "",
+        comparisonDateTo: "",
+      };
+    });
+  }, [supportedYearOptions]);
+
   const supportedProductOptions = useMemo<ProductGroup[]>(() => {
     const supported = new Set(
       (data?.sales ?? [])
@@ -3208,13 +2552,6 @@ export function MarketingIntelligencePage() {
       ),
     [filters.showroom],
   );
-  const comparisonRange = useMemo(
-    () => ({
-      dateFrom: gisFilters.comparisonDateFrom,
-      dateTo: gisFilters.comparisonDateTo,
-    }),
-    [gisFilters.comparisonDateFrom, gisFilters.comparisonDateTo],
-  );
   const marketing = useMemo(
     () =>
       (data?.marketing ?? []).filter(
@@ -3224,18 +2561,6 @@ export function MarketingIntelligencePage() {
           isComplete(row),
       ),
     [data, gisFilters, matchesSelectedShowroom],
-  );
-  const comparisonMarketing = useMemo(
-    () =>
-      gisFilters.comparisonMode === "none"
-        ? []
-        : (data?.marketing ?? []).filter(
-            (row) =>
-              rowInDateRange(row, comparisonRange) &&
-              matchesSelectedShowroom(row.branch) &&
-              isComplete(row),
-          ),
-    [data, gisFilters.comparisonMode, comparisonRange, matchesSelectedShowroom],
   );
   const periodSales = useMemo(
     () =>
@@ -3248,26 +2573,6 @@ export function MarketingIntelligencePage() {
           matchesSelectedShowroom(row.branch),
       ),
     [data, gisFilters, selectedProducts, matchesSelectedShowroom],
-  );
-  const comparisonSales = useMemo(
-    () =>
-      gisFilters.comparisonMode === "none"
-        ? []
-        : (data?.sales ?? []).filter(
-            (row) =>
-              rowInDateRange(row, comparisonRange) &&
-              selectedProducts.includes(
-                productGroup(row.productType) as ProductGroup,
-              ) &&
-              matchesSelectedShowroom(row.branch),
-          ),
-    [
-      data,
-      gisFilters.comparisonMode,
-      comparisonRange,
-      selectedProducts,
-      matchesSelectedShowroom,
-    ],
   );
   const populationSales = useMemo(() => {
     if (!data) return [];
@@ -3463,7 +2768,6 @@ export function MarketingIntelligencePage() {
     periodSales,
     marketing,
     mode,
-    selectedProducts,
     geoIndex,
     resolveTownship,
   ]);
@@ -3595,174 +2899,11 @@ export function MarketingIntelligencePage() {
     };
   }, [data, resolveTownship]);
   void quality;
-  const showroomMetrics = useMemo(
-    () =>
-      OPERATIONAL_SHOWROOMS.map((showroom) => {
-        const sales = periodSales.filter(
-          (row) =>
-            operationalShowroomForBranch(row.branch)?.code === showroom.code,
-        );
-        const activity = marketing.filter(
-          (row) =>
-            operationalShowroomForBranch(row.branch)?.code === showroom.code,
-        );
-        const bookings = (data?.booking ?? []).filter(
-          (row) =>
-            currentMatch(row, filters) &&
-            operationalShowroomForBranch(row.branch)?.code === showroom.code &&
-            row.status !== "Cancelled",
-        );
-        const unit = getEngineUnitSalesRows(sales);
-        const kpis = getSalesKpis(sales);
-        const cost = sum(activity, (row) => row.expense);
-        const revenue = kpis.salesValue ?? 0;
-        const months = MONTHS.map((label, index) => ({
-          label,
-          cost: sum(
-            activity.filter((row) => row.month === index + 1),
-            (row) => row.expense,
-          ),
-          unit: getSalesKpis(unit.filter((row) => row.month === index + 1)).salesUnit,
-        }));
-        return {
-          showroom,
-          activities: activity.length,
-          unit: kpis.salesUnit,
-          value: revenue,
-          gp: kpis.grossProfit ?? 0,
-          cost,
-          booking: bookings.length,
-          roi: cost ? revenue / cost : null,
-          topProduct: <ShowroomChart months={months} />,
-          topSalesperson: "",
-          months,
-        };
-      }),
-    [periodSales, marketing, data, filters],
-  );
-  const regional = useMemo(
-    () =>
-      REGIONS.map((region) => {
-        const rows = mapped.rows.filter(
-          (item) => item.feature.properties.ST === region.source,
-        );
-        const population = sum(rows, (item) => item.population);
-        const activities = sum(rows, (item) => item.activities);
-        const salesUnit = sum(rows, (item) => item.salesUnit);
-        const density = population ? activities / population : null;
-        const densities = mapped.rows
-          .map((item) =>
-            item.population ? item.activities / item.population : null,
-          )
-          .filter((value): value is number => value !== null)
-          .sort((a, b) => a - b);
-        const populationThreshold = quantile(
-          mapped.rows
-            .map((item) => item.population)
-            .filter(Boolean)
-            .sort((a, b) => a - b),
-          0.6,
-        );
-        const lower = quantile(densities, 0.25);
-        const upper = quantile(densities, 0.75);
-        const status = !population
-          ? "No data"
-          : activities === 0 ||
-              (density !== null &&
-                density < lower &&
-                population >= populationThreshold)
-            ? "Under-covered"
-            : density !== null &&
-                density > upper &&
-                population < populationThreshold
-              ? "Over-covered"
-              : "Balanced";
-        return {
-          ...region,
-          population,
-          activities,
-          salesUnit,
-          density,
-          status,
-        };
-      }),
-    [mapped],
-  );
   const visibleShowroomIds = filters.showroom.length
     ? SHOWROOMS.filter((showroom) =>
         filters.showroom.includes(showroom.name),
       ).map((showroom) => showroom.id)
     : undefined;
-  const currentBooking = useMemo(
-    () =>
-      (data?.booking ?? []).filter(
-        (row) =>
-          rowInYearMonthSelection(row, gisFilters) &&
-          row.status !== "Cancelled",
-      ),
-    [data, gisFilters],
-  );
-  const comparisonBooking = useMemo(
-    () =>
-      gisFilters.comparisonMode === "none"
-        ? []
-        : (data?.booking ?? []).filter(
-            (row) =>
-              rowInDateRange(row, comparisonRange) &&
-              row.status !== "Cancelled",
-          ),
-    [data, gisFilters.comparisonMode, comparisonRange],
-  );
-  const activityBreakdown = useMemo(
-    () =>
-      Array.from(new Set(marketing.map((row) => row.activity))).map(
-        (label) => ({
-          label,
-          value: marketing.filter((row) => row.activity === label).length,
-        }),
-      ),
-    [marketing],
-  );
-  const ranking = Object.values(mapped.metrics).map((metric) => ({
-    label: metric.township,
-    value: metric.population,
-  }));
-  const change = (key: keyof Filters, value: string[]) =>
-    setFilters((current) => ({ ...current, [key]: value }));
-  const exportRows = () => {
-    const csv = [
-      [
-        "Date",
-        "Activity",
-        "Branch",
-        "Township",
-        "Participants",
-        "Leads",
-        "Booking",
-        "Cost",
-      ],
-      ...marketing.map((row) => [
-        row.date,
-        row.activity,
-        row.branch,
-        row.township,
-        String(row.participants),
-        String(row.prospectCount),
-        String(row.bookingCount),
-        String(row.expense),
-      ]),
-    ]
-      .map((row) =>
-        row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","),
-      )
-      .join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "kmm-marketing-activities.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
   const appliedFilterContext = {
     year:
       gisFilters.selectedYears.length === supportedYearOptions.length
@@ -4010,15 +3151,6 @@ export function MarketingIntelligencePage() {
               />
             )}
           </div>
-          <section
-            aria-label="Strategic Focus placeholder"
-            className="flex min-h-9 shrink-0 items-center gap-3 overflow-x-auto border-t border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 text-[11px] font-medium text-[var(--text-tertiary)]"
-          >
-            <span className="font-semibold text-[var(--text-secondary)]">
-              Strategic Focus
-            </span>
-            <span>Coming in Phase 2</span>
-          </section>
       </main>
     </div>
   );

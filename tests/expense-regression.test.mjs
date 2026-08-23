@@ -56,7 +56,8 @@ test("Expense follows the Golden Reference shell and empty-state contract", asyn
     page,
     /kmm-expense-page min-h-\[calc\(100vh-72px\)\] bg-\[var\(--surface-canvas\)\]/,
   );
-  assert.match(page, /<h1[\s\S]*?id="expense-title"/);
+  assert.match(page, /import \{ PageHeader \}/);
+  assert.match(page, /<PageHeader[\s\S]*?route\.expense\.title/);
   assert.match(page, /aria-labelledby="expense-empty-title"/);
   assert.match(header, /h-\[72px\]/);
   assert.match(page, /max-w-\[1600px\]/);

@@ -22,7 +22,7 @@
     "test": "npm run build && node --test tests/client-data-layer.test.mjs tests/rendered-html.test.mjs tests/map-foundation.test.mjs tests/security-headers-regression.test.mjs tests/operations-indexes-regression.test.mjs tests/marketing-regression.test.mjs tests/sales-regression.test.mjs tests/booking-regression.test.mjs tests/booking-age-regression.test.mjs tests/stock-regression.test.mjs tests/expense-regression.test.mjs tests/sales-organization-regression.test.mjs tests/settings-regression.test.mjs tests/company-management-regression.test.mjs tests/multi-company-isolation.test.mjs tests/data-hub-regression.test.mjs tests/data-hub-detection.test.mjs tests/data-hub-cpi-structure.test.mjs tests/data-hub-booking-stock-structure.test.mjs tests/data-hub-d1-batching.test.mjs tests/data-hub-unified-import.test.mjs tests/data-hub-smart-import.test.mjs tests/live-dashboard-completion.test.mjs tests/dashboard-source-safety.test.mjs tests/design-v33-bug-regression.test.mjs tests/design-v34-chart-regression.test.mjs tests/sales-live-integration.test.mjs tests/daily-management-regression.test.mjs tests/model-normalization-regression.test.mjs tests/kai-header-regression.test.mjs tests/targets-regression.test.mjs tests/executive-intelligence-regression.test.mjs tests/forecast-readiness.test.mjs tests/kai-stock-parity.test.mjs tests/kai-sales-area.test.mjs tests/kai-phase1e-fix.test.mjs tests/kai-phase1e-knowledge-layer.test.mjs tests/kai-phase2a-runtime.test.mjs tests/weather-regression.test.mjs tests/agriculture-phase1.test.mjs tests/agriculture-calendar-ui.test.mjs tests/agriculture-data-view.test.mjs tests/agriculture-overview-view.test.mjs tests/kpi-card-regression.test.mjs tests/design-consistency.test.mjs tests/global-navigation-regression.test.mjs tests/localization-regression.test.mjs tests/locale-parity.test.mjs tests/release-workflow.test.mjs",
     "release:check": "node scripts/release-check.mjs",
     "release": "node scripts/release.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern 'artifacts/**' --ignore-pattern '.freebuff/**'",
     "db:generate": "drizzle-kit generate",
     "staging:seed-km": "node scripts/seed-km-staging.mjs"
   },
@@ -37,7 +37,7 @@
     "firebase": "^12.16.0",
     "lucide-react": "^1.24.0",
     "maplibre-gl": "^5.24.0",
-    "next": "16.2.6",
+    "next": "^16.3.2",
     "pmtiles": "^4.4.1",
     "react": "19.2.6",
     "react-dom": "19.2.6",

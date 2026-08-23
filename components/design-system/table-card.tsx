@@ -40,15 +40,16 @@ export function TableCard({
   return (
     <Card
       className={cn(
-        "rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-5 shadow-[var(--shadow-card)] sm:p-6",
+        "rounded-[var(--radius-card)] border-[var(--border-default)] bg-[var(--surface-default)] p-4 shadow-[var(--shadow-card)] sm:p-5",
         className,
       )}
       role="region"
       aria-labelledby={titleId}
       data-card-state={state}
+      data-enterprise-component="table-card"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <h2 id={titleId} className="text-[19px] font-semibold leading-tight tracking-[-0.015em] text-[var(--text-primary)]">
+        <h2 id={titleId} className="text-base font-semibold leading-tight tracking-[-0.01em] text-[var(--text-primary)]">
           {title}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -57,7 +58,7 @@ export function TableCard({
           {exportAction}
         </div>
       </div>
-      <div className="mt-6">
+      <div className="mt-4">
         {loading ? (
           <LoadingSkeleton variant="table" />
         ) : error ? (
@@ -68,7 +69,7 @@ export function TableCard({
           children
         )}
       </div>
-      {pagination && <div className="mt-5">{pagination}</div>}
+      {pagination && <div className="mt-4">{pagination}</div>}
     </Card>
   );
 }

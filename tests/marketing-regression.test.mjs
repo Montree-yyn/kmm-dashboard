@@ -122,9 +122,8 @@ test("Marketing compare control matches filter control typography and geometry",
   const styles = await read("app/globals.css");
   assert.match(
     workspace,
-    /kmm-compare-control inline-flex h-14 min-w-\[176px\][\s\S]*?rounded-xl[\s\S]*?px-3/,
+    /kmm-compare-control inline-flex h-11 min-w-\[156px\][\s\S]*?rounded-\[10px\][\s\S]*?px-2\.5/,
   );
-  assert.match(workspace, /max-sm:h-11/);
   assert.match(
     styles,
     /\.kmm-compare-control\s*\{[\s\S]*?font-size:\s*11px;[\s\S]*?font-weight:\s*700;/,
@@ -137,15 +136,14 @@ test("Marketing decision filters keep staged selection, custom metric semantics,
   );
   const decisionToolbar = workspace.slice(
     workspace.indexOf("function DecisionToolbar"),
-    workspace.indexOf("function Metric("),
+    workspace.indexOf("export function MarketingIntelligencePage"),
   );
   const applyMultiSelect = workspace.slice(
     workspace.indexOf("function ApplyMultiSelect"),
     workspace.indexOf("function MetricSelector"),
   );
 
-  assert.match(workspace, /inline-flex h-14 min-w-\[132px\]/);
-  assert.match(workspace, /max-sm:h-11/);
+  assert.match(workspace, /inline-flex h-11 min-w-\[116px\]/);
   assert.match(workspace, /grid grid-cols-3 gap-1\.5/);
   assert.doesNotMatch(decisionToolbar, /ค้นหาปี\.\.\./);
   assert.doesNotMatch(decisionToolbar, /ค้นหาสินค้า\.\.\./);

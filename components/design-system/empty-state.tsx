@@ -18,6 +18,7 @@ export function EmptyState({ title, message, action, className }: EmptyStateProp
       className={cn("grid min-h-32 place-items-center px-4 py-6 text-center text-sm text-[var(--text-secondary)]", className)}
       role="status"
       aria-live="polite"
+      data-enterprise-component="empty-state"
     >
       <div className="max-w-md">
         {title && <p className="font-semibold text-[var(--text-primary)]">{title}</p>}

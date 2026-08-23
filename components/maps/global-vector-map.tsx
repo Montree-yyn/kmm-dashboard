@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
 import { createMapSource } from "../../lib/maps/create-map-source";
 import { registerPmtilesProtocol } from "../../lib/maps/register-pmtiles-protocol";
@@ -45,6 +45,10 @@ type GlobalVectorMapProps = {
   viewportPaddingRight?: number;
   fitPadding?: { top: number; right: number; bottom: number; left: number };
   baseStyle?: StyleSpecification | string;
+  fillNoDataColor?: string;
+  boundaryColor?: string;
+  boundaryOpacity?: number;
+  boundaryWidth?: number;
   overlayFillOpacity?: number;
   overlayHoverOpacity?: number;
   overlaySelectedOpacity?: number;
@@ -64,11 +68,14 @@ const interactionLayerId = fillLayerId;
 const clickableLayerIds = [fillLayerId, baseFillLayerId];
 const townshipMapLayerIds = [fillLayerId, baseFillLayerId, hoverFillLayerId, selectedFillLayerId, outlineLayerId, topTownshipLayerId, selectedLayerId];
 
-function getFillColorExpression(fillColorsByCanonicalId: Record<string, string>) {
-  if (!Object.keys(fillColorsByCanonicalId).length) return chartTheme.marketing.noData;
+function getFillColorExpression(
+  fillColorsByCanonicalId: Record<string, string>,
+  fillNoDataColor: string = chartTheme.marketing.noData,
+) {
+  if (!Object.keys(fillColorsByCanonicalId).length) return fillNoDataColor;
   const colorPairs: (string | unknown)[] = ["match", ["get", "canonical_location_id"]];
   Object.entries(fillColorsByCanonicalId).forEach(([id, color]) => colorPairs.push(id, color));
-  colorPairs.push(chartTheme.marketing.noData);
+  colorPairs.push(fillNoDataColor);
   return colorPairs as never;
 }
 
@@ -104,7 +111,7 @@ function isFatalStyleLoadError(message: string) {
   return /not a valid style|unexpected end/i.test(message);
 }
 
-export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onMapBackgroundClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
+export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map", className, onMapReady, onFeatureClick, onMapBackgroundClick, onFeatureHover, onViewportChange, onError, fillColorsByCanonicalId = {}, selectedCanonicalLocationId = null, layerState, viewportPaddingRight = 0, fitPadding = { top: 28, right: 28, bottom: 28, left: 28 }, baseStyle, fillNoDataColor = chartTheme.marketing.noData, boundaryColor = chartTheme.grid, boundaryOpacity = 0.5, boundaryWidth = 0.9, overlayFillOpacity = 0.98, overlayHoverOpacity = 0.98, overlaySelectedOpacity = 0.98, activeMetricLayer = "heatmap", topCanonicalLocationIds = [], onMapStatus }: GlobalVectorMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const layerStateRef = useRef(layerState);
@@ -126,6 +133,11 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
   const onMapStatusRef = useRef(onMapStatus);
   const activeMetricLayerRef = useRef(activeMetricLayer);
   const topCanonicalLocationIdsRef = useRef(topCanonicalLocationIds);
+  const baseStyleRef = useRef(baseStyle);
+  const boundaryColorRef = useRef(boundaryColor);
+  const boundaryOpacityRef = useRef(boundaryOpacity);
+  const boundaryWidthRef = useRef(boundaryWidth);
+  const fillNoDataColorRef = useRef(fillNoDataColor);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
@@ -146,9 +158,14 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     onMapStatusRef.current = onMapStatus;
     activeMetricLayerRef.current = activeMetricLayer;
     topCanonicalLocationIdsRef.current = topCanonicalLocationIds;
+    baseStyleRef.current = baseStyle;
+    boundaryColorRef.current = boundaryColor;
+    boundaryOpacityRef.current = boundaryOpacity;
+    boundaryWidthRef.current = boundaryWidth;
+    fillNoDataColorRef.current = fillNoDataColor;
   });
 
-  const emitMapStatus = (map: MapLibreMap) => {
+  const emitMapStatus = useCallback((map: MapLibreMap) => {
     const visibleLayerIds = townshipMapLayerIds.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     const actualMapLayerOrder = getActualManagedLayerOrder(map);
     const renderedTownshipFeatures = map.getLayer(fillLayerId) ? map.queryRenderedFeatures(undefined, { layers: [fillLayerId] }) : [];
@@ -174,7 +191,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
       renderedChoroplethLayerCount,
       viewportBounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
     });
-  };
+  }, [dataset]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -186,12 +203,12 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     });
     applyRequiredLayerOrder(map);
     emitMapStatus(map);
-  }, [layerState]);
+  }, [layerState, emitMapStatus]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (map?.getLayer(fillLayerId)) map.setPaintProperty(fillLayerId, "fill-color", getFillColorExpression(fillColorsByCanonicalId));
-  }, [fillColorsByCanonicalId]);
+    if (map?.getLayer(fillLayerId)) map.setPaintProperty(fillLayerId, "fill-color", getFillColorExpression(fillColorsByCanonicalId, fillNoDataColor));
+  }, [fillColorsByCanonicalId, fillNoDataColor]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -212,12 +229,20 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
     if (!map?.isStyleLoaded()) return;
     applyRequiredLayerOrder(map);
     emitMapStatus(map);
-  }, [selectedCanonicalLocationId]);
+  }, [selectedCanonicalLocationId, emitMapStatus]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (map?.isStyleLoaded()) emitMapStatus(map);
-  }, [activeMetricLayer]);
+  }, [activeMetricLayer, emitMapStatus]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded() || !map.getLayer(outlineLayerId)) return;
+    map.setPaintProperty(outlineLayerId, "line-color", boundaryColor);
+    map.setPaintProperty(outlineLayerId, "line-width", boundaryWidth);
+    map.setPaintProperty(outlineLayerId, "line-opacity", boundaryOpacity);
+  }, [boundaryColor, boundaryOpacity, boundaryWidth]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -245,7 +270,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
         const { default: maplibregl } = await import("maplibre-gl");
         await registerPmtilesProtocol(maplibregl);
         if (disposed || !containerRef.current) return;
-        const style = baseStyle ?? createMarketingBasemapStyle();
+        const style = baseStyleRef.current ?? createMarketingBasemapStyle();
         const map = new maplibregl.Map({
           container: containerRef.current,
           style,
@@ -273,11 +298,11 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
             const layers = new Set(getMapLayers().filter((layer) => layer.enabled).map((layer) => layer.id));
             const metricVisibility = isLayerGroupEnabled("heatmap", layerStateRef.current) ? "visible" : "none";
             const boundaryVisibility = isLayerGroupEnabled("township-boundary", layerStateRef.current) ? "visible" : "none";
-            if (layers.has("township-fill") && !map.getLayer(fillLayerId)) map.addLayer({ id: fillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: metricVisibility }, paint: { "fill-color": getFillColorExpression(fillColorsRef.current), "fill-opacity": getFillOpacityExpression(overlayFillOpacityRef.current) } });
+            if (layers.has("township-fill") && !map.getLayer(fillLayerId)) map.addLayer({ id: fillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: metricVisibility }, paint: { "fill-color": getFillColorExpression(fillColorsRef.current, fillNoDataColorRef.current), "fill-opacity": getFillOpacityExpression(overlayFillOpacityRef.current) } });
             if (!map.getLayer(baseFillLayerId)) map.addLayer({ id: baseFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": 0.001 } });
             if (layers.has("township-hover") && !map.getLayer(hoverFillLayerId)) map.addLayer({ id: hoverFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": getHoverOpacityExpression(selectedCanonicalLocationIdRef.current, overlayHoverOpacityRef.current) } });
             if (layers.has("township-selected") && !map.getLayer(selectedFillLayerId)) map.addLayer({ id: selectedFillLayerId, type: "fill", source: dataset.source_id, "source-layer": sourceLayer, paint: { "fill-color": chartTheme.surface, "fill-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current, overlaySelectedOpacityRef.current) } });
-            if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": chartTheme.grid, "line-width": 0.9, "line-opacity": 0.5 } });
+            if (layers.has("township-outline") && !map.getLayer(outlineLayerId)) map.addLayer({ id: outlineLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: boundaryVisibility, "line-cap": "round", "line-join": "round" }, minzoom: 4, paint: { "line-color": boundaryColorRef.current, "line-width": boundaryWidthRef.current, "line-opacity": boundaryOpacityRef.current, "line-dasharray": [8, 4] } });
             if (!map.getLayer(topTownshipLayerId)) map.addLayer({ id: topTownshipLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, filter: getTopTownshipFilter(topCanonicalLocationIdsRef.current), layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": chartTheme.current, "line-width": 1.55, "line-opacity": 0.72, "line-blur": 0.6 } });
             if (layers.has("township-selected") && !map.getLayer(selectedLayerId)) map.addLayer({ id: selectedLayerId, type: "line", source: dataset.source_id, "source-layer": sourceLayer, layout: { visibility: "visible", "line-cap": "round", "line-join": "round" }, paint: { "line-color": chartTheme.current, "line-width": 2.5, "line-opacity": getSelectedOpacityExpression(selectedCanonicalLocationIdRef.current), "line-blur": 0.35 } });
             applyRequiredLayerOrder(map);
@@ -352,7 +377,7 @@ export function GlobalVectorMap({ dataset, ariaLabel = "Interactive vector map",
       map?.remove();
       mapRef.current = null;
     };
-  }, [dataset]);
+  }, [dataset, emitMapStatus]);
 
   if (!dataset.enabled) return <div className={className} role="status">Dataset is configured but inactive.</div>;
   return <div className={className ?? "relative h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50"}><div ref={containerRef} className="absolute inset-0" aria-label={ariaLabel} />{status === "loading" && <div className="absolute inset-0 grid place-items-center bg-white/80 text-sm text-slate-600">Loading vector map…</div>}{status === "error" && <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center text-sm text-red-700">Unable to load this map dataset.</div>}</div>;

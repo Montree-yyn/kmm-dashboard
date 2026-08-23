@@ -53,7 +53,6 @@ test("Sales Organization KPIs preserve their existing calculations", async () =>
     "Total GP",
     "Avg GP %",
     "Avg Sales / Person",
-    "Selected Period",
   ]) {
     assert.match(page, new RegExp(`title="${title}"`));
   }
@@ -215,7 +214,9 @@ test("Sales Organization follows the Golden Reference shell and states", async (
     page,
     /kmm-sales-organization-page min-h-\[calc\(100vh-72px\)\] bg-\[var\(--surface-canvas\)\]/,
   );
-  assert.match(page, /id="sales-organization-title"/);
+  assert.match(page, /<PageHeader/);
+  assert.match(page, /data-enterprise-page-header="team"/);
+  assert.match(page, /Selected period/);
   assert.match(header, /h-\[72px\]/);
   assert.match(page, /max-w-\[1600px\]/);
   assert.match(page, /aria-busy="true"/);

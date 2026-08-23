@@ -31,12 +31,12 @@ test("Dashboard prioritizes the lead KPI while Sales keeps the shared executive 
     assert.match(page, /max-w-\[1600px\]/);
     assert.match(page, /p-4 sm:p-5 xl:p-6/);
   }
-  assert.match(dashboard, /h-7 w-1 shrink-0 rounded-full bg-\[var\(--brand-500\)\]/);
-  assert.match(dashboard, /text-\[26px\].*sm:text-\[28px\]/);
+  assert.match(dashboard, /<PageHeader/);
+  assert.match(dashboard, /title=\{t\("route\.dashboard\.title"\)\}/);
   assert.match(dashboard, /grid-cols-2 gap-3 xl:grid-cols-6/);
   assert.match(dashboard, /className="col-span-2"/);
-  assert.match(sales, /mb-2 h-1 w-8 rounded-full bg-\[var\(--brand-500\)\]/);
-  assert.match(sales, /text-\[28px\].*sm:text-\[30px\]/);
+  assert.match(sales, /<PageHeader/);
+  assert.match(sales, /title=\{t\("route\.sales\.title"\)\}/);
   assert.match(sales, /repeat\(5,minmax\(0,1fr\)\)/);
 });
 
@@ -185,7 +185,7 @@ test("project charts preserve the approved color conditions", async () => {
   assert.match(stock, /chartProductColor\(item\.label\)/);
   assert.match(booking, /businessStatusColor\(item\.label, index\)/);
   assert.match(marketing, /const COLORS = chartTheme\.marketing\.heatScale/);
-  assert.match(map, /const CHOROPLETH_COLORS = chartTheme\.marketing\.heatScale/);
+  assert.match(map, /const CHOROPLETH_COLORS = SALES_MAP_COLORS\.heatScale/);
   assert.match(chartData, /status === "delivered"[\s\S]*?chartTheme\.status\.positive[\s\S]*?status === "cancelled"[\s\S]*?chartTheme\.status\.negative[\s\S]*?status === "open"[\s\S]*?chartTheme\.status\.warning/);
 });
 
@@ -238,9 +238,9 @@ test("Marketing retains the approved compact workspace exception", async () => {
   assert.match(marketing, /data-marketing-workspace="true"/);
   assert.match(marketing, /h-\[calc\(100vh-72px\)\]/);
   assert.match(marketing, /xl:grid-cols-\[minmax\(0,1fr\)_360px\]/);
-  assert.match(marketing, /inline-flex h-14 min-w-\[132px\]/);
-  assert.match(marketing, /kmm-compare-control inline-flex h-14/);
-  assert.match(marketing, /transition-\[border-color,background-color\]/);
+  assert.match(marketing, /inline-flex h-11 min-w-\[116px\]/);
+  assert.match(marketing, /kmm-compare-control inline-flex h-11/);
+  assert.match(marketing, /transition-\[border-color,background-color,box-shadow\]/);
 });
 
 test("Design V3.3 keeps glass selective and Dashboard actions source-backed", async () => {

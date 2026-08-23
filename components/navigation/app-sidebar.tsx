@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
@@ -45,14 +47,14 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
     <>
       <div className="flex min-h-[76px] items-center justify-between border-b border-[var(--border-subtle)] px-4 py-4">
         {selectedCompany?.logoUrl || selectedCompany?.code === "KMM" ? (
-          <img src={selectedCompany.logoUrl || "/kmm-logo.png"} alt={selectedCompany.name} className={cn("h-9 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-9 object-[9%_center]" : "max-w-[112px]")} />
+          <Image src={selectedCompany.logoUrl || "/kmm-logo.png"} alt={selectedCompany.name} width={112} height={36} unoptimized={Boolean(selectedCompany.logoUrl)} className={cn("h-9 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-9 object-[9%_center]" : "max-w-[112px]")} />
         ) : (
           <span className={cn("grid h-10 place-items-center rounded-[var(--radius-control-lg)] bg-[var(--brand-50)] font-bold text-[var(--brand-700)]", isCollapsed ? "w-10 text-xs" : "min-w-[82px] px-3 text-sm")} aria-label={selectedCompany?.name}>{selectedCompany?.code ?? "KM"}</span>
         )}
-        <button className="hidden rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F5F7] hover:text-[#55565A] lg:block" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? t("nav.expand") : t("nav.collapse")} title={collapsed ? t("nav.expand") : t("nav.collapse")}>
+        <button className="hidden rounded-lg p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)] lg:block" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? t("nav.expand") : t("nav.collapse")} title={collapsed ? t("nav.expand") : t("nav.collapse")}>
           <ChevronDown className={cn("rotate-90 transition-transform", collapsed && "-rotate-90")} size={18} />
         </button>
-        <button className="rounded-lg p-2 text-[#55565A] hover:bg-[#F4F5F7] lg:hidden" onClick={() => onMobileOpenChange(false)} aria-label={t("nav.close")}><X size={20} /></button>
+        <button className="rounded-lg p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] lg:hidden" onClick={() => onMobileOpenChange(false)} aria-label={t("nav.close")}><X size={20} /></button>
       </div>
       <nav
         className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-5"
@@ -124,7 +126,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
   return (
     <>
       <aside data-global-sidebar className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-default)] transition-[width] duration-150 motion-reduce:transition-none lg:flex", collapsed ? "w-[72px]" : "w-[216px]")}>{renderSidebar(collapsed)}</aside>
-      {mobileOpen && <button className="fixed inset-0 z-40 bg-[#1F2937]/35 backdrop-blur-[2px] lg:hidden" aria-label={t("nav.close")} onClick={() => onMobileOpenChange(false)} />}
+      {mobileOpen && <button className="fixed inset-0 z-40 bg-[var(--text-primary)]/35 backdrop-blur-[2px] lg:hidden" aria-label={t("nav.close")} onClick={() => onMobileOpenChange(false)} />}
       <aside
         data-global-sidebar
         aria-hidden={!mobileOpen}

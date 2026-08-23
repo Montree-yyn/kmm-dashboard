@@ -18,6 +18,7 @@ import {
 } from "./settings-card";
 import { SettingsSearch } from "./settings-search";
 import { useLocale } from "../../src/hooks/useLocale";
+import { PageHeader } from "../design-system/page-header";
 
 const settingsCards: SettingsCardDefinition[] = [
   {
@@ -111,21 +112,11 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="kmm-settings-page min-h-[calc(100vh-72px)] bg-[#F7F8FA] text-[#111827]">
+    <div className="kmm-settings-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1720px] p-4 sm:p-5 xl:p-6">
           <div className="grid min-w-0 gap-5 xl:gap-6">
             <div className="min-w-0 space-y-5 xl:space-y-6">
-              <section aria-labelledby="settings-overview-title">
-                <h1
-                  id="settings-overview-title"
-                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-                >
-                  {t("settings.overview")}
-                </h1>
-                <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
-                  {t("settings.overviewDescription")}
-                </p>
-              </section>
+              <PageHeader title={t("settings.overview")} description={t("settings.overviewDescription")} />
 
               <div className="max-w-lg">
                 <SettingsSearch

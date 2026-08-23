@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,6 +20,8 @@ import { ProductBadge } from "../design-system/product-badge";
 import { FilterBar } from "../design-system/filter-bar";
 import { MultiSelectFilter } from "../design-system/data-controls";
 import { FreshnessIndicator } from "../design-system/freshness-indicator";
+import { PageHeader } from "../design-system/page-header";
+import { SectionHeader } from "../design-system/section-header";
 import { ResponsiveDataTable } from "../design-system/responsive-data-table";
 import { PremiumTrendChart } from "../common/charts/PremiumTrendChart";
 import type { StandardLineSeries } from "../common/charts/StandardLineChart";
@@ -29,7 +31,7 @@ import {
   LollipopChart,
   PercentStackedBar,
 } from "../common/charts/AnalyticalCharts";
-import { chartProductColor, chartTheme } from "../common/charts/chartTheme";
+import { chartProductColor } from "../common/charts/chartTheme";
 import { loadLiveSalesData } from "../../lib/sales/client";
 import {
   getBranchSummary,
@@ -89,13 +91,6 @@ type SalesData = {
 };
 
 type TrendMetric = "unit" | "value";
-type MonthRange = "full" | "q1" | "q2" | "q3" | "q4" | "custom";
-type TrendPoint = {
-  month: number;
-  label: string;
-  values: Record<number, number | null>;
-  target: number | null;
-};
 
 const defaultFilters: FilterState = {
   year: ["2026"],
@@ -358,403 +353,6 @@ function BarChart({
           View All
         </button>
       )}
-    </div>
-  );
-}
-
-function cleanTicks(maxValue: number) {
-  const rawStep = Math.max(maxValue, 1) / 3;
-  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-  const normalized = rawStep / magnitude;
-  const nice =
-    normalized <= 1
-      ? 1
-      : normalized <= 2
-        ? 2
-        : normalized <= 2.5
-          ? 2.5
-          : normalized <= 5
-            ? 5
-            : 10;
-  const step = nice * magnitude;
-  return [0, step, step * 2, step * 3];
-}
-
-function SalesTrendChart({
-  sales,
-  filters,
-  plan,
-  currency = "MMK",
-}: {
-  sales: SalesRow[];
-  filters: FilterState;
-  plan: SalesData["plan"];
-  currency?: string;
-}) {
-  const availableYears = useMemo(
-    () => [...new Set(sales.map((row) => row.year))].sort((a, b) => b - a),
-    [sales],
-  );
-  const currentYear = selectedYears(filters)[0] ?? availableYears[0];
-  const [metric, setMetric] = useState<TrendMetric>("unit");
-  const [years, setYears] = useState<number[]>(() =>
-    [
-      currentYear,
-      ...availableYears.filter((year) => year < currentYear).slice(0, 1),
-    ].filter((year, index, list) => list.indexOf(year) === index),
-  );
-  const [range, setRange] = useState<MonthRange>("full");
-  const [startMonth, setStartMonth] = useState(1);
-  const [endMonth, setEndMonth] = useState(12);
-  const [yearsOpen, setYearsOpen] = useState(false);
-  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
-  const rangeMonths =
-    range === "full"
-      ? MONTHS.map((_, index) => index + 1)
-      : range === "custom"
-        ? MONTHS.map((_, index) => index + 1).filter(
-            (month) =>
-              month >= Math.min(startMonth, endMonth) &&
-              month <= Math.max(startMonth, endMonth),
-          )
-        : { q1: [1, 2, 3], q2: [4, 5, 6], q3: [7, 8, 9], q4: [10, 11, 12] }[
-            range
-          ];
-  const scopedRows = sales.filter((row) =>
-    rowMatches(row, { ...filters, year: [], month: [] }),
-  );
-  const visibleYears = years.filter((year) => availableYears.includes(year));
-  const targetYear = visibleYears.includes(currentYear)
-    ? currentYear
-    : visibleYears[0];
-  const targetAllowed =
-    metric === "unit" &&
-    targetYear === plan.year &&
-    filters.branch.length === 0 &&
-    filters.salesperson.length === 0 &&
-    selectedProductGroups(filters).length === 0;
-  const points: TrendPoint[] = rangeMonths.map((month) => ({
-    month,
-    label: MONTHS[month - 1],
-    values: Object.fromEntries(
-      visibleYears.map((year) => {
-        const monthRows = scopedRows.filter(
-          (row) => row.year === year && row.month === month,
-        );
-        const kpis = getSalesKpis(monthRows);
-        return [
-          year,
-          monthRows.length
-            ? metric === "unit"
-              ? kpis.salesUnit
-              : kpis.salesValue
-            : null,
-        ];
-      }),
-    ),
-    target:
-      targetAllowed && (plan.units[month - 1] ?? 0) > 0
-        ? plan.units[month - 1]
-        : null,
-  }));
-  const maxValue = Math.max(
-    ...points.flatMap((point) => [
-      ...Object.values(point.values).map((value) => value ?? 0),
-      point.target ?? 0,
-    ]),
-    1,
-  );
-  const ticks = cleanTicks(maxValue);
-  const maxTick = ticks.at(-1) ?? 1;
-  const width = 920;
-  const height = 365;
-  const padX = 74;
-  const padY = 42;
-  const xFor = (index: number) =>
-    padX + (index * (width - padX * 2)) / Math.max(points.length - 1, 1);
-  const yFor = (value: number) =>
-    height - padY - (value / maxTick) * (height - padY * 2);
-  const path = (values: (number | null)[]) =>
-    values.reduce((result, value, index) => {
-      if (value === null) return result;
-      const previous = values[index - 1];
-      if (previous === null || previous === undefined)
-        return `${result} M ${xFor(index)} ${yFor(value)}`;
-      const middle = (xFor(index - 1) + xFor(index)) / 2;
-      return `${result} C ${middle} ${yFor(previous)}, ${middle} ${yFor(value)}, ${xFor(index)} ${yFor(value)}`;
-    }, "");
-  const styles = [
-    { color: chartTheme.current, dash: undefined, label: "Current" },
-    { color: chartTheme.previous, dash: undefined, label: "Previous" },
-    { color: chartTheme.older[0], dash: undefined, label: "Comparison" },
-  ];
-  const valueLabel = metric === "unit" ? "Sales Unit" : "Sales Value";
-  const formatMetric = (value: number | null) =>
-    value === null
-      ? "No data"
-      : metric === "unit"
-        ? value.toLocaleString()
-        : `${formatCompact(value)} ${currency}`;
-  const hovered = hoveredMonth === null ? null : points[hoveredMonth];
-  const baseYear = visibleYears[0];
-  const comparisonYear = visibleYears[1];
-
-  return (
-    <div>
-      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="flex flex-wrap gap-4 text-xs font-semibold text-[#4B5563]">
-          {visibleYears.map((year, index) => (
-            <span key={year} className="flex items-center gap-2">
-              <i
-                className="h-0 w-7 border-t-[3px]"
-                style={{
-                  borderColor: styles[index]?.color ?? chartTheme.target,
-                  borderStyle: styles[index]?.dash ? "dashed" : "solid",
-                }}
-              />
-              {year} Actual
-            </span>
-          ))}
-          {points.some((point) => point.target !== null) && (
-            <span className="flex items-center gap-2">
-              <i className="h-0 w-7 border-t-[3px] border-dotted" style={{ borderColor: chartTheme.target }} />
-              {targetYear} Target
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <label className="sr-only" htmlFor="sales-trend-metric">
-            Metric
-          </label>
-          <select
-            id="sales-trend-metric"
-            value={metric}
-            onChange={(event) => setMetric(event.target.value as TrendMetric)}
-            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold outline-none focus:border-[#FFB46E]"
-          >
-            <option value="unit">Sales Unit</option>
-            <option value="value">Sales Value</option>
-          </select>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setYearsOpen((open) => !open)}
-              className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold"
-              aria-expanded={yearsOpen}
-            >
-              {visibleYears.length
-                ? `${visibleYears.length} year${visibleYears.length === 1 ? "" : "s"}`
-                : "Compare year"}
-            </button>
-            {yearsOpen && (
-              <Card className="absolute right-0 top-10 z-30 w-40 p-2 shadow-xl">
-                {availableYears.map((year) => (
-                  <label
-                    key={year}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-[#FFF7EF]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={visibleYears.includes(year)}
-                      onChange={() =>
-                        setYears((current) =>
-                          current.includes(year)
-                            ? current.filter((item) => item !== year)
-                            : [...current, year].sort((a, b) => b - a),
-                        )
-                      }
-                      className="accent-[#FF8615]"
-                    />
-                    {year}
-                  </label>
-                ))}
-              </Card>
-            )}
-          </div>
-          <label className="sr-only" htmlFor="sales-trend-range">
-            Month range
-          </label>
-          <select
-            id="sales-trend-range"
-            value={range}
-            onChange={(event) => setRange(event.target.value as MonthRange)}
-            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs font-semibold outline-none focus:border-[#FFB46E]"
-          >
-            <option value="full">Full Year</option>
-            <option value="q1">Q1 · Jan–Mar</option>
-            <option value="q2">Q2 · Apr–Jun</option>
-            <option value="q3">Q3 · Jul–Sep</option>
-            <option value="q4">Q4 · Oct–Dec</option>
-            <option value="custom">Custom Range</option>
-          </select>
-          {range === "custom" && (
-            <>
-              <select
-                value={startMonth}
-                onChange={(event) => setStartMonth(Number(event.target.value))}
-                aria-label="Start month"
-                className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs"
-              >
-                {MONTHS.map((month, index) => (
-                  <option key={month} value={index + 1}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={endMonth}
-                onChange={(event) => setEndMonth(Number(event.target.value))}
-                aria-label="End month"
-                className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs"
-              >
-                {MONTHS.map((month, index) => (
-                  <option key={month} value={index + 1}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="relative">
-        <svg
-          className="h-[400px] w-full sm:h-[440px]"
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label="Sales comparison trend by year"
-          onMouseLeave={() => setHoveredMonth(null)}
-        >
-          <title>Sales comparison trend</title>
-          {ticks.map((tick) => {
-            const y = yFor(tick);
-            return (
-              <g key={tick}>
-                <line
-                  x1={padX}
-                  x2={width - padX}
-                  y1={y}
-                  y2={y}
-                  stroke={chartTheme.grid}
-                />
-                <text
-                  x={padX - 12}
-                  y={y + 4}
-                  textAnchor="end"
-                  fill={chartTheme.text}
-                  fontSize="12"
-                  fontWeight="600"
-                >
-                  {metric === "unit"
-                    ? tick.toLocaleString()
-                    : formatCompact(tick)}
-                </text>
-              </g>
-            );
-          })}
-          <text x={padX} y={18} fill={chartTheme.text} fontSize="12" fontWeight="700">
-            {metric === "unit" ? "Unit" : currency}
-          </text>
-          {visibleYears.map((year, index) => (
-            <g key={year}>
-              <path
-                d={path(points.map((point) => point.values[year]))}
-                fill="none"
-                stroke={styles[index]?.color ?? chartTheme.target}
-                strokeWidth={index === 0 ? 4 : 3}
-                strokeDasharray={styles[index]?.dash}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {points.map((point, pointIndex) =>
-                point.values[year] === null ? null : (
-                  <circle
-                    key={`${year}-${point.month}`}
-                    cx={xFor(pointIndex)}
-                    cy={yFor(point.values[year] ?? 0)}
-                    r={hoveredMonth === pointIndex ? 5.5 : 3.5}
-                    fill={chartTheme.surface}
-                    stroke={styles[index]?.color ?? chartTheme.target}
-                    strokeWidth={2.5}
-                    onMouseEnter={() => setHoveredMonth(pointIndex)}
-                  />
-                ),
-              )}
-            </g>
-          ))}
-          {points.some((point) => point.target !== null) && (
-            <path
-              d={path(points.map((point) => point.target))}
-              fill="none"
-              stroke={chartTheme.target}
-              strokeWidth={2.25}
-              strokeDasharray="2 7"
-              strokeLinecap="round"
-            />
-          )}
-          {points.map((point, index) => (
-            <text
-              key={point.month}
-              x={xFor(index)}
-              y={height - 10}
-              textAnchor="middle"
-              fill={chartTheme.text}
-              fontSize="12"
-              fontWeight="600"
-            >
-              {point.label}
-            </text>
-          ))}
-        </svg>
-        {hovered && (
-          <div
-            className="pointer-events-none absolute top-2 z-10 min-w-52 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] shadow-[0_10px_28px_rgba(31,41,55,0.10)]"
-            style={{
-              left: `${Math.min(Math.max((xFor(hoveredMonth ?? 0) / width) * 100, 8), 72)}%`,
-            }}
-          >
-            <p className="font-bold text-[#1F2937]">{hovered.label}</p>
-            {visibleYears.map((year) => (
-              <p key={year} className="mt-1">
-                {year} {valueLabel}:{" "}
-                <strong>{formatMetric(hovered.values[year])}</strong>
-              </p>
-            ))}
-            {hovered.target !== null && (
-              <>
-                <p>
-                  {targetYear} Target:{" "}
-                  <strong>{formatMetric(hovered.target)}</strong>
-                </p>
-                <p>
-                  Variance:{" "}
-                  <strong>
-                    {formatMetric(
-                      (hovered.values[targetYear] ?? 0) - hovered.target,
-                    )}
-                  </strong>
-                </p>
-              </>
-            )}
-            {baseYear &&
-              comparisonYear &&
-              hovered.values[baseYear] !== null &&
-              hovered.values[comparisonYear] !== null &&
-              hovered.values[comparisonYear] !== 0 && (
-                <p>
-                  vs {comparisonYear}:{" "}
-                  <strong>
-                    {percentChange(
-                      hovered.values[baseYear] ?? 0,
-                      hovered.values[comparisonYear] ?? 0,
-                    )?.toFixed(1)}
-                    %
-                  </strong>
-                </p>
-              )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -1140,7 +738,7 @@ export function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -1154,7 +752,7 @@ export function SalesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [companyId]);
 
   useEffect(() => {
     let ignore = false;
@@ -1179,7 +777,7 @@ export function SalesPage() {
       ignore = true;
       window.removeEventListener("kmm:sales-imported", refreshAfterImport);
     };
-  }, [companyId]);
+  }, [companyId, loadData]);
 
   const options = data
     ? filterOptions(data.sales, filters)
@@ -1231,29 +829,12 @@ export function SalesPage() {
     <div className="kmm-sales-page min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1600px] p-4 sm:p-5 xl:p-6">
           <div className="space-y-5 xl:space-y-6">
-            <section
-              className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
-              aria-labelledby="sales-title"
-            >
-              <div className="min-w-0">
-                <div
-                  className="mb-2 h-1 w-8 rounded-full bg-[var(--brand-500)]"
-                  aria-hidden="true"
-                />
-                <h1
-                  id="sales-title"
-                  className="text-[28px] font-semibold leading-tight tracking-normal text-[var(--text-primary)] sm:text-[30px]"
-                >
-                  {t("route.sales.title")}
-                </h1>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  {t("route.sales.subtitle").replaceAll("KMM", companyCode)}
-                </p>
-              </div>
-              <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-                {data && <FreshnessIndicator timestamp={data.meta.sourceUpdatedAt} />}
-              </div>
-            </section>
+            <PageHeader
+              eyebrow={companyCode}
+              title={t("route.sales.title")}
+              description={t("route.sales.subtitle").replaceAll("KMM", companyCode)}
+              action={data ? <FreshnessIndicator timestamp={data.meta.sourceUpdatedAt} /> : undefined}
+            />
             <section aria-label="Sales filters">
               <SalesFilters
                 filters={filters}
@@ -1363,13 +944,11 @@ export function SalesPage() {
                   />
                 </section>
                 <section aria-labelledby="sales-trajectory" className="space-y-3">
-                  <div>
-                    <h2 id="sales-trajectory" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.salesTrajectory")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.salesTrajectoryDescription")}
-                    </p>
+                  <div id="sales-trajectory">
+                    <SectionHeader
+                      title={t("section.salesTrajectory")}
+                      description={t("section.salesTrajectoryDescription")}
+                    />
                   </div>
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
                     <ExecutiveSalesTrend
@@ -1385,26 +964,24 @@ export function SalesPage() {
                   </div>
                 </section>
                 <section aria-labelledby="sales-rankings" className="space-y-3">
-                  <div>
-                    <h2 id="sales-rankings" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.rankingsMix")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.rankingsMixDescription")}
-                    </p>
+                  <div id="sales-rankings">
+                    <SectionHeader
+                      title={t("section.rankingsMix")}
+                      description={t("section.rankingsMixDescription")}
+                    />
                   </div>
                   <div className="grid gap-5 xl:grid-cols-2">
                   <ChartCard
                     title={t("chart.salesByBranchTitle")}
                     subtitle={t("chart.salesByBranchDescription")}
-                    className="min-w-0 [&_h2]:tracking-normal"
+                    className="min-w-0"
                   >
                     <BarChart data={byBranch} />
                   </ChartCard>
                   <ChartCard
                     title={t("chart.salespersonConcentrationTitle")}
                     subtitle={t("chart.salespersonConcentrationDescription")}
-                    className="min-w-0 [&_h2]:tracking-normal"
+                    className="min-w-0"
                   >
                     <CumulativeRankChart
                       items={peopleGroups}
@@ -1417,7 +994,7 @@ export function SalesPage() {
                   <ChartCard
                     title={t("chart.salesProductGroupTitle")}
                     subtitle={t("chart.salesProductGroupDescription")}
-                    className="min-w-0 [&_h2]:tracking-normal"
+                    className="min-w-0"
                   >
                     <PercentStackedBar
                       segments={byProduct.map((item) => ({
@@ -1432,20 +1009,18 @@ export function SalesPage() {
                   <ChartCard
                     title={t("chart.topModelTitle")}
                     subtitle={t("chart.topModelDescription")}
-                    className="min-w-0 [&_h2]:tracking-normal"
+                    className="min-w-0"
                   >
                     <LollipopChart items={modelGroups} suffix={` ${t("common.units")}`} />
                   </ChartCard>
                   </div>
                 </section>
                 <section aria-labelledby="sales-transactions" className="space-y-3">
-                  <div>
-                    <h2 id="sales-transactions" className="text-lg font-semibold tracking-normal text-[var(--text-primary)]">
-                      {t("section.transactions")}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {t("section.transactionsDescription")}
-                    </p>
+                  <div id="sales-transactions">
+                    <SectionHeader
+                      title={t("section.transactions")}
+                      description={t("section.transactionsDescription")}
+                    />
                   </div>
                   <SalesPageTable rows={rows} onExport={() => exportRows(rows, companyCode)} />
                 </section>

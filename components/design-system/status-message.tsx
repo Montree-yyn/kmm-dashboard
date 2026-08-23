@@ -55,6 +55,7 @@ export function StatusMessage({
       className={cn("flex items-start gap-3 rounded-[var(--radius-control-lg)] border px-3 py-3 text-sm", presentation.surface, className)}
       role={role}
       aria-live={role === "alert" ? "assertive" : "polite"}
+      data-enterprise-component="status-message"
     >
       <Icon className={cn("mt-0.5 size-4 shrink-0", presentation.color)} aria-hidden="true" />
       <div className="min-w-0 flex-1">

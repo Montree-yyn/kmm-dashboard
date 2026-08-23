@@ -141,7 +141,7 @@ test("Stock page follows the Golden Reference shell and responsive containment",
     page,
     /kmm-stock-page min-h-\[calc\(100vh-72px\)\] bg-\[var\(--surface-canvas\)\]/,
   );
-  assert.match(page, /<h1[\s\S]*?id="stock-title"/);
+  assert.match(page, /<PageHeader[\s\S]*?title={t\("route.stock.title"\)}/);
   assert.match(page, /aria-label="Stock KPIs"/);
   assert.match(
     page,

@@ -28,6 +28,7 @@ import {
   type DailyManagementInputSnapshot,
 } from "../../lib/daily-management/input-storage";
 import { parseDailyManagementWorkbook } from "../../lib/daily-management/parse-input-workbook";
+import { PageHeader } from "../design-system/page-header";
 import { useLocale } from "../../src/hooks/useLocale";
 import { useCompany } from "../../src/hooks/useCompany";
 import {
@@ -37,7 +38,7 @@ import {
 } from "../../lib/daily-management/branch";
 import { isValidIsoDate } from "../../lib/daily-management/date";
 
-const inputClass = "h-11 w-full min-w-0 rounded-[12px] border border-[#D9DCE2] bg-white px-3.5 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[#9297A1] hover:border-[#BFC3CA] focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[#F4F5F7] disabled:text-[var(--text-secondary)]";
+const inputClass = "h-11 w-full min-w-0 rounded-[12px] border border-[var(--border-default)] bg-white px-3.5 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-tertiary)] hover:border-[var(--text-disabled)] focus:border-[var(--brand-500)] focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-secondary)]";
 const textareaClass = `${inputClass} min-h-28 resize-y py-3 leading-5`;
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -69,11 +70,12 @@ export function DailyManagementInputPage() {
   const { selectedCompany } = useCompany();
   const companyId = selectedCompany?.id ?? "";
   const companyCode = selectedCompany?.code ?? "KMM";
-  const companyBranches = selectedCompany?.branches ?? [];
-  const defaultInput = createDefaultDailyManagementInput({
+  const companyBranches = useMemo(() => selectedCompany?.branches ?? [], [selectedCompany?.branches]);
+  const companyTimeZone = selectedCompany?.timeZone;
+  const defaultInput = useMemo(() => createDefaultDailyManagementInput({
     companyCode,
-    timeZone: selectedCompany?.timeZone,
-  });
+    timeZone: companyTimeZone,
+  }), [companyCode, companyTimeZone]);
   const [draft, setDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultInput));
   const [savedDraft, setSavedDraft] = useState<DailyManagementInputSnapshot>(() => structuredClone(defaultInput));
   const [hasRemoteRecord, setHasRemoteRecord] = useState(false);
@@ -95,7 +97,7 @@ export function DailyManagementInputPage() {
     const hasRequestedScope = isValidIsoDate(requestedDate) && isDailyManagementBranch(requestedBranch, companyBranches);
     const stored = loadDailyManagementDraft(companyId, {
       companyCode,
-      timeZone: selectedCompany?.timeZone,
+      timeZone: companyTimeZone,
     });
     const scope = hasRequestedScope ? { date: requestedDate, branch: requestedBranch } : undefined;
     void loadDailyManagementInput("draft", { ...scope, companyId })
@@ -133,7 +135,7 @@ export function DailyManagementInputPage() {
         if (active) setReady(true);
       });
     return () => { active = false; };
-  }, [companyId]);
+  }, [companyBranches, companyCode, companyId, companyTimeZone, defaultInput]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(savedDraft), [draft, savedDraft]);
   const validation = useMemo(() => {
@@ -243,16 +245,12 @@ export function DailyManagementInputPage() {
   const busy = saving !== null;
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-[#F5F6F8] text-[var(--text-primary)]">
+    <div className="min-h-[calc(100vh-72px)] bg-[var(--surface-canvas)] text-[var(--text-primary)]">
       <main className="mx-auto max-w-[1180px] p-4 sm:p-5 xl:py-7">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <Link href="/daily-management" className="inline-flex min-h-9 items-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:text-[var(--brand-600)]"><ArrowLeft size={15} />{t("daily.back")}</Link>
-            <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.025em] sm:text-[32px]">{t("daily.input.title")}</h1>
-            <p className="mt-1 max-w-[620px] text-[13px] leading-5 text-[var(--text-secondary)]">{t("daily.input.subtitle")}</p>
-          </div>
-          <Link href="/data-hub" className="inline-flex min-h-11 items-center gap-2 self-start rounded-[12px] border border-[var(--border-default)] bg-white px-4 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:border-[#C8CBD1] hover:bg-[#FAFAFB] lg:self-auto"><Database size={16} />{t("daily.openDataHub")}</Link>
-        </header>
+        <div className="space-y-2">
+          <Link href="/daily-management" className="inline-flex min-h-9 items-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:text-[var(--brand-600)]"><ArrowLeft size={15} />{t("daily.back")}</Link>
+          <PageHeader title={t("daily.input.title")} description={t("daily.input.subtitle")} action={<Link href="/data-hub" className="inline-flex min-h-11 items-center gap-2 self-start rounded-[var(--radius-control-lg)] border border-[var(--border-default)] bg-[var(--surface-default)] px-4 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-subtle)]"><Database size={16} />{t("daily.openDataHub")}</Link>} />
+        </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-[#202124] px-4 py-3 text-white shadow-[0_12px_28px_rgba(27,31,42,0.12)]">
           <span className="flex min-w-0 items-center gap-3"><span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#35373B] text-[#FF8A38]"><Sparkles size={16} /></span><span><strong className="block text-[12px]">{t("daily.webForm")}</strong><span className="block text-[10px] text-white/70">{t("daily.webFormDescription")}</span></span></span>
@@ -260,7 +258,7 @@ export function DailyManagementInputPage() {
         </div>
 
         <form className="mt-4 space-y-4" onSubmit={(event) => event.preventDefault()}>
-          <section className="overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_24px_rgba(27,31,42,0.05)]">
+          <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]">
             <SectionHeader title={t("daily.reportInfo")} description={t("daily.reportInfoDescription")} />
             <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
               <Field label={t("daily.reportDate")}><input type="date" value={draft.reportDate} onChange={(event) => patch({ reportDate: event.target.value })} className={inputClass} /></Field>
@@ -270,7 +268,7 @@ export function DailyManagementInputPage() {
             <div className="flex items-start gap-2 border-t border-[var(--divider)] bg-[#F8FAF9] px-5 py-3 text-[11px] leading-4 text-[#42604C]"><Check className="mt-0.5 shrink-0 text-[#2E7D47]" size={14} /><span>{t("daily.lifecycleAutomatic")}</span></div>
           </section>
 
-          <section className="overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_24px_rgba(27,31,42,0.05)]">
+          <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]">
             <SectionHeader title={t("daily.actions")} description={t("daily.actionsDescription")} action={<button type="button" onClick={addAction} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#F3C29F] bg-[#FFF6EF] px-3.5 text-[11px] font-semibold text-[#A94700] transition hover:bg-[#FFECDD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"><Plus size={14} />{t("daily.addAction")}</button>} />
             {draft.actions.length ? (
               <div className="divide-y divide-[var(--divider)]">
@@ -286,11 +284,11 @@ export function DailyManagementInputPage() {
                 ))}
               </div>
             ) : (
-              <div className="grid min-h-36 place-items-center px-5 py-8 text-center"><span><ListChecks className="mx-auto text-[#A8ACB4]" size={24} /><strong className="mt-2 block text-[13px]">{t("daily.noActions")}</strong><span className="mt-1 block text-[11px] text-[var(--text-secondary)]">{t("daily.noActionsDescription")}</span></span></div>
+              <div className="grid min-h-36 place-items-center px-5 py-8 text-center"><span><ListChecks className="mx-auto text-[var(--text-disabled)]" size={24} /><strong className="mt-2 block text-[13px]">{t("daily.noActions")}</strong><span className="mt-1 block text-[11px] text-[var(--text-secondary)]">{t("daily.noActionsDescription")}</span></span></div>
             )}
           </section>
 
-          <section className="overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_24px_rgba(27,31,42,0.05)]">
+          <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-default)] bg-[var(--surface-default)] shadow-[var(--shadow-card)]">
             <SectionHeader title={t("daily.notes")} description={t("daily.notesDescription")} />
             <div className="grid gap-4 p-5 lg:grid-cols-3">
               <Field label={t("daily.situation")} hint={`${lines(draft.notes.situation).length} items`}><textarea value={draft.notes.situation} onChange={(event) => patch({ notes: { ...draft.notes, situation: event.target.value } })} className={textareaClass} /></Field>
@@ -303,14 +301,14 @@ export function DailyManagementInputPage() {
         <details className="group mt-4 overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-white">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[12px] font-semibold marker:hidden"><span>{t("daily.importExcel")} <span className="ml-2 font-normal text-[var(--text-tertiary)]">{t("daily.excelAlternative")}</span></span><ChevronDown size={16} className="transition group-open:rotate-180" /></summary>
           <div className="grid gap-4 border-t border-[var(--divider)] p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div><p className="text-[11px] leading-4 text-[var(--text-secondary)]">{companyCode === "KMM" ? t("daily.templateOnly") : "KM Daily Management template is not approved yet. Use Data Hub for Sales, Booking and Stock onboarding."}</p>{companyCode === "KMM" && <a href="/api/daily-management/template" download="KMM_Daily_Management_Input_Template.xlsx" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[11px] font-semibold transition hover:bg-[#FAFAFB]"><Download size={14} />{t("daily.downloadTemplate")}</a>}</div>
+            <div><p className="text-[11px] leading-4 text-[var(--text-secondary)]">{companyCode === "KMM" ? t("daily.templateOnly") : "KM Daily Management template is not approved yet. Use Data Hub for Sales, Booking and Stock onboarding."}</p>{companyCode === "KMM" && <a href="/api/daily-management/template" download="KMM_Daily_Management_Input_Template.xlsx" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[11px] font-semibold transition hover:bg-[var(--surface-subtle)]"><Download size={14} />{t("daily.downloadTemplate")}</a>}</div>
             <div>
               <input ref={fileInput} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkbook(file); event.target.value = ""; }} />
-              <div onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`flex min-h-32 flex-col items-center justify-center rounded-[12px] border border-dashed p-4 text-center transition ${dragging ? "border-[var(--brand-500)] bg-[#FFF7F1]" : fileName ? "border-[#89B597] bg-[#F5FBF7]" : importError ? "border-[#E4A5A0] bg-[#FFF7F6]" : "border-[#C9CCD2] bg-[#FAFAFB]"}`}>
-                <span className={`grid size-9 place-items-center rounded-[10px] ${fileName ? "bg-[#DFF4E5] text-[#267145]" : "bg-[#ECEEF1] text-[#636872]"}`}>{uploading ? <span className="size-4 animate-spin rounded-full border-2 border-[#BABEC5] border-t-[#3F444D]" /> : fileName ? <FileSpreadsheet size={18} /> : <UploadCloud size={18} />}</span>
+              <div onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`flex min-h-32 flex-col items-center justify-center rounded-[12px] border border-dashed p-4 text-center transition ${dragging ? "border-[var(--brand-500)] bg-[#FFF7F1]" : fileName ? "border-[#89B597] bg-[#F5FBF7]" : importError ? "border-[#E4A5A0] bg-[#FFF7F6]" : "border-[var(--border-default)] bg-[var(--surface-subtle)]"}`}>
+                <span className={`grid size-9 place-items-center rounded-[10px] ${fileName ? "bg-[#DFF4E5] text-[#267145]" : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"}`}>{uploading ? <span className="size-4 animate-spin rounded-full border-2 border-[var(--border-default)] border-t-[#3F444D]" /> : fileName ? <FileSpreadsheet size={18} /> : <UploadCloud size={18} />}</span>
                 <strong className="mt-2 text-[12px]">{uploading ? t("common.loading") : fileName || t("daily.dropExcel")}</strong>
                 <span className="mt-1 text-[10px] text-[var(--text-tertiary)]">{fileName ? `${importCounts?.actions ?? 0} actions · ${importCounts?.notes ?? 0} notes` : ".xlsx or .xls · maximum 10 MB"}</span>
-                <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="mt-2 min-h-9 rounded-[9px] border border-[var(--border-default)] bg-white px-3 text-[10px] font-semibold transition hover:bg-[#F6F7F8] disabled:opacity-50">{fileName ? t("daily.replaceFile") : t("daily.chooseFile")}</button>
+                <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="mt-2 min-h-9 rounded-[9px] border border-[var(--border-default)] bg-white px-3 text-[10px] font-semibold transition hover:bg-[var(--surface-subtle)] disabled:opacity-50">{fileName ? t("daily.replaceFile") : t("daily.chooseFile")}</button>
               </div>
               {importError && <div className="mt-2 flex flex-col gap-2 rounded-[10px] bg-[var(--status-danger-bg)] px-3 py-2.5 text-[10px] text-[var(--status-danger)] sm:flex-row sm:items-center sm:justify-between" role="alert"><span className="flex min-w-0 items-start gap-2"><CircleAlert className="mt-0.5 shrink-0" size={14} /><span>{importError}</span></span>{/Data Hub/.test(importError) && <Link href="/data-hub" className="font-semibold underline underline-offset-2">Open Data Hub</Link>}</div>}
             </div>
@@ -320,7 +318,7 @@ export function DailyManagementInputPage() {
         <div className="sticky bottom-0 z-20 mt-4 flex flex-col gap-3 rounded-[14px] border border-[var(--border-default)] bg-white/95 p-3.5 shadow-[0_14px_36px_rgba(27,31,42,0.14)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0"><p className="text-[12px] font-semibold">{validation.length ? `${validation.length} รายการต้องแก้ไข` : dirty ? "พร้อมบันทึก" : hasRemoteRecord ? "ข้อมูลล่าสุดถูกบันทึกแล้ว" : "Draft ใหม่ ยังไม่ได้บันทึก"}</p><p aria-live="polite" className={`mt-0.5 text-[10px] ${message.tone === "danger" ? "text-[var(--status-danger)]" : message.tone === "success" ? "text-[var(--status-success)]" : "text-[var(--text-secondary)]"}`}>{message.text || validation[0] || `${draft.actions.length} actions · ${noteCount} notes`}</p></div>
           <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-            <button type="button" disabled={!dirty || !ready || busy} onClick={() => setDraft(structuredClone(savedDraft))} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] px-3.5 text-[11px] font-semibold transition hover:bg-[#F7F8F9] disabled:opacity-40"><RotateCcw size={14} />{t("common.reset")}</button>
+            <button type="button" disabled={!dirty || !ready || busy} onClick={() => setDraft(structuredClone(savedDraft))} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[var(--border-default)] px-3.5 text-[11px] font-semibold transition hover:bg-[var(--surface-subtle)] disabled:opacity-40"><RotateCcw size={14} />{t("common.reset")}</button>
             <button type="button" disabled={!dirty || !ready || busy || validation.length > 0} onClick={() => void saveDraft()} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] border border-[#E8A575] bg-[#FFF6EF] px-4 text-[11px] font-semibold text-[#A94700] transition hover:bg-[#FFECDD] disabled:opacity-40"><Save size={14} />{saving === "draft" ? t("common.loading") : t("common.saveDraft")}</button>
             <button type="button" disabled={!ready || busy || validation.length > 0 || (!dirty && !hasRemoteRecord)} onClick={() => void publish()} className="inline-flex min-h-11 items-center gap-2 rounded-[11px] bg-[var(--brand-500)] px-4 text-[11px] font-semibold text-white shadow-[0_7px_18px_rgba(245,102,0,0.22)] transition hover:bg-[var(--brand-600)] disabled:opacity-40"><Send size={14} />{saving === "publish" ? t("common.loading") : t("daily.publishReport")}</button>
           </div>

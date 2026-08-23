@@ -166,7 +166,7 @@ test("Booking page follows the Golden Reference presentation contract", async ()
     page,
     /kmm-booking-page min-h-\[calc\(100vh-72px\)\] bg-\[var\(--surface-canvas\)\]/,
   );
-  assert.match(page, /<h1[\s\S]*?id="booking-title"/);
+  assert.match(page, /<PageHeader[\s\S]*?title=\{t\("route\.booking\.title"\)\}/);
   assert.match(page, /import \{ KpiCard \}/);
   assert.match(page, /<KpiCard[\s\S]*?variant="executive"/);
   assert.doesNotMatch(page, /function BookingExecutiveKpiCard/);

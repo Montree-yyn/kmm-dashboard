@@ -42,3 +42,11 @@ tsconfig.tsbuildinfo
 /work/
 /build/maps/
 /.impeccable/
+
+# local developer/runtime state
+/.freebuff/
+
+# generated QA previews (not release inputs)
+/artifacts/chart-theme-qa/
+/artifacts/crop-calendar-preview/
+/artifacts/ux-comparison/

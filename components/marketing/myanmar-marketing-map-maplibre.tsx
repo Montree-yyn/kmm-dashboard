@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers3, RotateCcw, Search, X } from "lucide-react";
 import type {
   Map as MapLibreMap,
@@ -9,6 +9,7 @@ import type {
 } from "maplibre-gl";
 import townshipMaster from "../../data/master-townships.json";
 import { getMapDataset } from "../../lib/maps/datasets";
+import { villagePointsToGeoJson, type VillagePoint } from "../../lib/maps/geography";
 import { applyRequiredLayerOrder } from "../../lib/maps/layer-order";
 import { normalizeLocation } from "../../lib/marketing/location-mapping";
 import { createMarketingLayerState } from "../../lib/marketing/map-layer-controls";
@@ -73,10 +74,24 @@ declare const __KMM_BUILD_COMMIT__: string;
 declare const __KMM_BUILD_TIMESTAMP__: string;
 const master = townshipMaster as MasterTownship[];
 const dataset = getMapDataset("mm-townships-pmtiles");
+const SALES_MAP_COLORS = {
+  heatScale: ["#FAD7B5", "#FFB25F", "#F68A24", "#E65C12", "#B93612"],
+  zeroFill: "rgba(255, 255, 255, 0)",
+  noDataFill: "rgba(255, 255, 255, 0)",
+  stateBoundary: "#FF7A00",
+  townshipBoundary: "#F2A15F",
+} as const;
 const NO_DATA_COLOR = chartTheme.marketing.noData;
 const ZERO_COLOR = chartTheme.marketing.zero;
-const CHOROPLETH_COLORS = chartTheme.marketing.heatScale;
+const NO_DATA_FILL_COLOR = SALES_MAP_COLORS.noDataFill;
+const ZERO_FILL_COLOR = SALES_MAP_COLORS.zeroFill;
+const CHOROPLETH_COLORS = SALES_MAP_COLORS.heatScale;
+const LEGEND_COLORS = chartTheme.marketing.heatScale;
 const COMPARISON_OUTLINE_LAYER_ID = "marketing-comparison-selection-outline";
+const VILLAGE_SOURCE_ID = "marketing-villages";
+const VILLAGE_POINT_LAYER_ID = "marketing-village-points";
+const VILLAGE_LABEL_LAYER_ID = "marketing-village-labels";
+const VILLAGE_MIN_ZOOM = 10;
 const EXECUTIVE_METRICS: { key: ExecutiveMetricKey; labelKey: LocaleKey }[] = [
   { key: "salesUnit", labelKey: "metric.salesUnit" },
   { key: "salesValue", labelKey: "metric.salesValue" },
@@ -301,8 +316,8 @@ function classifyValues(values: number[]) {
 
 function colorForValue(value: number | null | undefined, breaks: number[]) {
   if (value === null || value === undefined || !Number.isFinite(value))
-    return NO_DATA_COLOR;
-  if (value <= 0) return ZERO_COLOR;
+    return NO_DATA_FILL_COLOR;
+  if (value <= 0) return ZERO_FILL_COLOR;
   const index = breaks.findIndex((breakValue) => value <= breakValue);
   return CHOROPLETH_COLORS[index === -1 ? CHOROPLETH_COLORS.length - 1 : index];
 }
@@ -315,7 +330,7 @@ function legendClasses(breaks: number[]) {
     previous = max + 1;
     return {
       labelKey: CLASS_LABEL_KEYS[index],
-      color: CHOROPLETH_COLORS[index],
+      color: LEGEND_COLORS[index],
       min,
       max,
     };
@@ -400,6 +415,9 @@ function featureBounds(feature: MapGeoJSONFeature) {
 
 export function MyanmarMarketingMapMapLibre({
   visibleShowroomIds,
+  villagePoints = [],
+  showVillagePoints = true,
+  onVillageClick,
   townshipMetrics = {},
   mode = "population",
   activeMetric: sharedActiveMetric,
@@ -431,6 +449,9 @@ export function MyanmarMarketingMapMapLibre({
   const townshipLabelsRef = useRef<TownshipLabel[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
   const showroomMarkersRef = useRef(new Map<string, Marker>());
+  const villageByCanonicalIdRef = useRef(new Map<string, VillagePoint>());
+  const onVillageClickRef = useRef(onVillageClick);
+  const villageInteractionsInstalledRef = useRef(false);
   const comparisonBadgeMarkersRef = useRef(new Map<string, Marker>());
   const comparisonLabelPositionsRef = useRef(
     new Map<
@@ -464,6 +485,14 @@ export function MyanmarMarketingMapMapLibre({
   useEffect(() => {
     onSelectedTownshipChangeRef.current = onSelectedTownshipChange;
   }, [onSelectedTownshipChange]);
+  useEffect(() => {
+    onVillageClickRef.current = onVillageClick;
+  }, [onVillageClick]);
+  useEffect(() => {
+    villageByCanonicalIdRef.current = new Map(
+      villagePoints.map((village) => [village.canonicalLocationId, village]),
+    );
+  }, [villagePoints]);
   useEffect(() => {
     const updateDiagnosticVisibility = () => {
       setShowMapDiagnostic(
@@ -584,7 +613,7 @@ export function MyanmarMarketingMapMapLibre({
       });
   };
 
-  const buildTownshipLabelCollection = (
+  const buildTownshipLabelCollection = useCallback((
     labels: TownshipLabel[],
   ): LabelCollection => {
     const canonicalByLocation = new Map(
@@ -618,18 +647,18 @@ export function MyanmarMarketingMapMapLibre({
         };
       }),
     };
-  };
+  }, [activeMetric]);
 
-  const updateTownshipLabels = () => {
+  const updateTownshipLabels = useCallback(() => {
     const map = presentationMapRef.current;
     const source = map?.getSource("marketing-township-labels") as
       | { setData?: (data: LabelCollection) => void }
       | undefined;
     if (source?.setData)
       source.setData(buildTownshipLabelCollection(townshipLabelsRef.current));
-  };
+  }, [buildTownshipLabelCollection]);
 
-  const ensureComparisonSelectionLayer = (map: MapLibreMap) => {
+  const ensureComparisonSelectionLayer = useCallback((map: MapLibreMap) => {
     if (!dataset) return;
     const sourceLayer =
       dataset.dataset_type === "geojson"
@@ -658,9 +687,9 @@ export function MyanmarMarketingMapMapLibre({
         "line-blur": 0.2,
       },
     } as never);
-  };
+  }, []);
 
-  const updateComparisonSelectionOverlays = (
+  const updateComparisonSelectionOverlays = useCallback((
     map = presentationMapRef.current,
   ) => {
     if (!map) return;
@@ -722,16 +751,16 @@ export function MyanmarMarketingMapMapLibre({
         .addTo(map);
       comparisonBadgeMarkersRef.current.set(id, marker);
     });
-  };
+  }, [ensureComparisonSelectionLayer]);
 
   useEffect(() => {
     updateTownshipLabels();
-  }, [activeMetric, metricById]);
+  }, [activeMetric, metricById, updateTownshipLabels]);
 
   useEffect(() => {
     comparisonSelectionIdsRef.current = comparisonSelectionIds;
     updateComparisonSelectionOverlays();
-  }, [comparisonSelectionIds]);
+  }, [comparisonSelectionIds, updateComparisonSelectionOverlays]);
 
   useEffect(() => {
     showroomMarkersRef.current.forEach((marker, id) => {
@@ -767,6 +796,90 @@ export function MyanmarMarketingMapMapLibre({
       );
     }
   }
+
+  const installOrUpdateVillageLayer = useCallback((map: MapLibreMap) => {
+    if (!villagePoints.length) {
+      if (map.getLayer(VILLAGE_POINT_LAYER_ID))
+        map.setLayoutProperty(VILLAGE_POINT_LAYER_ID, "visibility", "none");
+      if (map.getLayer(VILLAGE_LABEL_LAYER_ID))
+        map.setLayoutProperty(VILLAGE_LABEL_LAYER_ID, "visibility", "none");
+      return;
+    }
+
+    const collection = villagePointsToGeoJson(villagePoints);
+    const existingSource = map.getSource(VILLAGE_SOURCE_ID) as
+      | { setData?: (data: ReturnType<typeof villagePointsToGeoJson>) => void }
+      | undefined;
+    if (existingSource?.setData) existingSource.setData(collection);
+    else
+      map.addSource(VILLAGE_SOURCE_ID, {
+        type: "geojson",
+        data: collection,
+      });
+
+    if (!map.getLayer(VILLAGE_POINT_LAYER_ID))
+      map.addLayer({
+        id: VILLAGE_POINT_LAYER_ID,
+        type: "circle",
+        source: VILLAGE_SOURCE_ID,
+        minzoom: VILLAGE_MIN_ZOOM,
+        layout: { visibility: showVillagePoints ? "visible" : "none" },
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 13, 4.5, 16, 6],
+          "circle-color": chartTheme.current,
+          "circle-stroke-color": chartTheme.surface,
+          "circle-stroke-width": 1.25,
+          "circle-opacity": 0.9,
+        },
+      });
+    if (!map.getLayer(VILLAGE_LABEL_LAYER_ID))
+      map.addLayer({
+        id: VILLAGE_LABEL_LAYER_ID,
+        type: "symbol",
+        source: VILLAGE_SOURCE_ID,
+        minzoom: 12,
+        layout: {
+          visibility: showVillagePoints ? "visible" : "none",
+          "text-field": ["get", "location_name"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 10,
+          "text-offset": [0, 1.1],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": chartTheme.text,
+          "text-halo-color": chartTheme.surface,
+          "text-halo-width": 1,
+        },
+      });
+
+    const visibility = showVillagePoints ? "visible" : "none";
+    map.setLayoutProperty(VILLAGE_POINT_LAYER_ID, "visibility", visibility);
+    map.setLayoutProperty(VILLAGE_LABEL_LAYER_ID, "visibility", visibility);
+
+    if (!villageInteractionsInstalledRef.current) {
+      map.on("mouseenter", VILLAGE_POINT_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", VILLAGE_POINT_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
+      map.on("click", VILLAGE_POINT_LAYER_ID, (event) => {
+        const feature = event.features?.[0];
+        const canonicalId = String(feature?.properties?.canonical_location_id ?? "");
+        const village = villageByCanonicalIdRef.current.get(canonicalId);
+        if (village) onVillageClickRef.current?.(village);
+      });
+      villageInteractionsInstalledRef.current = true;
+    }
+    applyRequiredLayerOrder(map);
+  }, [showVillagePoints, villagePoints]);
+
+  useEffect(() => {
+    const map = presentationMapRef.current;
+    if (map) installOrUpdateVillageLayer(map);
+  }, [installOrUpdateVillageLayer, villagePoints, showVillagePoints]);
 
   async function installLegacyPresentationOverlays(map: MapLibreMap) {
     const [{ Marker }, states, townshipLabels, showrooms] = await Promise.all([
@@ -898,7 +1011,12 @@ export function MyanmarMarketingMapMapLibre({
         type: "line",
         source: "marketing-state-boundaries",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": chartTheme.grid, "line-width": 1 },
+        paint: {
+          "line-color": SALES_MAP_COLORS.stateBoundary,
+          "line-width": 1.05,
+          "line-opacity": 0.72,
+          "line-dasharray": [3.5, 3],
+        },
       } as never);
     if (!map.getLayer("marketing-state-labels"))
       map.addLayer({
@@ -906,7 +1024,7 @@ export function MyanmarMarketingMapMapLibre({
         type: "symbol",
         source: "marketing-state-labels",
         maxzoom: 7.2,
-        layout: labelLayout(11, ["Noto Sans Medium"]),
+        layout: labelLayout(12, ["Noto Sans Medium"]),
         paint: labelPaint([
           "interpolate",
           ["linear"],
@@ -939,6 +1057,7 @@ export function MyanmarMarketingMapMapLibre({
       } as never);
     updateTownshipLabels();
     applyRequiredLayerOrder(map);
+    installOrUpdateVillageLayer(map);
     showrooms.forEach((showroom) => {
       const element = document.createElement("button");
       element.type = "button";
@@ -999,6 +1118,10 @@ export function MyanmarMarketingMapMapLibre({
         dataset={dataset}
         className="absolute inset-0"
         ariaLabel="Interactive Myanmar township heatmap"
+        fillNoDataColor={NO_DATA_FILL_COLOR}
+        boundaryColor={SALES_MAP_COLORS.townshipBoundary}
+        boundaryOpacity={0.42}
+        boundaryWidth={0.55}
         overlayFillOpacity={0.5}
         overlayHoverOpacity={0.18}
         overlaySelectedOpacity={0.16}

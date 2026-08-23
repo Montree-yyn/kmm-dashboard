@@ -360,8 +360,10 @@ test("Marketing visual polish keeps the basemap visible and markers prominent", 
   assert.match(vectorMap, /getFillOpacityExpression/);
   assert.match(vectorMap, /viewportBounds/);
   assert.match(vectorMap, /boundaryOpacity = 0\.5/);
-  assert.match(css, /background: #ffffff/);
-  assert.match(css, /border: 2px solid #ff7a00/);
+  assert.match(css, /width: 13px/);
+  assert.match(css, /border: 2px solid #ffffff/);
+  assert.match(css, /background: var\(--brand-500\)/);
+  assert.match(css, /animation: kmm-marker-pulse 2\.8s ease-out infinite/);
   assert.match(css, /z-index: 5/);
 });
 

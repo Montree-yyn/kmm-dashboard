@@ -498,30 +498,23 @@ a:focus-visible,
   position: relative;
   z-index: 5;
   box-sizing: border-box;
-  width: 19px;
-  height: 19px;
+  width: 13px;
+  height: 13px;
   padding: 0;
-  border: 2px solid #ff7a00;
+  border: 2px solid #ffffff;
   border-radius: 999px;
-  background: #ffffff;
-  box-shadow: 0 2px 6px rgb(31 41 55 / 22%);
+  background: var(--brand-500);
+  box-shadow:
+    0 0 0 1px rgb(245 102 0 / 45%),
+    0 1px 3px rgb(31 41 55 / 18%);
   cursor: pointer;
   transition:
     transform 160ms ease,
-    box-shadow 160ms ease,
-    border-color 160ms ease;
+    box-shadow 160ms ease;
 }
 
 .kmm-showroom-marker::before {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: #ff7a00;
-  content: "";
-  transform: translate(-50%, -50%);
+  display: none;
 }
 
 .kmm-marketing-map .maplibregl-map,
@@ -788,28 +781,31 @@ a:focus-visible,
 
 .kmm-showroom-marker::after {
   position: absolute;
-  inset: -5px;
-  border: 1.5px solid rgb(255 122 0 / 42%);
+  inset: -4px;
+  border: 1px solid rgb(245 102 0 / 32%);
   border-radius: inherit;
   content: "";
   pointer-events: none;
-  animation: kmm-marker-pulse 2.2s ease-out infinite;
+  animation: kmm-marker-pulse 2.8s ease-out infinite;
 }
 
 .kmm-showroom-marker:hover {
-  transform: scale(1.12);
-  box-shadow: 0 3px 9px rgb(31 41 55 / 26%);
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 1px rgb(245 102 0 / 55%),
+    0 2px 5px rgb(31 41 55 / 20%);
 }
 
 .kmm-showroom-marker.is-selected {
-  transform: scale(1.14);
+  transform: scale(1.1);
   box-shadow:
-    0 0 0 4px rgb(255 122 0 / 14%),
-    0 3px 9px rgb(31 41 55 / 26%);
+    0 0 0 3px rgb(255 255 255 / 92%),
+    0 0 0 5px rgb(245 102 0 / 26%),
+    0 2px 5px rgb(31 41 55 / 20%);
 }
 
 .kmm-showroom-marker:focus-visible {
-  outline: 2px solid #ff7a00;
+  outline: 2px solid var(--brand-500);
   outline-offset: 3px;
 }
 
@@ -1261,13 +1257,13 @@ aside[aria-label="Right Intelligence Panel"] > div:first-child {
 
 @keyframes kmm-marker-pulse {
   0% {
-    opacity: 0.65;
-    transform: scale(0.7);
+    opacity: 0.42;
+    transform: scale(0.82);
   }
-  70%,
+  72%,
   100% {
     opacity: 0;
-    transform: scale(1.55);
+    transform: scale(1.42);
   }
 }
 

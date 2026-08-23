@@ -449,6 +449,7 @@ export function MyanmarMarketingMapMapLibre({
   const townshipLabelsRef = useRef<TownshipLabel[]>([]);
   const showroomTownshipsRef = useRef(new Set<string>());
   const showroomMarkersRef = useRef(new Map<string, Marker>());
+  const showroomCanonicalIdsRef = useRef(new Map<string, string | null>());
   const villageByCanonicalIdRef = useRef(new Map<string, VillagePoint>());
   const onVillageClickRef = useRef(onVillageClick);
   const villageInteractionsInstalledRef = useRef(false);
@@ -772,10 +773,22 @@ export function MyanmarMarketingMapMapLibre({
     });
   }, [layerState.showroom, visibleShowroomIds]);
 
+  useEffect(() => {
+    showroomMarkersRef.current.forEach((marker, id) => {
+      const canonicalId = showroomCanonicalIdsRef.current.get(id) ?? null;
+      const isSelected = Boolean(
+        selectedCanonicalId && canonicalId === selectedCanonicalId,
+      );
+      marker.getElement().classList.toggle("is-selected", isSelected);
+      marker.getElement().setAttribute("aria-pressed", String(isSelected));
+    });
+  }, [selectedCanonicalId]);
+
   useEffect(
     () => () => {
       showroomMarkersRef.current.forEach((marker) => marker.remove());
       showroomMarkersRef.current.clear();
+      showroomCanonicalIdsRef.current.clear();
       comparisonBadgeMarkersRef.current.forEach((marker) => marker.remove());
       comparisonBadgeMarkersRef.current.clear();
     },
@@ -1059,6 +1072,11 @@ export function MyanmarMarketingMapMapLibre({
     applyRequiredLayerOrder(map);
     installOrUpdateVillageLayer(map);
     showrooms.forEach((showroom) => {
+      const canonicalId = resolveShowroomCanonicalId(
+        showroom,
+        canonicalByLocation,
+      );
+      showroomCanonicalIdsRef.current.set(showroom.id, canonicalId);
       const element = document.createElement("button");
       element.type = "button";
       element.className = "kmm-showroom-marker";
@@ -1072,10 +1090,6 @@ export function MyanmarMarketingMapMapLibre({
           : "none";
       element.addEventListener("click", (event) => {
         event.stopPropagation();
-        const canonicalId = resolveShowroomCanonicalId(
-          showroom,
-          canonicalByLocation,
-        );
         if (canonicalId) selectTownship(canonicalId);
         map.flyTo({
           center: showroom.coordinates,

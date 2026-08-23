@@ -86,7 +86,7 @@ type SalesRow = {
 
 type SalesData = {
   meta: { sourceUpdatedAt: string; sources: string[] };
-  plan: { year: number; months: string[]; units: number[] };
+  plan: { year: number | null; months: string[]; units: Array<number | null> };
   sales: SalesRow[];
 };
 
@@ -202,8 +202,16 @@ function targetValue(data: SalesData, filters: FilterState) {
   const indexes = months.length
     ? months.map((month) => month - 1)
     : data.plan.months.map((_, index) => index);
-  const target = indexes.reduce(
-    (total, index) => total + (data.plan.units[index] ?? 0),
+  const monthlyTargets = indexes.map((index) => data.plan.units[index]);
+  if (
+    monthlyTargets.length === 0 ||
+    monthlyTargets.some(
+      (target) => typeof target !== "number" || !Number.isFinite(target),
+    )
+  )
+    return null;
+  const target = monthlyTargets.reduce<number>(
+    (total, value) => total + (value as number),
     0,
   );
   return target > 0 ? target : null;
@@ -403,13 +411,13 @@ function ExecutiveSalesTrend({
         : null;
     }),
   }));
-  if (targetAllowed)
+  if (targetAllowed && plan.year !== null)
     series.push({
       id: "target",
       year: plan.year,
       label: t("sales.target"),
       kind: "target",
-      values: plan.units.map((value) => value || null),
+      values: plan.units.map((value) => value === null ? null : value),
     });
   return (
     <PremiumTrendChart
@@ -800,7 +808,18 @@ export function SalesPage() {
     : null;
   const salesValue = businessKpis.salesValue ?? 0;
   const grossProfit = businessKpis.grossProfit ?? 0;
-  const salesTarget = getTargetAvailability(filters, null).available ? (data ? targetValue(data, filters) : null) : null;
+  const hasCompanyTarget = Boolean(
+    data?.plan.year !== null &&
+      data?.plan.units.some((value) => value !== null),
+  );
+  const salesTarget = getTargetAvailability(
+    filters,
+    hasCompanyTarget ? "company" : null,
+  ).available
+    ? data
+      ? targetValue(data, filters)
+      : null
+    : null;
   const achievement =
     salesTarget && salesTarget > 0
       ? (businessKpis.salesUnit / salesTarget) * 100
@@ -871,10 +890,11 @@ export function SalesPage() {
               <>
                 <section
                   aria-label="Sales KPIs"
-                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
+                  className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
                 >
                   <KpiCard
                     variant="executive"
+                    className="col-span-2 sm:col-span-1"
                     title={t("metric.salesUnit")}
                     value={businessKpis.salesUnit}
                     unit={t("common.units")}

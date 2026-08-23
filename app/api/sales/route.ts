@@ -4,8 +4,11 @@ import { getBranchSummary, getMonthlyTrend, getProductSummary, getSalesKpis, get
 import { getSalesDashboardFilterOptions, getSalesDashboardSummary } from "../../../lib/sales/dashboard-summary-service";
 import { listRecentSalesDashboardRows, listSalesDashboardBuckets, listSalesDashboardFilterOptions, listSalespeople, listSalespersonIdentityAliases, listSalesTransactions } from "../../../lib/sales/repository";
 import { CompanyAccessError, requireCompanyContext } from "../../../lib/server/company-context";
+import { getLatestCompanyMonthlyTargetPlan } from "../../../lib/targets/business-service";
 
 export const dynamic = "force-dynamic";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function requestFilters(request: Request) {
   const search = new URL(request.url).searchParams;
@@ -76,10 +79,11 @@ export async function GET(request: Request) {
         }),
       }, { headers: { "Cache-Control": "no-store" } });
     }
-    const [transactionRows, employeeRows, identityAliasRows] = await Promise.all([
+    const [transactionRows, employeeRows, identityAliasRows, unitTargetPlan] = await Promise.all([
       listSalesTransactions(companyId),
       listSalespeople(companyId),
       listSalespersonIdentityAliases(companyId),
+      getLatestCompanyMonthlyTargetPlan({ companyId, metric: "SALES_UNITS" }),
     ]);
     const canonicalRows = transactionRows.map(toCanonicalSalesRow);
     const activeEmployees = employeeRows
@@ -90,16 +94,25 @@ export async function GET(request: Request) {
         salespersonName,
       }));
     const kpis = getSalesKpis(canonicalRows);
+    const plan = unitTargetPlan
+      ? {
+          year: unitTargetPlan.year,
+          months: MONTHS,
+          units: unitTargetPlan.monthlyTargets.map((target) => target?.target ?? null),
+        }
+      : { year: null, months: [], units: [] };
+    const sources = ["Cloudflare D1 · sales_transactions"];
+    if (unitTargetPlan) sources.push("Cloudflare D1 · business_targets");
     return Response.json({
       source: "d1",
       company: { id: context.id, code: context.code, name: context.name },
-      meta: { sourceUpdatedAt: new Date().toISOString(), sources: ["Cloudflare D1 · sales_transactions"] },
-      plan: { year: null, months: [], units: [] },
+      meta: { sourceUpdatedAt: new Date().toISOString(), sources },
+      plan,
       sales: canonicalRows.map(toLegacySalesRow),
       employees: activeEmployees,
       salespersonIdentityAliases: identityAliasRows,
       employeeMasterAvailable: employeeRows.length > 0,
-      business: { all: kpis, grossProfitAvailable: kpis.grossProfitAvailable, branchSummary: getBranchSummary(canonicalRows), salespersonSummary: getSalespersonSummary(canonicalRows), productSummary: getProductSummary(canonicalRows), weeklyTrend: getWeeklyTrend(canonicalRows), monthlyTrend: getMonthlyTrend(canonicalRows), target: getTargetAvailability({}, null) },
+      business: { all: kpis, grossProfitAvailable: kpis.grossProfitAvailable, branchSummary: getBranchSummary(canonicalRows), salespersonSummary: getSalespersonSummary(canonicalRows), productSummary: getProductSummary(canonicalRows), weeklyTrend: getWeeklyTrend(canonicalRows), monthlyTrend: getMonthlyTrend(canonicalRows), target: getTargetAvailability({}, unitTargetPlan ? "company" : null) },
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof AuthError || error instanceof CompanyAccessError ? error.status : 500;

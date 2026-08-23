@@ -42,7 +42,7 @@ type Employee = {
   email?: string | null;
   joinedDate?: string | null;
 };
-type DashboardData = { meta: { sourceUpdatedAt: string }; plan: { year: number | null; months: string[]; units: number[] }; sales: SalesRow[]; booking: BookingRow[]; employees: Employee[]; salespersonIdentityAliases: CommissionIdentityAlias[]; employeeMasterAvailable: boolean };
+type DashboardData = { meta: { sourceUpdatedAt: string }; plan: { year: number | null; months: string[]; units: Array<number | null> }; sales: SalesRow[]; booking: BookingRow[]; employees: Employee[]; salespersonIdentityAliases: CommissionIdentityAlias[]; employeeMasterAvailable: boolean };
 type Person = { id: string; name: string; branch: string; salesUnit: number; salesValue: number; gp: number; commission: number | null; booking: number; target: number | null; achievement: number | null; conversion: number; rank: number; employeeCode: string | null; salespersonCode: string | null; status: "active" | "inactive" | "historical"; position: string | null; territory: string | null; phone: string | null; email: string | null; joinedDate: string | null };
 type RankingMetric = "salesUnit" | "salesValue" | "gp" | "gpPercent" | "commission" | "commissionOfGp";
 type RankingView = "table" | "cards";

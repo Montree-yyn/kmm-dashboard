@@ -46,6 +46,8 @@ test("Sales page follows the Golden Reference shell and KPI hierarchy", async ()
     page,
     /Sales KPIs[\s\S]*?xl:grid-cols-\[repeat\(5,minmax\(0,1fr\)\)\]/,
   );
+  assert.match(page, /Sales KPIs[\s\S]*?grid-cols-2 gap-3/);
+  assert.match(page, /className="col-span-2 sm:col-span-1"/);
 });
 
 test("Sales filters keep the four decision-driving dimensions with accessible 44px controls", async () => {

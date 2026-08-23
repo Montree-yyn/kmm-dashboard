@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { tsImport } from "tsx/esm/api";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const source = await import(new URL("../scripts/import-local-targets.mjs", import.meta.url));
+const targetBusiness = await tsImport("../lib/targets/business-service.ts", import.meta.url);
 
 test("versioned Target import keeps revised-workbook H1 actuals out of Target records", () => {
   const original = source.readKpiWorkbook(fileURLToPath(new URL("../../01_Data/Sales/Sales KPI.xlsx", import.meta.url)));
@@ -35,6 +37,50 @@ test("approved Target rows provide exactly company metrics and the supported pro
   }
 });
 
+test("Sales target plan selects the latest approved revision and preserves missing months", () => {
+  const rows = source.readApproved2026Targets()
+    .filter((row) => row.metric === "SALES_UNITS" && !row.productGroup)
+    .map((row) => ({
+      targetYear: row.year,
+      targetMonth: row.month,
+      metric: row.metric,
+      targetValue: row.targetValue,
+      productGroup: row.productGroup,
+      source: row.source,
+      sourceVersion: row.sourceVersion,
+      effectiveFrom: row.effectiveFrom,
+      updatedAt: row.effectiveFrom,
+    }));
+  rows.push({
+    ...rows[0],
+    targetValue: "59",
+    sourceVersion: "2026-Approved-Revision-2",
+    effectiveFrom: "2026-08-01",
+    updatedAt: "2026-08-01",
+  });
+  const plan = targetBusiness.buildLatestCompanyMonthlyTargetPlan(rows, "SALES_UNITS");
+  assert.equal(plan?.year, 2026);
+  assert.equal(plan?.monthlyTargets.length, 12);
+  assert.equal(plan?.monthlyTargets[0]?.target, 59);
+  assert.equal(plan?.monthlyTargets[6]?.sourceVersion, "2026-Revised-H2");
+
+  const partialNextYear = targetBusiness.buildLatestCompanyMonthlyTargetPlan([
+    ...rows,
+    {
+      ...rows[0],
+      targetYear: 2027,
+      targetMonth: 2,
+      targetValue: "61",
+      sourceVersion: "2027-Approved-Plan",
+      effectiveFrom: "2027-02-01",
+      updatedAt: "2027-02-01",
+    },
+  ], "SALES_UNITS");
+  assert.equal(partialNextYear?.year, 2027);
+  assert.equal(partialNextYear?.monthlyTargets[0], null);
+  assert.equal(partialNextYear?.monthlyTargets[1]?.target, 61);
+});
+
 test("Target migration is additive and runtime access remains read-only", async () => {
   const [migration, repository, service, business] = await Promise.all([
     read("drizzle/0010_common_shocker.sql"),
@@ -46,7 +92,9 @@ test("Target migration is additive and runtime access remains read-only", async 
   assert.match(migration, /CREATE UNIQUE INDEX `business_targets_exact_version_unique`/);
   assert.doesNotMatch(migration, /\b(?:DROP|DELETE|UPDATE|ALTER)\b/i);
   assert.match(repository, /approvalStatus, "approved"/);
+  assert.match(repository, /listApprovedCompanyTargets/);
   assert.doesNotMatch(repository, /\.insert\(|\.update\(|\.delete\(/);
+  assert.match(service, /getLatestCompanyMonthlyTargetPlan/);
   assert.match(service, /targetProgress/);
   assert.match(business, /ยังไม่มี Target ระดับสาขา/);
   assert.match(business, /EX&TP/);

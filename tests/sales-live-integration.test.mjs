@@ -57,6 +57,8 @@ test("D1 repository, shared business service, API, and page adapters are connect
   assert.match(api, /employeeMasterAvailable/);
   assert.match(api, /listSalesDashboardBuckets/);
   assert.match(api, /listRecentSalesDashboardRows/);
+  assert.match(api, /getLatestCompanyMonthlyTargetPlan/);
+  assert.match(api, /Cloudflare D1 · business_targets/);
   assert.match(dashboard, /loadLiveSalesDashboardSummary/);
   assert.match(dashboard, /salesSummary\.branchSummary/);
   assert.match(dashboard, /salesSummary\.trendRows/);
@@ -240,11 +242,13 @@ test("Sales invoice scope is a non-unique lookup while the transaction id remain
   assert.doesNotMatch(migration, /CREATE UNIQUE INDEX|DROP TABLE|CREATE TABLE/);
 });
 
-test("refresh event is wired after import and target scope is safely unavailable without granular targets", async () => {
+test("refresh event is wired and approved company targets stay unavailable for granular scopes", async () => {
   const [service, dashboard, sales, business] = await Promise.all([read("lib/data-hub/import-service.ts"), read("components/dashboard/dashboard-page.tsx"), read("components/sales/sales-page.tsx"), read("lib/sales/business-service.ts")]);
   assert.match(service, /kmm:sales-imported/);
   assert.match(dashboard, /kmm:sales-imported/);
   assert.match(sales, /kmm:sales-imported/);
+  assert.match(sales, /hasCompanyTarget/);
+  assert.match(sales, /hasCompanyTarget \? "company" : null/);
   assert.match(business, /Target achievement is unavailable/);
   assert.match(business, /grossProfitAvailable/);
 });

@@ -156,7 +156,7 @@ export function getWeeklyTrend(rows: readonly SalesBusinessRow[], filters: Sales
 
 export function getTargetAvailability(filters: SalesFilterInput, targetGranularity: "company" | "branch" | "salesperson" | "product" | null = null) {
   const hasDimensionFilter = Boolean(filters.branch?.length || filters.salesperson?.length || selectedSalesProductGroups(filters).length);
-  if (!targetGranularity) return { available: false, reason: "Target data is not available in Sprint 2.2." };
+  if (!targetGranularity) return { available: false, reason: "Approved target data is unavailable for this scope." };
   if (hasDimensionFilter && targetGranularity === "company") return { available: false, reason: "Target achievement is unavailable for the selected dimension filters." };
   return { available: true, reason: null };
 }

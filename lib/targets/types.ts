@@ -12,3 +12,9 @@ export type ApprovedTarget = {
   sourceVersion: string;
   effectiveFrom: string;
 };
+
+export type CompanyMonthlyTargetPlan = {
+  year: number;
+  metric: TargetMetric;
+  monthlyTargets: Array<ApprovedTarget | null>;
+};

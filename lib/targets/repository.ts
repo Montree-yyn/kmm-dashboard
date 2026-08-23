@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getOperationsDb } from "../../db";
 import { businessTargets } from "../../db/schema";
 import type { TargetMetric, TargetProductGroup } from "./types";
@@ -39,4 +39,44 @@ export async function findApprovedTarget(input: {
     .orderBy(desc(businessTargets.effectiveFrom), desc(businessTargets.updatedAt), desc(businessTargets.sourceVersion))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Lists exact company-level target revisions in deterministic runtime order.
+ * The business service keeps only the newest approved revision per month.
+ */
+export async function listApprovedCompanyTargets(input: {
+  companyId: string;
+  metric: TargetMetric;
+  productGroup?: TargetProductGroup;
+}) {
+  const db = await getOperationsDb();
+  return db
+    .select({
+      targetYear: businessTargets.targetYear,
+      targetMonth: businessTargets.targetMonth,
+      metric: businessTargets.metric,
+      targetValue: businessTargets.targetValue,
+      productGroup: businessTargets.productGroup,
+      source: businessTargets.source,
+      sourceVersion: businessTargets.sourceVersion,
+      effectiveFrom: businessTargets.effectiveFrom,
+      updatedAt: businessTargets.updatedAt,
+    })
+    .from(businessTargets)
+    .where(and(
+      eq(businessTargets.companyId, input.companyId),
+      eq(businessTargets.metric, input.metric),
+      eq(businessTargets.productGroup, input.productGroup ?? ""),
+      eq(businessTargets.branchId, ""),
+      eq(businessTargets.salespersonId, ""),
+      eq(businessTargets.approvalStatus, "approved"),
+    ))
+    .orderBy(
+      desc(businessTargets.targetYear),
+      asc(businessTargets.targetMonth),
+      desc(businessTargets.effectiveFrom),
+      desc(businessTargets.updatedAt),
+      desc(businessTargets.sourceVersion),
+    );
 }

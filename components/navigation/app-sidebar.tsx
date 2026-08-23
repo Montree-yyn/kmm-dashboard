@@ -47,7 +47,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
     <>
       <div className="flex min-h-[76px] items-center justify-between border-b border-[var(--border-subtle)] px-4 py-4">
         {selectedCompany?.logoUrl || selectedCompany?.code === "KMM" ? (
-          <Image src={selectedCompany.logoUrl || "/kmm-logo.png"} alt={selectedCompany.name} width={112} height={36} unoptimized={Boolean(selectedCompany.logoUrl)} className={cn("h-9 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-9 object-[9%_center]" : "max-w-[112px]")} />
+          <Image src={selectedCompany.logoUrl || "/kmm-logo.png"} alt={selectedCompany.name} width={112} height={36} unoptimized className={cn("h-9 w-auto object-contain object-left transition-all", isCollapsed ? "max-w-9 object-[9%_center]" : "max-w-[112px]")} />
         ) : (
           <span className={cn("grid h-10 place-items-center rounded-[var(--radius-control-lg)] bg-[var(--brand-50)] font-bold text-[var(--brand-700)]", isCollapsed ? "w-10 text-xs" : "min-w-[82px] px-3 text-sm")} aria-label={selectedCompany?.name}>{selectedCompany?.code ?? "KM"}</span>
         )}

@@ -470,10 +470,11 @@ export function StockIntelligencePage() {
               <>
                 <section
                   aria-label="Stock KPIs"
-                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
+                  className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))] xl:gap-3 2xl:gap-4"
                 >
                   <KpiCard
                     variant="executive"
+                    className="col-span-2 sm:col-span-1"
                     title={t("metric.stockCoverage")}
                     value={
                       booking.length

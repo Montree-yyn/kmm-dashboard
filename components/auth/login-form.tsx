@@ -105,7 +105,7 @@ export function LoginForm() {
       <Card className="w-full max-w-[440px] rounded-2xl border-[#E8EAED] bg-white p-6 shadow-[0_24px_70px_rgba(31,41,55,0.12)] sm:p-8">
         <label className="ml-auto flex w-fit items-center gap-2 text-xs font-semibold text-[#6B7280]"><Globe2 size={15} aria-hidden="true" /><span className="sr-only">{t("language.select")}</span><select value={language} onChange={(event) => setLanguage(event.target.value as "th" | "en" | "my")} aria-label={t("language.select")} className="h-9 rounded-lg border border-[#E0E2E5] bg-white px-2 outline-none focus:ring-2 focus:ring-[#FF8615]/30"><option value="th">{t("language.thai")}</option><option value="en">{t("language.english")}</option><option value="my">{t("language.myanmar")}</option></select></label>
         <div className="text-center">
-          <Image src="/kmm-logo.png" alt="Kubota Maesod Myanmar" width={256} height={64} priority className="mx-auto h-16 w-auto object-contain" />
+          <Image src="/kmm-logo.png" alt="Kubota Maesod Myanmar" width={256} height={64} priority unoptimized className="mx-auto h-16 w-auto object-contain" />
           <h1 className="mt-6 text-2xl font-bold tracking-[-0.03em] text-[#1F2937]">KMM Sales Intelligence</h1>
           <p className="mt-2 text-sm text-[#6B7280]">{t("login.subtitle")}</p>
         </div>

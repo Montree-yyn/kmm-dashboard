@@ -74,6 +74,18 @@ test("keeps starter preview scaffolding removed from the KMM app", async () => {
   );
 });
 
+test("serves the local KMM logo directly without the unavailable vinext image optimizer", async () => {
+  const [login, authGate, sidebar] = await Promise.all([
+    readFile(new URL("../components/auth/login-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/auth/auth-gate.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/navigation/app-sidebar.tsx", import.meta.url), "utf8"),
+  ]);
+
+  for (const source of [login, authGate, sidebar]) {
+    assert.match(source, /<Image[\s\S]*?unoptimized/);
+  }
+});
+
 test("keeps the KMM Design System v3.3 foundation and V3.5 analysis contract semantic", async () => {
   const [globalStyles, layout, designSystem] = await Promise.all([
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),

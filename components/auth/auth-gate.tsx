@@ -58,7 +58,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#F8FAFC] text-[#1F2937]">
         <div className="flex flex-col items-center gap-4">
-          <Image src="/kmm-logo.png" alt="Kubota Maesod Myanmar" width={224} height={56} priority className="h-14 w-auto" />
+          <Image src="/kmm-logo.png" alt="Kubota Maesod Myanmar" width={224} height={56} priority unoptimized className="h-14 w-auto" />
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#FFE1C4] border-t-[#FF8615]" />
           <p className="text-sm font-semibold text-[#6B7280]">{t("login.loadingDashboard")}</p>
         </div>

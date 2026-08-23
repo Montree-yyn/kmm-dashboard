@@ -147,6 +147,8 @@ test("Stock page follows the Golden Reference shell and responsive containment",
     page,
     /Stock KPIs[\s\S]*?xl:grid-cols-\[repeat\(5,minmax\(0,1fr\)\)\]/,
   );
+  assert.match(page, /Stock KPIs[\s\S]*?grid-cols-2 gap-3/);
+  assert.match(page, /className="col-span-2 sm:col-span-1"/);
   assert.match(page, /aria-busy="true"/);
   assert.match(page, /aria-live="assertive"/);
   assert.match(page, /max-h-\[480px\] overflow-auto/);

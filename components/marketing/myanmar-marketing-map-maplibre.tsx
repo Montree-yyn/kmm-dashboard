@@ -535,17 +535,9 @@ export function MyanmarMarketingMapMapLibre({
         colorForValue(row.value, classification.breaks),
       ]),
     );
-    const topCanonicalLocationIds = rows
-      .filter(
-        (row) => row.value !== null && row.value !== undefined && row.value > 0,
-      )
-      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-      .slice(0, 5)
-      .map((row) => row.id);
     return {
       ...classification,
       fillColors,
-      topCanonicalLocationIds,
       legend: legendClasses(classification.breaks),
     };
   }, [metricById, activeMetric]);
@@ -1141,7 +1133,6 @@ export function MyanmarMarketingMapMapLibre({
         overlaySelectedOpacity={0.16}
         activeMetricLayer={activeMetric}
         fillColorsByCanonicalId={choropleth.fillColors}
-        topCanonicalLocationIds={choropleth.topCanonicalLocationIds}
         selectedCanonicalLocationId={selectedCanonicalId}
         layerState={layerState}
         viewportPaddingRight={0}

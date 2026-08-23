@@ -397,7 +397,7 @@ test("Marketing restores graduated Sales Unit choropleth styling", async () => {
   assert.match(vectorMap, /colorPairs\.push\(fillNoDataColor\)/);
 });
 
-test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover highlight, and top-township layer", async () => {
+test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, and hover highlight without a Top-Township outline", async () => {
   const [maplibre, vectorMap, layerOrder] = await Promise.all([
     read("components/marketing/myanmar-marketing-map-maplibre.tsx"),
     read("components/maps/global-vector-map.tsx"),
@@ -410,7 +410,7 @@ test("Executive GIS V2 uses Jenks classified choropleth, dynamic legend, hover h
   assert.match(maplibre, /EXECUTIVE_METRICS/);
   assert.match(maplibre, /metric\.gpPercent/);
   assert.match(maplibre, /legendRange/);
-  assert.match(maplibre, /topCanonicalLocationIds/);
+  assert.doesNotMatch(maplibre, /topCanonicalLocationIds/);
   assert.doesNotMatch(maplibre, /tooltip/);
   assert.match(vectorMap, /setFeatureState/);
   assert.match(vectorMap, /topCanonicalLocationIds/);

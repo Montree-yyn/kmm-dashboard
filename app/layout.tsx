@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import "@fontsource/ibm-plex-sans-thai/latin-400.css";
-import "@fontsource/ibm-plex-sans-thai/latin-500.css";
-import "@fontsource/ibm-plex-sans-thai/latin-600.css";
-import "@fontsource/ibm-plex-sans-thai/latin-700.css";
+import "@fontsource-variable/plus-jakarta-sans";
+import "@fontsource-variable/inter";
 import "@fontsource/ibm-plex-sans-thai/thai-400.css";
 import "@fontsource/ibm-plex-sans-thai/thai-500.css";
 import "@fontsource/ibm-plex-sans-thai/thai-600.css";
@@ -38,7 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           data-kmm-design-contract
           dangerouslySetInnerHTML={{
             __html:
-              "<!-- KMM-V3.3-SELECTIVE-GLASS-20260811\nTHESIS: Precision Operations makes company-scoped decisions fast, calm, and trustworthy.\nOWN-WORLD: Warm canvas, matte data surfaces, IBM Plex Sans Thai, KMM orange, and selective frosted controls.\nSTORY: Orient by company; scan KPIs; inspect trend and attention; act through filters, Data Hub, export, or KAI.\nFIRST VIEWPORT: Company context, freshness, five KPIs, primary sales trend, and actionable attention.\nFORM: Dense 4/8 rhythm, 14px cards, 18px floating bars, restrained shadow, no decorative glass on data.\nFINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md -->",
+              "<!-- KMM-V3.3-SELECTIVE-GLASS-20260811\nTHESIS: Precision Operations makes company-scoped decisions fast, calm, and trustworthy.\nOWN-WORLD: Warm canvas, matte data surfaces, Plus Jakarta Sans headings, Inter UI copy, KMM orange, and selective frosted controls.\nSTORY: Orient by company; scan KPIs; inspect trend and attention; act through filters, Data Hub, export, or KAI.\nFIRST VIEWPORT: Company context, freshness, five KPIs, primary sales trend, and actionable attention.\nFORM: Dense 4/8 rhythm, 14px cards, 18px floating bars, restrained shadow, no decorative glass on data.\nFINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md -->",
           }}
         />
         <LocaleProvider>

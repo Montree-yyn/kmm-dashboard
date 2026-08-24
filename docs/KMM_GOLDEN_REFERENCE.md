@@ -71,9 +71,11 @@ Visual quality targets for every migrated page:
 
 ## Typography
 
-Use the system stack defined by `--font-kmm`: `-apple-system`, BlinkMacSystemFont,
-SF Pro Text/Display, Segoe UI, Helvetica Neue, Arial, sans-serif. Do not add
-network font dependencies for a page migration.
+Use `--font-heading` (Plus Jakarta Sans) for headings and `--font-body` (Inter)
+for body, controls, tables, and data. `--font-kmm` remains a compatibility alias
+for the body stack. Fonts are self-hosted; page migrations must not add network
+font dependencies. IBM Plex Sans Thai and Noto Sans Myanmar provide local
+complex-script fallbacks.
 
 | Role            | Size    | Weight  | Usage                                                                   |
 | --------------- | ------- | ------- | ----------------------------------------------------------------------- |

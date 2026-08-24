@@ -98,11 +98,16 @@ test("keeps the KMM Design System v3.3 foundation and V3.5 analysis contract sem
   assert.match(globalStyles, /--text-primary:\s*#1f2937/i);
   assert.match(globalStyles, /--radius-card:\s*14px/i);
   assert.match(globalStyles, /--motion-standard:\s*200ms/i);
-  assert.match(globalStyles, /--font-kmm:[\s\S]*?"IBM Plex Sans Thai"/i);
+  assert.match(globalStyles, /--font-heading:[\s\S]*?"Plus Jakarta Sans Variable"/i);
+  assert.match(globalStyles, /--font-body:[\s\S]*?"Inter Variable"/i);
+  assert.match(globalStyles, /--font-kmm:\s*var\(--font-body\)/i);
+  assert.match(globalStyles, /:where\(h1, h2, h3, h4, h5, h6, \[role="heading"\]\)/i);
   assert.match(globalStyles, /\.kmm-glass-bar/);
   assert.match(globalStyles, /\.kmm-glass-control/);
   assert.match(globalStyles, /\.kmm-tabular/);
-  assert.match(layout, /@fontsource\/ibm-plex-sans-thai/);
+  assert.match(layout, /@fontsource-variable\/plus-jakarta-sans/);
+  assert.match(layout, /@fontsource-variable\/inter/);
+  assert.match(layout, /@fontsource\/ibm-plex-sans-thai\/thai-/);
   assert.match(layout, /KMM-V3\.3-SELECTIVE-GLASS-20260811/);
   assert.match(designSystem, /KMM Dashboard Design V3\.5/);
   assert.match(designSystem, /single-company views/i);

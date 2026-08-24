@@ -58,7 +58,7 @@ Responsive behavior:
 
 ## 4. Typography Standard
 
-Use the existing KMM font stack (IBM Plex Sans Thai / Noto Sans Myanmar fallback behavior already defined by the application).
+Use `--font-heading` (Plus Jakarta Sans) for headings and `--font-body` (Inter) for body, controls, tables, and data. IBM Plex Sans Thai and Noto Sans Myanmar remain the local Thai/Myanmar fallbacks; do not replace them with network-loaded fonts.
 
 Allowed hierarchy:
 

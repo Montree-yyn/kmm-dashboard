@@ -14,7 +14,7 @@ The interface should let an operator identify the active company, scan performan
 - Canvas: warm neutral `#f6f6f3`.
 - Data surfaces: opaque white with a one-pixel border and restrained elevation.
 - Brand action: KMM orange (`--brand-500: #f56600`), used for primary actions and the current data series. Charcoal and warm gray are the default comparison pair; green/red are reserved for genuine health or risk meaning.
-- Typography: IBM Plex Sans Thai for Latin/Thai and Noto Sans Myanmar for Myanmar, shipped locally with `font-display: swap`.
+- Typography: Plus Jakarta Sans for headings and Inter for body/UI/data. IBM Plex Sans Thai and Noto Sans Myanmar remain local complex-script fallbacks; every family ships locally with `font-display: swap`.
 - Radius: 10px controls, 14px cards, 18px floating glass bars.
 - Spacing: 4/8-based scale with dense dashboard gutters.
 - Numbers: tabular figures through `.kmm-tabular`.

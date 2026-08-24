@@ -153,10 +153,17 @@
   --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-state: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --font-kmm:
-    "IBM Plex Sans Thai", "Noto Sans Myanmar", -apple-system,
+  /* Typography primitives: Latin display/body with local complex-script fallbacks. */
+  --font-heading:
+    "Plus Jakarta Sans Variable", "IBM Plex Sans Thai", "Noto Sans Myanmar",
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Myanmar Text",
+    "Leelawadee UI", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body:
+    "Inter Variable", "IBM Plex Sans Thai", "Noto Sans Myanmar", -apple-system,
     BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Myanmar Text",
     "Leelawadee UI", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  /* Compatibility alias for existing integrations. */
+  --font-kmm: var(--font-body);
   --background: var(--surface-canvas);
   --foreground: var(--text-primary);
 }
@@ -193,7 +200,8 @@
   --shadow-kmm-card: var(--shadow-card);
   --shadow-kmm-hover: var(--shadow-hover);
   --shadow-kmm-floating: var(--shadow-floating);
-  --font-sans: var(--font-kmm);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
 }
 
 * {
@@ -208,8 +216,12 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-kmm);
+  font-family: var(--font-body);
   text-rendering: optimizeLegibility;
+}
+
+:where(h1, h2, h3, h4, h5, h6, [role="heading"]) {
+  font-family: var(--font-heading);
 }
 
 button,

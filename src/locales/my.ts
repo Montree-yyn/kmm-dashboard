@@ -16,6 +16,7 @@ const my: Record<keyof typeof en, string> = {
   "nav.booking": "Booking",
   "nav.stock": "Stock",
   "nav.marketing": "Marketing",
+  "nav.myanmarMap": "Myanmar Map",
   "nav.weather": "Weather",
   "nav.weatherAgriculture": "Weather & Agriculture",
   "nav.expense": "အသုံးစရိတ်",

@@ -35,6 +35,7 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapsedChange, onMobileO
   const navigationItems = visibleNavigationItems.filter((item) => {
     if (item.href === "/marketing") return selectedCompany?.capabilities.marketing !== false;
     if (item.href === "/expense") return selectedCompany?.capabilities.expense !== false;
+    if (item.href === "/myanmar-map") return selectedCompany?.code === "KMM";
     return true;
   });
 

@@ -7,6 +7,7 @@ import {
   Gauge,
   Home,
   LayoutDashboard,
+  Map,
   Megaphone,
   Settings,
   Sparkles,
@@ -56,6 +57,13 @@ export const navigationItems: NavigationItem[] = [
     labelKey: "nav.marketing",
     href: "/marketing",
     icon: Megaphone,
+    visible: true,
+  },
+  {
+    label: "Myanmar Map",
+    labelKey: "nav.myanmarMap",
+    href: "/myanmar-map",
+    icon: Map,
     visible: true,
   },
   {

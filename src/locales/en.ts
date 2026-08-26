@@ -7,6 +7,7 @@ const en = {
   "nav.booking": "Booking",
   "nav.stock": "Stock",
   "nav.marketing": "Marketing",
+  "nav.myanmarMap": "Myanmar Map",
   "nav.weather": "Weather",
   "nav.weatherAgriculture": "Weather & Agriculture",
   "nav.expense": "Expense",

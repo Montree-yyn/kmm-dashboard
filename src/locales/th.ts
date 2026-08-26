@@ -7,6 +7,7 @@ const th = {
   "nav.booking": "การจอง",
   "nav.stock": "สินค้าคงคลัง",
   "nav.marketing": "การตลาด",
+  "nav.myanmarMap": "แผนที่เมียนมา",
   "nav.weather": "สภาพอากาศ",
   "nav.weatherAgriculture": "สภาพอากาศและเกษตรกรรม",
   "nav.expense": "ค่าใช้จ่าย",

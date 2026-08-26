@@ -16,6 +16,7 @@ const shellRoutePrefixes = [
   "/booking",
   "/stock",
   "/marketing",
+  "/myanmar-map",
   "/weather",
   "/settings",
   "/expense",
